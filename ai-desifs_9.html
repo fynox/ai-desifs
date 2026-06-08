@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-désifs</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg: #111210;
+  --surface: #1c1d1a;
+  --surface2: #252622;
+  --border: #2f3029;
+  --accent: #c8f04a;
+  --accent-dim: #8aaa2a;
+  --text: #eceee6;
+  --muted: #7a7d70;
+  --danger: #f06060;
+  --cat-print: #4af0c8;
+  --cat-liner: #f0c84a;
+  --cat-dao: #c84af0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow: hidden; }
+
+/* ===================== AUTH ===================== */
+.auth-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 999;
+}
+.auth-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 36px; width: 420px; max-width: 90vw;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.auth-logo-row { display: flex; align-items: center; gap: 12px; }
+.auth-brand { font-size: 22px; font-weight: 800; }
+.auth-tabs {
+  display: flex; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 4px; gap: 4px;
+}
+.auth-tab {
+  flex: 1; padding: 9px; background: transparent; border: none;
+  border-radius: 7px; font-family: 'Syne', sans-serif; font-size: 13px;
+  font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.15s;
+}
+.auth-tab.active { background: var(--surface); color: var(--text); }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-field { display: flex; flex-direction: column; gap: 7px; }
+.auth-field label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+.auth-field input {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--text); font-family: 'DM Mono', monospace;
+  font-size: 13px; padding: 11px 44px 11px 14px; outline: none; transition: border-color 0.15s; width: 100%;
+}
+.auth-field input:focus { border-color: var(--accent); }
+.pw-wrap { position: relative; }
+.pw-wrap input { width: 100%; }
+.pw-toggle { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+.auth-error { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--danger); min-height: 16px; }
+.auth-hint { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+.btn-primary {
+  background: var(--accent); color: #111; border: none; border-radius: 9px;
+  padding: 12px 22px; font-family: 'Syne', sans-serif; font-size: 14px;
+  font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.1s; width: 100%;
+}
+.btn-primary:hover { background: #b8e030; }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { background: #333; color: var(--muted); cursor: not-allowed; }
+
+/* ===================== APP LAYOUT ===================== */
+.app { display: none; height: 100vh; }
+.app.visible { display: grid; grid-template-columns: 260px 1fr; }
+
+/* ===================== SIDEBAR ===================== */
+.sidebar {
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+}
+.sidebar-top { padding: 18px 16px 12px; border-bottom: 1px solid var(--border); }
+.sidebar-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.logo { width: 30px; height: 30px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: #111; flex-shrink: 0; }
+.brand-name { font-size: 17px; font-weight: 800; }
+.btn-new-analyse {
+  width: 100%; background: var(--accent); color: #111; border: none;
+  border-radius: 9px; padding: 10px; font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-new-analyse:hover { background: #b8e030; }
+
+.sidebar-histo { flex: 1; overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+.sidebar-section-label { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; padding: 4px 8px 8px; }
+
+.histo-item {
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s; position: relative;
+  border: 1px solid transparent;
+}
+.histo-item:hover { background: var(--surface2); }
+.histo-item.selected { background: var(--surface2); border-color: var(--border); }
+.histo-item-row { display: flex; align-items: center; gap: 8px; }
+.histo-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
+.histo-item-text { flex: 1; min-width: 0; }
+.histo-item-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.histo-item-sub { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.histo-empty { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); text-align: center; padding: 20px 8px; line-height: 1.6; }
+
+.sidebar-bottom { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.btn-stock {
+  width: 100%; background: transparent; border: 1px solid var(--border);
+  border-radius: 9px; padding: 10px; font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-stock:hover { border-color: var(--accent-dim); background: var(--surface2); }
+.user-row { display: flex; align-items: center; gap: 8px; }
+.user-email { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-logout { background: transparent; border: 1px solid var(--border); border-radius: 7px; padding: 5px 12px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+.btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+.unread-count { background: var(--danger); color: #fff; font-size: 10px; font-family: 'DM Mono', monospace; border-radius: 20px; padding: 1px 7px; }
+
+/* ===================== MAIN CONTENT ===================== */
+.main-content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+.analyse-layout { display: grid; grid-template-columns: 1fr 1fr; flex: 1; overflow: hidden; }
+
+.analyse-input { padding: 28px 28px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; border-right: 1px solid var(--border); }
+.section-title { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.field-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; display: block; }
+.field-group { display: flex; flex-direction: column; }
+textarea {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-family: 'DM Mono', monospace;
+  font-size: 13px; padding: 14px 16px; resize: vertical; outline: none;
+  transition: border-color 0.15s; line-height: 1.6;
+}
+textarea:focus { border-color: var(--accent); }
+#mail-input { min-height: 150px; }
+#consignes-input { min-height: 75px; }
+
+.file-drop {
+  border: 1.5px dashed var(--border); border-radius: 10px; padding: 16px;
+  text-align: center; cursor: pointer; background: var(--surface);
+  position: relative; transition: border-color 0.2s, background 0.2s;
+}
+.file-drop:hover { border-color: var(--accent); background: #141f03; }
+.file-drop input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.file-drop-icon { font-size: 22px; margin-bottom: 5px; }
+.file-drop p { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.file-name-display { color: var(--accent); font-size: 12px; font-family: 'DM Mono', monospace; margin-top: 5px; }
+.btn-remove-file { margin-top: 7px; background: transparent; border: 1px solid var(--danger); border-radius: 6px; color: var(--danger); font-family: 'DM Mono', monospace; font-size: 11px; padding: 4px 12px; cursor: pointer; position: relative; z-index: 2; }
+
+.btn-analyze {
+  background: var(--accent); color: #111; border: none; border-radius: 10px;
+  padding: 13px; font-family: 'Syne', sans-serif; font-size: 15px;
+  font-weight: 700; cursor: pointer; transition: background 0.15s;
+}
+.btn-analyze:hover { background: #b8e030; }
+.btn-analyze:disabled { background: #333; color: var(--muted); cursor: not-allowed; }
+
+.stock-warning { background: #1a1200; border: 1px solid #4a3500; border-radius: 8px; padding: 12px 16px; font-size: 13px; font-family: 'DM Mono', monospace; color: #ffb347; }
+
+/* OUTPUT */
+.analyse-output { background: var(--surface); overflow-y: auto; display: flex; flex-direction: column; }
+.output-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); text-align: center; padding: 40px; }
+.output-empty-icon { font-size: 44px; opacity: 0.2; }
+.output-empty p { font-size: 13px; font-family: 'DM Mono', monospace; line-height: 1.7; }
+.output-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 60px; flex: 1; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.output-loading p { font-size: 13px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+/* RESULT */
+.result-block { display: flex; flex-direction: column; }
+.result-top { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.result-top h2 { font-size: 15px; font-weight: 700; }
+.result-badge { margin-left: auto; font-size: 11px; font-family: 'DM Mono', monospace; background: #1a2a05; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 20px; padding: 3px 10px; }
+.result-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.result-section:last-child { border-bottom: none; }
+.rs-label { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.rs-text { font-size: 13px; font-family: 'DM Mono', monospace; color: #ccc; line-height: 1.7; }
+.adhesif-result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; }
+.adhesif-result-card:last-child { margin-bottom: 0; }
+.adhesif-result-name { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 5px; }
+.adhesif-result-raison { font-size: 13px; font-family: 'DM Mono', monospace; color: #bbb; line-height: 1.6; }
+.specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.spec-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; }
+.spec-box-key { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+.spec-box-val { font-size: 13px; font-weight: 600; }
+.checklist { display: flex; flex-direction: column; gap: 7px; }
+.check-row { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; font-family: 'DM Mono', monospace; color: #ccc; line-height: 1.5; }
+.check-arrow { color: var(--accent); flex-shrink: 0; }
+.alert-result { background: #1a1200; border: 1px solid #4a3500; border-radius: 8px; padding: 12px 16px; font-size: 13px; font-family: 'DM Mono', monospace; color: #ffb347; line-height: 1.6; }
+.btn-reset-analyse { margin: 14px 24px; background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer; transition: all 0.15s; align-self: flex-start; }
+.btn-reset-analyse:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===================== STOCK PANEL (overlay) ===================== */
+.stock-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 300; }
+.stock-overlay.open { display: flex; align-items: stretch; justify-content: flex-end; }
+.stock-panel {
+  width: 680px; max-width: 95vw; background: var(--bg);
+  border-left: 1px solid var(--border); display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden; animation: slideIn 0.2s ease;
+  position: relative; min-width: 340px;
+}
+.stock-resize-handle {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  cursor: ew-resize; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.stock-resize-handle:hover, .stock-resize-handle.dragging { background: var(--accent); opacity: 0.5; }
+.stock-resize-handle::after { content: ''; width: 2px; height: 40px; background: var(--border); border-radius: 2px; }
+@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.stock-panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 14px; }
+.stock-panel-header h2 { font-size: 18px; font-weight: 800; }
+.btn-close-stock { margin-left: auto; background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.btn-close-stock:hover { border-color: var(--accent); color: var(--accent); }
+.btn-add-ref { background: var(--accent); color: #111; border: none; border-radius: 8px; padding: 8px 16px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-add-ref:hover { background: #b8e030; }
+
+.stock-panel-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; display: flex; align-items: center; gap: 12px; }
+.stat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.stat-num { font-size: 22px; font-weight: 800; }
+.stat-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+/* CAT TABS */
+.cat-tabs-bar { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); }
+.cat-tab { display: flex; align-items: center; gap: 7px; padding: 10px 18px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: -1px; }
+.cat-tab:hover { color: var(--text); }
+.cat-tab.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+.cat-tab-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cat-tab-count { font-size: 11px; font-family: 'DM Mono', monospace; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 7px; color: var(--muted); }
+.cat-tab.active .cat-tab-count { background: #1a2a05; border-color: var(--accent-dim); color: var(--accent); }
+
+/* PANEL */
+.cat-panel { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; min-height: 180px; overflow: hidden; }
+.search-bar { position: relative; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.search-bar input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 8px 12px 8px 34px; outline: none; transition: border-color 0.15s; }
+.search-bar input:focus { border-color: var(--accent); }
+.search-bar input::placeholder { color: var(--muted); }
+.search-icon { position: absolute; left: 28px; top: 50%; transform: translateY(-50%); font-size: 17px; color: var(--muted); pointer-events: none; }
+.empty-cat { padding: 20px; text-align: center; font-size: 13px; font-family: 'DM Mono', monospace; color: var(--muted); }
+
+/* ADHESIF ITEM */
+.adhesif-item { display: grid; grid-template-columns: 1fr auto auto auto auto; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.adhesif-item:last-child { border-bottom: none; }
+.adhesif-item:hover { background: var(--surface2); }
+.adhesif-info { min-width: 0; }
+.adhesif-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adhesif-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.spec-tag { font-size: 10px; font-family: 'DM Mono', monospace; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+.note-tag { color: var(--accent-dim); border-color: var(--accent-dim); }
+.finition-badge { font-size: 11px; font-family: 'DM Mono', monospace; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.toggle-wrap { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.toggle-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+.toggle { position: relative; width: 38px; height: 21px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 22px; cursor: pointer; transition: background 0.2s; }
+.slider::before { content: ''; position: absolute; width: 15px; height: 15px; background: var(--muted); border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s, background 0.2s; }
+.toggle input:checked + .slider { background: #1a2a05; border-color: var(--accent-dim); }
+.toggle input:checked + .slider::before { transform: translateX(17px); background: var(--accent); }
+.btn-edit { background: transparent; border: none; color: var(--muted); font-size: 15px; cursor: pointer; padding: 4px 7px; border-radius: 6px; transition: color 0.15s, background 0.15s; flex-shrink: 0; }
+.btn-edit:hover { color: var(--accent); background: #1a2a05; }
+.btn-del { background: transparent; border: none; color: var(--border); font-size: 15px; cursor: pointer; padding: 4px 7px; border-radius: 6px; transition: color 0.15s, background 0.15s; flex-shrink: 0; }
+.btn-del:hover { color: var(--danger); background: #2a1515; }
+
+/* ===================== MODAL ===================== */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 500; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 440px; max-width: 90vw; max-height: 88vh; overflow-y: auto; }
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 13px; outline: none; transition: border-color 0.15s; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group select option { background: var(--surface2); }
+.form-group textarea { resize: vertical; min-height: 65px; }
+.checkbox-group { display: flex; flex-direction: column; gap: 7px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; }
+.cb-item { display: flex; align-items: center; gap: 9px; font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text); cursor: pointer; letter-spacing: 0; text-transform: none; }
+.cb-item input[type="checkbox"], .cb-item input[type="radio"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.btn-cancel { background: transparent; border: 1px solid var(--border); border-radius: 9px; padding: 9px 18px; color: var(--muted); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
+.btn-cancel:hover { border-color: var(--muted); }
+.btn-submit { background: var(--accent); color: #111; border: none; border-radius: 9px; padding: 9px 22px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-submit:hover { background: #b8e030; }
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo-row">
+      <div class="logo">A</div>
+      <span class="auth-brand">AI-désifs</span>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Connexion</button>
+      <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Créer un compte</button>
+    </div>
+    <div class="auth-form" id="form-login">
+      <div class="auth-field"><label>Adresse mail</label><input type="email" id="login-email" placeholder="votre@mail.com" onkeydown="if(event.key==='Enter')login()"></div>
+      <div class="auth-field"><label>Mot de passe</label><div class="pw-wrap"><input type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"><button class="pw-toggle" onclick="togglePw('login-pw')">👁</button></div></div>
+      <div class="auth-error" id="login-error"></div>
+      <button class="btn-primary" onclick="login()">Se connecter →</button>
+    </div>
+    <div class="auth-form" id="form-signup" style="display:none">
+      <div class="auth-field"><label>Adresse mail</label><input type="email" id="signup-email" placeholder="votre@mail.com"></div>
+      <div class="auth-field"><label>Mot de passe</label><div class="pw-wrap"><input type="password" id="signup-pw" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('signup-pw')">👁</button></div></div>
+      <div class="auth-field"><label>Confirmer le mot de passe</label><input type="password" id="signup-pw2" placeholder="••••••••"></div>
+      <div class="auth-field">
+        <label>Clé API Anthropic</label>
+        <div class="pw-wrap"><input type="password" id="signup-apikey" placeholder="sk-ant-..."><button class="pw-toggle" onclick="togglePw('signup-apikey')">👁</button></div>
+        <div class="auth-hint">Disponible sur console.anthropic.com</div>
+      </div>
+      <div class="auth-error" id="signup-error"></div>
+      <button class="btn-primary" onclick="signup()">Créer mon compte →</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="logo">A</div>
+        <span class="brand-name">AI-désifs</span>
+      </div>
+      <button class="btn-new-analyse" onclick="newAnalyse()">＋ Nouvelle analyse</button>
+    </div>
+
+    <div class="sidebar-histo" id="sidebar-histo">
+      <div class="sidebar-section-label">Historique</div>
+      <div class="histo-empty">Aucune analyse pour le moment</div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
+      <button class="btn-stock" onclick="openProfile()" style="margin-top:0">⚙ Mon profil</button>
+      <div class="user-row">
+        <span class="user-email" id="user-email-display"></span>
+        <button class="btn-logout" onclick="logout()">Quitter</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <div class="analyse-layout" id="analyse-layout">
+
+      <!-- INPUT -->
+      <div class="analyse-input">
+        <div class="section-title">Demande client</div>
+        <div class="field-group">
+          <label class="field-label">Contenu du mail</label>
+          <textarea id="mail-input" placeholder="Colle ici le mail du client...&#10;&#10;Ex: Bonjour, je souhaite faire imprimer mon logo pour ma vitrine. Je veux que ça tienne plusieurs années, c'est en extérieur..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Consignes supplémentaires (optionnel)</label>
+          <textarea id="consignes-input" placeholder="Ex: client veut du mat, budget serré, pose temporaire 3 mois..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Fichier joint (optionnel)</label>
+          <div class="file-drop" id="file-drop">
+            <input type="file" id="file-input" accept="image/*,.pdf,.ai,.eps,.svg">
+            <div class="file-drop-icon">📎</div>
+            <p>Glisse le fichier ici ou clique pour parcourir</p>
+            <div class="file-name-display" id="file-name"></div>
+            <button class="btn-remove-file" id="btn-remove-file" onclick="removeFile(event)" style="display:none">✕ Retirer le fichier</button>
+          </div>
+        </div>
+        <button class="btn-analyze" id="btn-analyze" onclick="analyzeRequest()">Analyser la demande →</button>
+        <div class="stock-warning" id="stock-warning" style="display:none">⚠ Aucun adhésif en stock. Cliquez sur "Gérer le stock" dans la sidebar.</div>
+      </div>
+
+      <!-- OUTPUT -->
+      <div class="analyse-output" id="output-panel">
+        <div class="output-empty">
+          <div class="output-empty-icon">🖨️</div>
+          <p>Collez le mail client<br>et lancez l'analyse.<br><br>L'IA recommandera<br>le bon adhésif parmi<br>votre stock disponible.</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- STOCK OVERLAY -->
+<div class="stock-overlay" id="stock-overlay" onclick="closeStockOnBg(event)">
+  <div class="stock-panel">
+    <div class="stock-resize-handle" id="stock-resize-handle"></div>
+    <div class="stock-panel-header">
+      <h2>Stock adhésifs</h2>
+      <button class="btn-add-ref" onclick="openModal()">+ Ajouter</button>
+      <button class="btn-close-stock" onclick="closeStock()">✕ Fermer</button>
+    </div>
+    <div class="stock-panel-body">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-print)"></div><div><div class="stat-num" id="stat-print">0</div><div class="stat-label">Imprimable</div></div></div>
+        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-liner)"></div><div><div class="stat-num" id="stat-liner">0</div><div class="stat-label">Liner</div></div></div>
+        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-dao)"></div><div><div class="stat-num" id="stat-dao">0</div><div class="stat-label">Couleur DAO</div></div></div>
+      </div>
+      <div>
+        <div class="cat-tabs-bar">
+          <button class="cat-tab active" id="tab-imprimable" onclick="switchTab('imprimable')"><span class="cat-tab-dot" style="background:var(--cat-print)"></span>Imprimable<span class="cat-tab-count" id="count-imprimable">0</span></button>
+          <button class="cat-tab" id="tab-liner" onclick="switchTab('liner')"><span class="cat-tab-dot" style="background:var(--cat-liner)"></span>Liner<span class="cat-tab-count" id="count-liner">0</span></button>
+          <button class="cat-tab" id="tab-dao" onclick="switchTab('dao')"><span class="cat-tab-dot" style="background:var(--cat-dao)"></span>Couleur DAO<span class="cat-tab-count" id="count-dao">0</span></button>
+        </div>
+        <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
+        <div class="cat-panel" id="panel-liner" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('liner',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-liner"><div class="empty-cat">Aucune référence</div></div></div>
+        <div class="cat-panel" id="panel-dao" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('dao',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-dao"><div class="empty-cat">Aucune référence</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADHESIF -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Nouvelle référence</h3>
+    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option></select></div>
+    <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
+    <div class="form-group"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
+    <div class="form-group"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
+    <div class="form-group"><label>Environnement</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="env" value="Intérieur"> Intérieur</label><label class="cb-item"><input type="radio" name="env" value="Extérieur" checked> Extérieur</label><label class="cb-item"><input type="radio" name="env" value="Intérieur et extérieur"> Intérieur & extérieur</label></div></div>
+    <div class="form-group"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
+    <div class="form-group"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
+    <div class="form-group"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
+    <div class="form-group"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..."></textarea></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
+  </div>
+</div>
+
+<!-- MODAL PROFIL -->
+<div class="modal-overlay" id="modal-profil">
+  <div class="modal">
+    <h3>Mon profil</h3>
+
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:20px;padding:10px 14px;background:var(--surface2);border-radius:8px;">
+      Connecté en tant que : <span id="profil-email" style="color:var(--accent)"></span>
+    </div>
+
+    <div style="border-bottom:1px solid var(--border);margin-bottom:20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Changer le mot de passe</div>
+
+    <div class="form-group">
+      <label>Mot de passe actuel</label>
+      <div class="pw-wrap"><input type="password" id="profil-pw-actuel" placeholder="••••••••"><button class="pw-toggle" onclick="togglePw('profil-pw-actuel')">👁</button></div>
+    </div>
+    <div class="form-group">
+      <label>Nouveau mot de passe</label>
+      <div class="pw-wrap"><input type="password" id="profil-pw-new" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('profil-pw-new')">👁</button></div>
+    </div>
+    <div class="form-group">
+      <label>Confirmer le nouveau mot de passe</label>
+      <input type="password" id="profil-pw-confirm" placeholder="••••••••">
+    </div>
+
+    <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Clé API Anthropic</div>
+
+    <div class="form-group">
+      <label>Nouvelle clé API</label>
+      <div class="pw-wrap"><input type="password" id="profil-apikey" placeholder="sk-ant-..."><button class="pw-toggle" onclick="togglePw('profil-apikey')">👁</button></div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;">Laissez vide pour conserver la clé actuelle</div>
+    </div>
+
+    <div class="auth-error" id="profil-error"></div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="profil-success">✓ Modifications enregistrées</div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProfile()">Fermer</button>
+      <button class="btn-submit" onclick="saveProfile()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== PROFIL =====================
+function openProfile() {
+  document.getElementById('profil-email').textContent = currentUser;
+  document.getElementById('profil-pw-actuel').value = '';
+  document.getElementById('profil-pw-new').value = '';
+  document.getElementById('profil-pw-confirm').value = '';
+  document.getElementById('profil-apikey').value = '';
+  document.getElementById('profil-error').textContent = '';
+  document.getElementById('profil-success').style.display = 'none';
+  document.getElementById('modal-profil').classList.add('open');
+}
+
+function closeProfile() {
+  document.getElementById('modal-profil').classList.remove('open');
+}
+
+document.getElementById('modal-profil').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-profil')) closeProfile();
+});
+
+function saveProfile() {
+  const pwActuel = document.getElementById('profil-pw-actuel').value;
+  const pwNew = document.getElementById('profil-pw-new').value;
+  const pwConfirm = document.getElementById('profil-pw-confirm').value;
+  const newApiKey = document.getElementById('profil-apikey').value.trim();
+  const err = document.getElementById('profil-error');
+  const success = document.getElementById('profil-success');
+  err.textContent = ''; success.style.display = 'none';
+
+  const users = getUsers();
+  const user = users[currentUser];
+  let changed = false;
+
+  // Changement mot de passe
+  if (pwActuel || pwNew || pwConfirm) {
+    if (!pwActuel) { err.textContent = 'Entrez votre mot de passe actuel.'; return; }
+    if (user.pw !== btoa(pwActuel)) { err.textContent = 'Mot de passe actuel incorrect.'; return; }
+    if (!pwNew) { err.textContent = 'Entrez un nouveau mot de passe.'; return; }
+    if (pwNew.length < 8) { err.textContent = 'Nouveau mot de passe trop court (8 min).'; return; }
+    if (pwNew !== pwConfirm) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
+    user.pw = btoa(pwNew);
+    changed = true;
+  }
+
+  // Changement clé API
+  if (newApiKey) {
+    if (!newApiKey.startsWith('sk-ant-')) { err.textContent = 'Clé API invalide (doit commencer par sk-ant-).'; return; }
+    user.apikey = newApiKey;
+    ANTHROPIC_API_KEY = newApiKey;
+    changed = true;
+  }
+
+  if (!changed) { err.textContent = 'Aucune modification détectée.'; return; }
+
+  saveUsers(users);
+  document.getElementById('profil-pw-actuel').value = '';
+  document.getElementById('profil-pw-new').value = '';
+  document.getElementById('profil-pw-confirm').value = '';
+  document.getElementById('profil-apikey').value = '';
+  success.style.display = 'block';
+}
+
+// ===================== AUTH =====================
+let ANTHROPIC_API_KEY = '';
+let currentUser = null;
+
+function getUsers() { try { return JSON.parse(localStorage.getItem('aidesifs_users') || '{}'); } catch { return {}; } }
+function saveUsers(u) { localStorage.setItem('aidesifs_users', JSON.stringify(u)); }
+
+function switchAuthTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('form-login').style.display = tab === 'login' ? 'flex' : 'none';
+  document.getElementById('form-signup').style.display = tab === 'signup' ? 'flex' : 'none';
+}
+
+function togglePw(id) { const el = document.getElementById(id); el.type = el.type === 'password' ? 'text' : 'password'; }
+
+function login() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pw = document.getElementById('login-pw').value;
+  const err = document.getElementById('login-error');
+  const users = getUsers();
+  if (!users[email]) { err.textContent = 'Aucun compte avec cet email.'; return; }
+  if (users[email].pw !== btoa(pw)) { err.textContent = 'Mot de passe incorrect.'; return; }
+  err.textContent = '';
+  startSession(email, users[email].apikey);
+}
+
+function signup() {
+  const email = document.getElementById('signup-email').value.trim().toLowerCase();
+  const pw = document.getElementById('signup-pw').value;
+  const pw2 = document.getElementById('signup-pw2').value;
+  const apikey = document.getElementById('signup-apikey').value.trim();
+  const err = document.getElementById('signup-error');
+  if (!email || !pw || !pw2 || !apikey) { err.textContent = 'Tous les champs sont obligatoires.'; return; }
+  if (pw.length < 8) { err.textContent = 'Mot de passe trop court (8 caractères minimum).'; return; }
+  if (pw !== pw2) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
+  if (!apikey.startsWith('sk-ant-')) { err.textContent = 'Clé API invalide.'; return; }
+  const users = getUsers();
+  if (users[email]) { err.textContent = 'Un compte existe déjà avec cet email.'; return; }
+  users[email] = { pw: btoa(pw), apikey };
+  saveUsers(users);
+  startSession(email, apikey);
+}
+
+function startSession(email, apikey) {
+  currentUser = email;
+  ANTHROPIC_API_KEY = apikey;
+  document.getElementById('user-email-display').textContent = email;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  stock = loadStock();
+  renderAll();
+  renderSidebarHisto();
+}
+
+function logout() {
+  currentUser = null; ANTHROPIC_API_KEY = ''; stock = [];
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-pw').value = '';
+}
+
+// ===================== STOCK =====================
+let stock = [];
+function loadStock() { if (!currentUser) return []; try { return JSON.parse(localStorage.getItem('aidesifs_stock_' + currentUser) || '[]'); } catch { return []; } }
+function saveStock(data) { if (!currentUser) return; localStorage.setItem('aidesifs_stock_' + currentUser, JSON.stringify(data)); }
+
+function openStock() { document.getElementById('stock-overlay').classList.add('open'); renderAll(); }
+function closeStock() { document.getElementById('stock-overlay').classList.remove('open'); }
+function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
+
+let currentTab = 'imprimable';
+function switchTab(cat) {
+  currentTab = cat;
+  ['imprimable','liner','dao'].forEach(c => {
+    document.getElementById('tab-' + c).classList.toggle('active', c === cat);
+    document.getElementById('panel-' + c).style.display = c === cat ? 'block' : 'none';
+  });
+  document.getElementById('modal-cat').value = cat;
+}
+
+let editingId = null;
+function openModal(cat) {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Nouvelle référence';
+  document.getElementById('modal-submit').textContent = 'Ajouter';
+  if (cat) document.getElementById('modal-cat').value = cat;
+  document.getElementById('modal-nom').value = '';
+  document.getElementById('modal-note').value = '';
+  document.querySelector('input[name="adherence"][value="Standard"]').checked = true;
+  document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
+  document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
+  document.querySelectorAll('input[name="resist"], input[name="appli"]').forEach(i => i.checked = false);
+  document.getElementById('modal-finition').value = 'Brillant';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-nom').focus(), 100);
+}
+
+function openEditModal(id) {
+  editingId = id;
+  const item = stock.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('modal-title').textContent = 'Modifier';
+  document.getElementById('modal-submit').textContent = 'Enregistrer';
+  document.getElementById('modal-cat').value = item.cat;
+  document.getElementById('modal-nom').value = item.nom;
+  document.getElementById('modal-finition').value = item.finition;
+  document.getElementById('modal-note').value = item.note || '';
+  const adh = document.querySelector(`input[name="adherence"][value="${item.adherence}"]`); if (adh) adh.checked = true;
+  const env = document.querySelector(`input[name="env"][value="${item.env}"]`); if (env) env.checked = true;
+  const dur = document.querySelector(`input[name="duree"][value="${item.duree}"]`); if (dur) dur.checked = true;
+  document.querySelectorAll('input[name="resist"]').forEach(i => i.checked = (item.resistances||[]).includes(i.value));
+  document.querySelectorAll('input[name="appli"]').forEach(i => i.checked = (item.applications||[]).includes(i.value));
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); editingId = null; }
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+
+function saveAdhesif() {
+  const nom = document.getElementById('modal-nom').value.trim();
+  if (!nom) { document.getElementById('modal-nom').focus(); return; }
+  const adherence = document.querySelector('input[name="adherence"]:checked')?.value || 'Standard';
+  const env = document.querySelector('input[name="env"]:checked')?.value || 'Extérieur';
+  const duree = document.querySelector('input[name="duree"]:checked')?.value || 'Moyenne durée (1-3 ans)';
+  const resistances = [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value);
+  const applications = [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value);
+  const note = document.getElementById('modal-note').value.trim();
+  const finition = document.getElementById('modal-finition').value;
+  const cat = document.getElementById('modal-cat').value;
+  if (editingId) {
+    const item = stock.find(i => i.id === editingId);
+    if (item) Object.assign(item, { cat, nom, finition, adherence, env, duree, resistances, applications, note });
+  } else {
+    stock.push({ id: Date.now(), cat, nom, finition, adherence, env, duree, resistances, applications, note, dispo: true });
+  }
+  saveStock(stock); renderAll(); closeModal();
+}
+
+function deleteAdhesif(id) { stock = stock.filter(i => i.id !== id); saveStock(stock); renderAll(); }
+function toggleDispo(id, val) { const item = stock.find(i => i.id === id); if (item) { item.dispo = val; saveStock(stock); updateStats(); } }
+
+function renderList(cat, items) {
+  const list = document.getElementById('list-' + cat); if (!list) return;
+  if (!items.length) { list.innerHTML = '<div class="empty-cat">Aucune référence</div>'; return; }
+  list.innerHTML = items.map(item => {
+    const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[]), ...(item.applications||[])].filter(Boolean);
+    const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
+    return `<div class="adhesif-item">
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="finition-badge">${item.finition}</div>
+      <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
+      <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
+      <button class="btn-del" onclick="deleteAdhesif(${item.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderCat(cat) {
+  const items = stock.filter(i => i.cat === cat);
+  const countEl = document.getElementById('count-' + cat);
+  if (countEl) countEl.textContent = items.filter(i => i.dispo).length + '/' + items.length;
+  renderList(cat, items);
+}
+
+function filterCat(cat, query) {
+  const q = query.toLowerCase().trim();
+  renderList(cat, stock.filter(i => i.cat === cat && (!q || i.nom.toLowerCase().includes(q))));
+}
+
+const statIds = { imprimable: 'stat-print', liner: 'stat-liner', dao: 'stat-dao' };
+function updateStats() {
+  ['imprimable','liner','dao'].forEach(cat => {
+    const el = document.getElementById(statIds[cat]);
+    if (el) el.textContent = stock.filter(i => i.cat === cat && i.dispo).length + '/' + stock.filter(i => i.cat === cat).length;
+  });
+}
+function renderAll() { renderCat('imprimable'); renderCat('liner'); renderCat('dao'); updateStats(); }
+
+// ===================== HISTORIQUE =====================
+function loadHisto() { if (!currentUser) return []; try { return JSON.parse(localStorage.getItem('aidesifs_histo_' + currentUser) || '[]'); } catch { return []; } }
+function saveHisto(data) { if (!currentUser) return; localStorage.setItem('aidesifs_histo_' + currentUser, JSON.stringify(data)); }
+
+function saveAnalyseToHisto(mailText, result) {
+  const histo = loadHisto();
+  histo.unshift({ id: Date.now(), date: new Date().toLocaleString('fr-FR'), mail: mailText.slice(0, 200), resume: result.resume, adhesif: result.adhesifs?.[0]?.nom || '—', result, lu: false });
+  saveHisto(histo);
+  renderSidebarHisto();
+}
+
+function renderSidebarHisto() {
+  const histo = loadHisto();
+  const container = document.getElementById('sidebar-histo');
+  const unread = histo.filter(h => !h.lu).length;
+  let html = `<div class="sidebar-section-label">Historique ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</div>`;
+  if (!histo.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
+  else { html += histo.map(h => `
+    <div class="histo-item ${h.lu ? '' : ''}" id="histo-${h.id}" onclick="openHisto(${h.id})">
+      <div class="histo-item-row">
+        ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
+        <div class="histo-item-text">
+          <div class="histo-item-title">${h.adhesif}</div>
+          <div class="histo-item-sub">${h.date}</div>
+        </div>
+      </div>
+    </div>`).join(''); }
+  container.innerHTML = html;
+}
+
+function openHisto(id) {
+  const histo = loadHisto();
+  const item = histo.find(h => h.id === id);
+  if (!item) return;
+  item.lu = true;
+  saveHisto(histo);
+  document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('histo-' + id);
+  if (el) el.classList.add('selected');
+  renderSidebarHisto();
+  // Re-select after re-render
+  setTimeout(() => { const el2 = document.getElementById('histo-' + id); if (el2) el2.classList.add('selected'); }, 10);
+  renderResult(item.result);
+}
+
+function newAnalyse() {
+  document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('mail-input').value = '';
+  document.getElementById('consignes-input').value = '';
+  document.getElementById('file-name').textContent = '';
+  document.getElementById('btn-remove-file').style.display = 'none';
+  uploadedFileBase64 = null; uploadedFileType = null;
+  document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">🖨️</div><p>Collez le mail client<br>et lancez l'analyse.</p></div>`;
+  document.getElementById('mail-input').focus();
+}
+
+// ===================== ANALYSE =====================
+let uploadedFileBase64 = null, uploadedFileType = null;
+const fileInput = document.getElementById('file-input');
+const fileDrop = document.getElementById('file-drop');
+const fileNameEl = document.getElementById('file-name');
+
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.style.borderColor = 'var(--accent)'; });
+fileDrop.addEventListener('dragleave', () => { fileDrop.style.borderColor = ''; });
+fileDrop.addEventListener('drop', e => { e.preventDefault(); fileDrop.style.borderColor = ''; if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(f) {
+  fileNameEl.textContent = f.name;
+  document.getElementById('btn-remove-file').style.display = 'inline-block';
+  if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => { uploadedFileBase64 = ev.target.result.split(',')[1]; uploadedFileType = f.type; }; r.readAsDataURL(f); }
+}
+
+function removeFile(e) {
+  e.stopPropagation(); uploadedFileBase64 = null; uploadedFileType = null;
+  fileNameEl.textContent = ''; fileInput.value = '';
+  document.getElementById('btn-remove-file').style.display = 'none';
+}
+
+async function analyzeRequest() {
+  const mail = document.getElementById('mail-input').value.trim();
+  if (!mail) { document.getElementById('mail-input').focus(); return; }
+  const stockDispo = stock.filter(i => i.dispo);
+  if (!stockDispo.length) { document.getElementById('stock-warning').style.display = 'block'; return; }
+  document.getElementById('stock-warning').style.display = 'none';
+
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true; btn.textContent = 'Analyse en cours...';
+  document.getElementById('output-panel').innerHTML = `<div class="output-loading"><div class="spinner"></div><p>Analyse en cours...</p></div>`;
+
+  const stockDesc = ['imprimable','liner','dao'].map(cat => {
+    const items = stockDispo.filter(i => i.cat === cat); if (!items.length) return '';
+    const label = cat === 'imprimable' ? 'Imprimable' : cat === 'liner' ? 'Liner' : 'Couleur DAO';
+    return `--- ${label} ---\n` + items.map(i => `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${i.resistances?.length?' | '+i.resistances.join(', '):''}${i.applications?.length?' | '+i.applications.join(', '):''}${i.note?' | '+i.note:''}`).join('\n');
+  }).filter(Boolean).join('\n\n');
+
+  const systemPrompt = `Tu es un expert en impression numérique et adhésifs vinyl pour une entreprise de signalétique.
+Tu reçois une demande client et recommandes UNIQUEMENT parmi le stock disponible ci-dessous.
+
+STOCK :
+${stockDesc}
+
+Réponds UNIQUEMENT en JSON valide :
+{"resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null"}`;
+
+  const consignes = document.getElementById('consignes-input').value.trim();
+  const userContent = [{ type: "text", text: `Mail client :\n${mail}${consignes ? `\n\nConsignes : ${consignes}` : ''}` }];
+  if (uploadedFileBase64 && uploadedFileType) { userContent.push({ type: "image", source: { type: "base64", media_type: uploadedFileType, data: uploadedFileBase64 } }); }
+
+  let response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system: systemPrompt, messages: [{ role: "user", content: userContent }] })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || `Erreur ${response.status}`);
+    const raw = data.content?.map(i => i.text || '').join('') || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Réponse invalide — relance l\'analyse');
+    const result = JSON.parse(jsonMatch[0]);
+    if (!result.adhesifs || !result.specs) throw new Error('Structure incomplète — relance');
+    renderResult(result);
+    saveAnalyseToHisto(mail, result);
+  } catch (err) {
+    let msg = err.message || 'Erreur inconnue';
+    try { if (response) { const d = await response.json(); if (d?.error?.message) msg = d.error.message; } } catch {}
+    document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">⚠️</div><p style="color:var(--danger);font-size:12px;word-break:break-all;">${msg}</p></div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Analyser la demande →';
+}
+
+function renderResult(r) {
+  const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div></div>`).join('');
+  const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
+  const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
+  document.getElementById('output-panel').innerHTML = `
+    <div class="result-block">
+      <div class="result-top"><h2>Analyse complète</h2><span class="result-badge">✓ Prêt</span></div>
+      <div class="result-section"><div class="rs-label">Résumé</div><div class="rs-text">${r.resume}</div></div>
+      <div class="result-section"><div class="rs-label">Adhésif recommandé</div>${adhesifsHTML}</div>
+      <div class="result-section"><div class="rs-label">Spécifications</div><div class="specs-grid">
+        <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
+        <div class="spec-box"><div class="spec-box-key">Durée</div><div class="spec-box-val">${r.specs.duree}</div></div>
+        <div class="spec-box"><div class="spec-box-key">Environnement</div><div class="spec-box-val">${r.specs.pose}</div></div>
+        <div class="spec-box"><div class="spec-box-key">Retrait</div><div class="spec-box-val">${r.specs.retrait}</div></div>
+      </div></div>
+      <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
+      ${attentionHTML}
+    </div>`;
+}
+
+// ===================== RESIZE STOCK PANEL =====================
+const resizeHandle = document.getElementById('stock-resize-handle');
+const stockPanel = resizeHandle.parentElement;
+let isResizing = false;
+let startX, startWidth;
+
+resizeHandle.addEventListener('mousedown', e => {
+  isResizing = true;
+  startX = e.clientX;
+  startWidth = stockPanel.offsetWidth;
+  resizeHandle.classList.add('dragging');
+  document.body.style.cursor = 'ew-resize';
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isResizing) return;
+  const delta = startX - e.clientX;
+  const newWidth = Math.min(Math.max(startWidth + delta, 340), window.innerWidth * 0.92);
+  stockPanel.style.width = newWidth + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isResizing) return;
+  isResizing = false;
+  resizeHandle.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// INIT
+switchAuthTab('login');
+</script>
+</body>
+</html>
