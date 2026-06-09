@@ -58,6 +58,18 @@ nav {
 
 .note { text-align: center; font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); padding-bottom: 40px; }
 
+/* Toggle */
+.billing-toggle { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 48px; }
+.billing-opt { font-size: 14px; font-family: 'DM Mono', monospace; color: var(--muted); cursor: pointer; transition: color 0.15s; }
+.billing-opt.active { color: var(--text); font-weight: 500; }
+.toggle-switch { position: relative; width: 48px; height: 26px; cursor: pointer; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-track { position: absolute; inset: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 26px; transition: background 0.2s; }
+.toggle-thumb { position: absolute; width: 18px; height: 18px; background: var(--muted); border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s, background 0.2s; }
+.toggle-switch input:checked + .toggle-track { background: #1a2a05; border-color: var(--accent-dim); }
+.toggle-switch input:checked + .toggle-track + .toggle-thumb { transform: translateX(22px); background: var(--accent); }
+.annual-badge { background: #1a2a05; border: 1px solid var(--accent-dim); color: var(--accent); font-size: 11px; font-family: 'DM Mono', monospace; border-radius: 20px; padding: 2px 10px; }
+
 @media (max-width: 768px) {
   .plans { grid-template-columns: 1fr; }
   nav { padding: 16px 20px; }
@@ -77,6 +89,17 @@ nav {
 <div class="hero">
   <h1>Choisissez votre formule</h1>
   <p>Commencez gratuitement, évoluez selon vos besoins.</p>
+</div>
+
+<div class="billing-toggle">
+  <span class="billing-opt active" id="opt-monthly" onclick="setBilling('monthly')">Mensuel</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="billing-switch" onchange="setBilling(this.checked ? 'annual' : 'monthly')">
+    <div class="toggle-track"></div>
+    <div class="toggle-thumb"></div>
+  </label>
+  <span class="billing-opt" id="opt-annual" onclick="setBilling('annual')">Annuel</span>
+  <span class="annual-badge">-20%</span>
 </div>
 
 <div class="plans">
@@ -101,8 +124,8 @@ nav {
   <div class="plan-card featured">
     <div class="plan-badge">Recommandé</div>
     <div class="plan-name">Pro</div>
-    <div class="plan-price">20€ <span>/ mois</span></div>
-    <div class="plan-desc">Pour les professionnels qui traitent des demandes clients au quotidien.</div>
+    <div class="plan-price" id="pro-price">20€ <span>/ mois</span></div>
+    <div class="plan-desc" id="pro-desc">Pour les professionnels qui traitent des demandes clients au quotidien.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Analyses illimitées</div>
       <div class="plan-feature"><span class="check">✓</span> Gestion de stock</div>
@@ -111,6 +134,7 @@ nav {
       <div class="plan-feature"><span class="check">✓</span> Analyses par mail automatiques</div>
     </div>
     <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe()">S'abonner pour 20€/mois →</button>
+    <div id="pro-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:-10px;">192€ facturés en une fois</div>
   </div>
 
   <!-- BUSINESS -->
@@ -134,8 +158,28 @@ nav {
 <div class="note">Sans engagement — résiliable à tout moment depuis votre profil</div>
 
 <script>
-// Récupérer le token depuis sessionStorage (passé depuis app.html)
 const token = sessionStorage.getItem('aidesif_token');
+let billingPeriod = 'monthly';
+
+function setBilling(period) {
+  billingPeriod = period;
+  const isAnnual = period === 'annual';
+
+  document.getElementById('billing-switch').checked = isAnnual;
+  document.getElementById('opt-monthly').classList.toggle('active', !isAnnual);
+  document.getElementById('opt-annual').classList.toggle('active', isAnnual);
+
+  document.getElementById('pro-price').innerHTML = isAnnual
+    ? '16€ <span>/ mois</span>'
+    : '20€ <span>/ mois</span>';
+  document.getElementById('pro-desc').textContent = isAnnual
+    ? 'Économisez 48€ par an — facturé 192€ en une fois.'
+    : 'Pour les professionnels qui traitent des demandes clients au quotidien.';
+  document.getElementById('btn-pro').textContent = isAnnual
+    ? 'S\'abonner pour 192€/an →'
+    : 'S\'abonner pour 20€/mois →';
+  document.getElementById('pro-annual-note').style.display = isAnnual ? 'block' : 'none';
+}
 
 async function subscribe() {
   if (!token) { window.location.href = '/app'; return; }
@@ -144,14 +188,16 @@ async function subscribe() {
   try {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ period: billingPeriod })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     window.location.href = data.url;
   } catch (e) {
     alert(e.message);
-    btn.disabled = false; btn.textContent = 'S\'abonner pour 20€/mois →';
+    btn.disabled = false;
+    btn.textContent = billingPeriod === 'annual' ? 'S\'abonner pour 192€/an →' : 'S\'abonner pour 20€/mois →';
   }
 }
 </script>
