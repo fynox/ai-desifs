@@ -27,7 +27,10 @@ router.post('/analyse', async (req, res) => {
   const { mail_content, consignes = '', file_base64, file_type } = req.body;
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });
 
-  const user = db.prepare('SELECT api_key FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.subscription_status !== 'active') {
+    return res.status(403).json({ error: 'subscription_required' });
+  }
   if (!user?.api_key) return res.status(400).json({ error: 'Clé API Anthropic manquante. Configurez-la dans votre profil.' });
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);

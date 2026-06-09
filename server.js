@@ -30,6 +30,7 @@ app.use('/api/auth/', authLimiter);
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/stock', require('./src/routes/stock'));
 app.use('/api/analyses', require('./src/routes/analyses'));
+app.use('/api/stripe', require('./src/routes/stripe'));
 
 // SendGrid inbound (pas rate limité)
 app.use('/webhooks', require('./src/routes/webhook'));

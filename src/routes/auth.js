@@ -22,7 +22,7 @@ router.post('/signup', async (req, res) => {
   const hash = await bcrypt.hash(password, 12);
   const result = db.prepare('INSERT INTO users (email, password_hash, api_key) VALUES (?, ?, ?)').run(email.toLowerCase(), hash, api_key);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  res.json({ token: makeToken(user), email: user.email });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status });
 });
 
 router.post('/login', async (req, res) => {
@@ -35,7 +35,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
 
-  res.json({ token: makeToken(user), email: user.email });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {
