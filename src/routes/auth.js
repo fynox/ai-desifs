@@ -20,9 +20,12 @@ router.post('/signup', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'Un compte existe déjà avec cet email.' });
 
   const hash = await bcrypt.hash(password, 12);
-  const result = db.prepare('INSERT INTO users (email, password_hash, api_key, subscription_status) VALUES (?, ?, ?, ?)').run(email.toLowerCase(), hash, api_key, 'trial');
+  const localPart = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
+  const suffix = Math.random().toString(36).slice(2, 6);
+  const inbound_email = `${localPart}-${suffix}@ai-dhesif.fr`;
+  const result = db.prepare('INSERT INTO users (email, password_hash, api_key, subscription_status, inbound_email) VALUES (?, ?, ?, ?, ?)').run(email.toLowerCase(), hash, api_key, 'trial', inbound_email);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
 
 router.post('/login', async (req, res) => {
@@ -35,7 +38,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
 
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

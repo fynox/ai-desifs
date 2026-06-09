@@ -19,6 +19,7 @@ db.exec(`
     stripe_customer_id TEXT,
     subscription_status TEXT DEFAULT 'trial',
     trial_analyses_used INTEGER DEFAULT 0,
+    inbound_email TEXT UNIQUE,
     created_at TEXT DEFAULT (datetime('now'))
   );
 

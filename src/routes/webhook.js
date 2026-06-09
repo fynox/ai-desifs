@@ -16,15 +16,11 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const subject = req.body.subject || '';
     const text = req.body.text || req.body.html || '';
 
-    // Extraire le sous-domaine local : user@ai-dhesif.fr → chercher user dans la DB
-    const toMatch = to.match(/([^<@\s]+)@/);
+    // Extraire l'adresse inbound complète dans le champ "to"
+    const toMatch = to.match(/([^\s<,]+@[^\s>,]+)/);
     if (!toMatch) return;
-    const localPart = toMatch[1].toLowerCase();
-
-    // On cherche l'utilisateur par son adresse mail locale (email = localPart@ai-dhesif.fr)
-    const domain = process.env.SENDGRID_INBOUND_DOMAIN || 'ai-dhesif.fr';
-    const userEmail = `${localPart}@${domain}`;
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(userEmail);
+    const inboundAddr = toMatch[1].toLowerCase();
+    const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
     if (!user || !user.api_key) return;
 
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);

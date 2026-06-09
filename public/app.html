@@ -491,6 +491,16 @@ textarea:focus { border-color: var(--accent); }
     </div>
     <div class="auth-error" id="profil-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="profil-success">✓ Modifications enregistrées</div>
+    <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Adresse mail entrante</div>
+    <div id="profil-inbound-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="profil-inbound-addr" style="font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);flex:1;word-break:break-all;">—</span>
+        <button onclick="copyInbound()" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;" id="btn-copy-inbound">Copier</button>
+      </div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;line-height:1.6;">⚠ Disponible uniquement en plan Pro</div>
+    </div>
+
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Abonnement</div>
     <button class="btn-stock" onclick="openPortail()" style="width:100%">⚙ Gérer mon abonnement Stripe</button>
 
@@ -508,6 +518,7 @@ let authToken = null;
 let currentUserEmail = null;
 let subscriptionStatus = 'trial';
 let trialUsed = 0;
+let inboundEmail = null;
 
 async function api(method, path, body) {
   const opts = {
@@ -541,7 +552,7 @@ async function login() {
   btn.disabled = true; btn.textContent = 'Connexion...';
   try {
     const data = await api('POST', '/auth/login', { email, password });
-    startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used);
+    startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
   }
@@ -560,18 +571,19 @@ async function signup() {
   btn.disabled = true; btn.textContent = 'Création...';
   try {
     const data = await api('POST', '/auth/signup', { email, password, api_key });
-    startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used);
+    startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
   }
   btn.disabled = false; btn.textContent = 'Créer mon compte →';
 }
 
-async function startSession(token, email, status, used) {
+async function startSession(token, email, status, used, iEmail) {
   authToken = token;
   currentUserEmail = email;
   subscriptionStatus = status || 'trial';
   trialUsed = used || 0;
+  inboundEmail = iEmail || null;
 
   document.getElementById('auth-screen').style.display = 'none';
 
@@ -651,7 +663,17 @@ function openProfile() {
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm','profil-apikey'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';
   document.getElementById('profil-success').style.display = 'none';
+  const addrEl = document.getElementById('profil-inbound-addr');
+  if (addrEl) addrEl.textContent = inboundEmail || '—';
   document.getElementById('modal-profil').classList.add('open');
+}
+
+function copyInbound() {
+  if (!inboundEmail) return;
+  navigator.clipboard.writeText(inboundEmail);
+  const btn = document.getElementById('btn-copy-inbound');
+  btn.textContent = '✓ Copié'; btn.style.color = 'var(--accent)';
+  setTimeout(() => { btn.textContent = 'Copier'; btn.style.color = ''; }, 2000);
 }
 function closeProfile() { document.getElementById('modal-profil').classList.remove('open'); }
 document.getElementById('modal-profil').addEventListener('click', e => { if (e.target === document.getElementById('modal-profil')) closeProfile(); });
