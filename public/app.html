@@ -20,6 +20,11 @@
   --cat-print: #4af0c8;
   --cat-liner: #f0c84a;
   --cat-dao: #c84af0;
+  --cat-transfert: #f06a4a;
+  --cat-covering: #4a8af0;
+  --cat-vitre: #4af0f0;
+  --cat-solaire: #f0a04a;
+  --cat-panneau: #a0f04a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -268,11 +273,6 @@ textarea:focus { border-color: var(--accent); }
 
 .stock-panel-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
 
-.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; display: flex; align-items: center; gap: 12px; }
-.stat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.stat-num { font-size: 22px; font-weight: 800; }
-.stat-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
 
 .cat-tabs-bar { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border); }
 .cat-tab { display: flex; align-items: center; gap: 7px; padding: 10px 18px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: -1px; }
@@ -452,21 +452,24 @@ textarea:focus { border-color: var(--accent); }
       <input type="file" id="catalogue-file-input" accept=".pdf" style="display:none" onchange="importCatalogue(this)">
     </div>
     <div class="stock-panel-body">
-      <div class="stats-row">
-        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-print)"></div><div><div class="stat-num" id="stat-print">0</div><div class="stat-label">Imprimable</div></div></div>
-        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-liner)"></div><div><div class="stat-num" id="stat-liner">0</div><div class="stat-label">Liner</div></div></div>
-        <div class="stat-card"><div class="stat-dot" style="background:var(--cat-dao)"></div><div><div class="stat-num" id="stat-dao">0</div><div class="stat-label">Couleur DAO</div></div></div>
+      <div class="cat-tabs-bar">
+        <button class="cat-tab active" id="tab-imprimable" onclick="switchTab('imprimable')"><span class="cat-tab-dot" style="background:var(--cat-print)"></span>Imprimable<span class="cat-tab-count" id="count-imprimable">0</span></button>
+        <button class="cat-tab" id="tab-liner" onclick="switchTab('liner')"><span class="cat-tab-dot" style="background:var(--cat-liner)"></span>Liner<span class="cat-tab-count" id="count-liner">0</span></button>
+        <button class="cat-tab" id="tab-dao" onclick="switchTab('dao')"><span class="cat-tab-dot" style="background:var(--cat-dao)"></span>Couleur DAO<span class="cat-tab-count" id="count-dao">0</span></button>
+        <button class="cat-tab" id="tab-transfert" onclick="switchTab('transfert')"><span class="cat-tab-dot" style="background:var(--cat-transfert)"></span>Transfert<span class="cat-tab-count" id="count-transfert">0</span></button>
+        <button class="cat-tab" id="tab-covering" onclick="switchTab('covering')"><span class="cat-tab-dot" style="background:var(--cat-covering)"></span>Covering<span class="cat-tab-count" id="count-covering">0</span></button>
+        <button class="cat-tab" id="tab-vitre" onclick="switchTab('vitre')"><span class="cat-tab-dot" style="background:var(--cat-vitre)"></span>Vitre<span class="cat-tab-count" id="count-vitre">0</span></button>
+        <button class="cat-tab" id="tab-solaire" onclick="switchTab('solaire')"><span class="cat-tab-dot" style="background:var(--cat-solaire)"></span>Film solaire<span class="cat-tab-count" id="count-solaire">0</span></button>
+        <button class="cat-tab" id="tab-panneau" onclick="switchTab('panneau')"><span class="cat-tab-dot" style="background:var(--cat-panneau)"></span>Panneau<span class="cat-tab-count" id="count-panneau">0</span></button>
       </div>
-      <div>
-        <div class="cat-tabs-bar">
-          <button class="cat-tab active" id="tab-imprimable" onclick="switchTab('imprimable')"><span class="cat-tab-dot" style="background:var(--cat-print)"></span>Imprimable<span class="cat-tab-count" id="count-imprimable">0</span></button>
-          <button class="cat-tab" id="tab-liner" onclick="switchTab('liner')"><span class="cat-tab-dot" style="background:var(--cat-liner)"></span>Liner<span class="cat-tab-count" id="count-liner">0</span></button>
-          <button class="cat-tab" id="tab-dao" onclick="switchTab('dao')"><span class="cat-tab-dot" style="background:var(--cat-dao)"></span>Couleur DAO<span class="cat-tab-count" id="count-dao">0</span></button>
-        </div>
-        <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
-        <div class="cat-panel" id="panel-liner" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('liner',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-liner"><div class="empty-cat">Aucune référence</div></div></div>
-        <div class="cat-panel" id="panel-dao" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('dao',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-dao"><div class="empty-cat">Aucune référence</div></div></div>
-      </div>
+      <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-liner" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('liner',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-liner"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-dao" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('dao',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-dao"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-transfert" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('transfert',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-transfert"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-covering" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('covering',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-covering"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-vitre" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('vitre',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-vitre"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-solaire" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('solaire',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-solaire"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-panneau" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('panneau',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-panneau"><div class="empty-cat">Aucune référence</div></div></div>
     </div>
   </div>
 </div>
@@ -475,7 +478,7 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">Nouvelle référence</h3>
-    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option></select></div>
+    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf</option><option value="solaire">Film solaire</option><option value="panneau">Panneau (bois/alu)</option></select></div>
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
     <div class="form-group"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
     <div class="form-group"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
@@ -740,9 +743,10 @@ function closeStock() { document.getElementById('stock-overlay').classList.remov
 function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
 
 let currentTab = 'imprimable';
+const ALL_CATS = ['imprimable','liner','dao','transfert','covering','vitre','solaire','panneau'];
 function switchTab(cat) {
   currentTab = cat;
-  ['imprimable','liner','dao'].forEach(c => {
+  ALL_CATS.forEach(c => {
     document.getElementById('tab-' + c).classList.toggle('active', c === cat);
     document.getElementById('panel-' + c).style.display = c === cat ? 'block' : 'none';
   });
@@ -860,14 +864,13 @@ function filterCat(cat, query) {
   renderList(cat, stock.filter(i => i.cat === cat && (!q || i.nom.toLowerCase().includes(q))));
 }
 
-const statIds = { imprimable: 'stat-print', liner: 'stat-liner', dao: 'stat-dao' };
 function updateStats() {
-  ['imprimable','liner','dao'].forEach(cat => {
-    const el = document.getElementById(statIds[cat]);
+  ALL_CATS.forEach(cat => {
+    const el = document.getElementById('count-' + cat);
     if (el) el.textContent = stock.filter(i => i.cat === cat && i.dispo).length + '/' + stock.filter(i => i.cat === cat).length;
   });
 }
-function renderAll() { renderCat('imprimable'); renderCat('liner'); renderCat('dao'); updateStats(); }
+function renderAll() { ALL_CATS.forEach(cat => renderCat(cat)); updateStats(); }
 
 // ===================== HISTORIQUE =====================
 let historique = [];
