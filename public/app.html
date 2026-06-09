@@ -558,14 +558,13 @@ async function signup() {
   const email = document.getElementById('signup-email').value.trim().toLowerCase();
   const password = document.getElementById('signup-pw').value;
   const pw2 = document.getElementById('signup-pw2').value;
-  const api_key = document.getElementById('signup-apikey').value.trim();
   const err = document.getElementById('signup-error');
   const btn = document.getElementById('btn-signup');
   err.textContent = '';
   if (password !== pw2) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
   btn.disabled = true; btn.textContent = 'Création...';
   try {
-    const data = await api('POST', '/auth/signup', { email, password, api_key });
+    const data = await api('POST', '/auth/signup', { email, password });
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
