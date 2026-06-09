@@ -125,18 +125,30 @@ Extrais TOUS les produits visibles dans toutes les pages du catalogue.` }
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: userContent }] }),
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: userContent }] }),
     });
 
     const data = await claudeRes.json();
     if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || 'Erreur Anthropic' });
 
     const raw = data.content?.map(i => i.text || '').join('') || '';
-    const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return res.status(502).json({ error: 'Aucun produit trouvé dans le catalogue.' });
+    console.log('Claude raw response (first 500):', raw.slice(0, 500));
+
+    // Extraire le JSON : supporte ```json...```, ```[...]``` ou tableau brut
+    let jsonStr = null;
+    const codeBlock = raw.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    if (codeBlock) {
+      jsonStr = codeBlock[1];
+    } else {
+      const arrMatch = raw.match(/\[[\s\S]*\]/);
+      if (arrMatch) jsonStr = arrMatch[0];
+    }
+    if (!jsonStr) return res.status(502).json({ error: 'Aucun produit trouvé dans le catalogue. Réponse IA : ' + raw.slice(0, 200) });
 
     let produits;
-    try { produits = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'Réponse IA invalide.' }); }
+    try { produits = JSON.parse(jsonStr); } catch (parseErr) {
+      return res.status(502).json({ error: 'JSON invalide dans la réponse IA : ' + parseErr.message + ' — extrait : ' + jsonStr.slice(0, 100) });
+    }
 
     const CATS = ['imprimable', 'liner', 'dao'];
     const added = [];
