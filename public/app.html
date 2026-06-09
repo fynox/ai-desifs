@@ -586,12 +586,15 @@ async function startSession(token, email, status, used, iEmail) {
   }
 
   sessionStorage.setItem('aidesif_token', token);
+  localStorage.setItem('aidesif_token', token);
+  localStorage.setItem('aidesif_session', JSON.stringify({ email, status, used, iEmail }));
   document.getElementById('sub-wall').style.display = 'none';
   document.getElementById('user-email-display').textContent = email;
   document.getElementById('app').classList.add('visible');
   await Promise.all([loadStock(), loadHistorique()]);
   renderAll();
   renderTrialBanner();
+  startPolling();
 }
 
 function showUpgradeWall(reason) {
@@ -626,6 +629,10 @@ function startCheckout() {
 
 function logout() {
   authToken = null; currentUserEmail = null; subscriptionStatus = 'inactive'; stock = []; historique = [];
+  localStorage.removeItem('aidesif_token');
+  localStorage.removeItem('aidesif_session');
+  sessionStorage.removeItem('aidesif_token');
+  stopPolling();
   document.getElementById('sub-wall').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app').classList.remove('visible');
@@ -987,7 +994,48 @@ document.addEventListener('mouseup', () => {
   document.body.style.cursor = ''; document.body.style.userSelect = '';
 });
 
-switchAuthTab('login');
+// ===================== POLLING =====================
+let pollingInterval = null;
+
+function startPolling() {
+  if (pollingInterval) return;
+  pollingInterval = setInterval(async () => {
+    if (!authToken) return;
+    try {
+      const fresh = await api('GET', '/analyses');
+      if (fresh.length !== historique.length || (fresh[0] && historique[0] && fresh[0].id !== historique[0].id)) {
+        historique = fresh;
+        renderHistorique();
+      }
+    } catch {}
+  }, 20000);
+}
+
+function stopPolling() {
+  clearInterval(pollingInterval);
+  pollingInterval = null;
+}
+
+// ===================== AUTO-LOGIN =====================
+(async () => {
+  const savedToken = localStorage.getItem('aidesif_token');
+  const savedSession = localStorage.getItem('aidesif_session');
+  if (savedToken && savedSession) {
+    try {
+      const s = JSON.parse(savedSession);
+      // Vérifier que le token est encore valide
+      const res = await fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + savedToken } });
+      if (res.ok) {
+        const profile = await res.json();
+        await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
+        return;
+      }
+    } catch {}
+    localStorage.removeItem('aidesif_token');
+    localStorage.removeItem('aidesif_session');
+  }
+  switchAuthTab('login');
+})();
 </script>
 </body>
 </html>

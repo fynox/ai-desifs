@@ -45,6 +45,11 @@ router.post('/login', async (req, res) => {
   res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
 
+router.get('/profile', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT email, subscription_status, trial_analyses_used, inbound_email FROM users WHERE id = ?').get(req.user.id);
+  res.json(user);
+});
+
 router.put('/profile', requireAuth, async (req, res) => {
   const { current_password, new_password, api_key } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
