@@ -168,11 +168,25 @@ tr:hover td { background: var(--surface2); }
     <div class="page" id="page-analyses">
       <h2>Analyses récentes</h2>
       <div class="table-wrap">
-        <div class="table-header"><h3>50 dernières analyses</h3></div>
+        <div class="table-header">
+          <h3 id="analyses-count">50 dernières analyses</h3>
+          <input class="search-input" type="text" placeholder="Filtrer par email..." oninput="filterAnalyses(this.value)">
+        </div>
         <div id="analyses-table"><div class="loading">Chargement...</div></div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Modal analyse détail -->
+<div class="modal-overlay" id="analyse-modal" onclick="if(event.target===this)closeAnalyseModal()">
+  <div class="modal" style="width:600px;max-width:95vw;max-height:85vh;overflow-y:auto;">
+    <h3 id="analyse-modal-title" style="margin-bottom:14px;">Analyse</h3>
+    <div id="analyse-modal-body" style="font-size:12px;font-family:'DM Mono',monospace;line-height:1.8;color:var(--muted);"></div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeAnalyseModal()">Fermer</button>
+    </div>
   </div>
 </div>
 
@@ -323,6 +337,7 @@ function renderUsers(users) {
           <td>${u.stock_count}</td>
           <td>${fmtDate(u.created_at)}</td>
           <td>
+            <button class="action-btn" onclick="viewUserAnalyses(${u.id}, '${u.email}')">📋 ${u.analyses_count}</button>
             <button class="action-btn" onclick="resetTrial(${u.id})" title="Reset essais">↺ reset</button>
             <button class="action-btn danger" onclick="openDeleteModal(${u.id}, '${u.email}')">✕ suppr.</button>
           </td>
@@ -369,24 +384,81 @@ async function confirmDelete() {
 }
 
 // ANALYSES
+let allAnalyses = [];
+
 async function loadAnalyses() {
   try {
-    const analyses = await api('/api/admin/analyses');
-    if (!analyses.length) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Aucune analyse</div>'; return; }
-    document.getElementById('analyses-table').innerHTML = `
-      <table>
-        <thead><tr><th>Utilisateur</th><th>Source</th><th>Premier produit</th><th>Lu</th><th>Date</th></tr></thead>
-        <tbody>${analyses.map(a => `
-          <tr>
-            <td>${a.email}</td>
-            <td><span class="badge ${a.source==='mail'?'badge-active':'badge-trial'}">${a.source}</span></td>
-            <td>${a.premier_produit || '—'}</td>
-            <td>${a.lu ? '✓' : '—'}</td>
-            <td>${fmtDate(a.created_at)}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
+    allAnalyses = await api('/api/admin/analyses');
+    renderAnalyses(allAnalyses);
   } catch(e) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Erreur de chargement</div>'; }
+}
+
+function filterAnalyses(q) {
+  const filtered = q ? allAnalyses.filter(a => a.email.toLowerCase().includes(q.toLowerCase())) : allAnalyses;
+  renderAnalyses(filtered);
+}
+
+function renderAnalyses(analyses) {
+  document.getElementById('analyses-count').textContent = `${analyses.length} analyse${analyses.length>1?'s':''}`;
+  if (!analyses.length) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Aucune analyse</div>'; return; }
+  document.getElementById('analyses-table').innerHTML = `
+    <table>
+      <thead><tr><th>Utilisateur</th><th>Source</th><th>Résumé</th><th>Adhésif</th><th>Lu</th><th>Date</th><th></th></tr></thead>
+      <tbody>${analyses.map(a => `
+        <tr>
+          <td>${a.email}</td>
+          <td><span class="badge ${a.source==='email'?'badge-active':'badge-trial'}">${a.source}</span></td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.resume||'—'}</td>
+          <td>${a.premier_produit||'—'}</td>
+          <td>${a.lu?'✓':'—'}</td>
+          <td>${fmtDate(a.created_at)}</td>
+          <td><button class="action-btn" onclick="openAnalyseModal(${a.id})">Voir</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function openAnalyseModal(id) {
+  const a = allAnalyses.find(x => x.id === id);
+  if (!a) return;
+  let result = {};
+  try { result = JSON.parse(a.result_json || '{}'); } catch {}
+  const adhesifsHTML = (result.adhesifs||[]).map(x => `<div style="margin:4px 0;color:var(--accent);">✦ ${x.nom} <span style="color:var(--muted)">(${x.priorite})</span> — ${x.raison}</div>`).join('');
+  const prepHTML = (result.preparation||[]).map(p => `<div>→ ${p}</div>`).join('');
+  document.getElementById('analyse-modal-title').textContent = `Analyse — ${a.email} — ${fmtDate(a.created_at)}`;
+  document.getElementById('analyse-modal-body').innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="color:var(--text);font-weight:600;margin-bottom:6px;">Résumé IA</div>
+      <div>${result.resume||'—'}</div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="color:var(--text);font-weight:600;margin-bottom:6px;">Adhésifs recommandés</div>
+      ${adhesifsHTML||'—'}
+    </div>
+    ${result.attention ? `<div style="margin-bottom:14px;padding:10px;background:#2a1a05;border-radius:8px;color:var(--orange);">⚠ ${result.attention}</div>` : ''}
+    <div style="margin-bottom:14px;">
+      <div style="color:var(--text);font-weight:600;margin-bottom:6px;">Préparation</div>
+      ${prepHTML||'—'}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+      <div style="color:var(--text);font-weight:600;margin-bottom:6px;">Contenu du mail</div>
+      <pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.7;color:var(--muted);">${(a.mail_content||'').replace(/</g,'&lt;')}</pre>
+    </div>`;
+  document.getElementById('analyse-modal').classList.add('open');
+}
+
+function closeAnalyseModal() { document.getElementById('analyse-modal').classList.remove('open'); }
+
+// Voir analyses d'un utilisateur spécifique
+async function viewUserAnalyses(userId, email) {
+  showPage('analyses', document.querySelector('.nav-item:nth-child(3)'));
+  document.getElementById('analyses-count').textContent = 'Chargement...';
+  document.getElementById('analyses-table').innerHTML = '<div class="loading">Chargement...</div>';
+  try {
+    allAnalyses = await api(`/api/admin/users/${userId}/analyses`);
+    allAnalyses = allAnalyses.map(a => ({...a, email}));
+    renderAnalyses(allAnalyses);
+  } catch(e) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Erreur</div>'; }
 }
 
 // Init

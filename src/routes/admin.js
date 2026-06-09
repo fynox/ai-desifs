@@ -60,16 +60,30 @@ router.delete('/users/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Analyses récentes
+// Analyses récentes (50 dernières)
 router.get('/analyses', (req, res) => {
   const analyses = db.prepare(`
-    SELECT a.id, a.source, a.lu, a.created_at, u.email,
-      json_extract(a.result_json, '$.recommandations[0].nom') as premier_produit
+    SELECT a.id, a.source, a.lu, a.created_at, a.mail_content, a.result_json, u.email, u.id as user_id,
+      json_extract(a.result_json, '$.adhesifs[0].nom') as premier_produit,
+      json_extract(a.result_json, '$.resume') as resume
     FROM analyses a
     JOIN users u ON u.id=a.user_id
     ORDER BY a.created_at DESC
     LIMIT 50
   `).all();
+  res.json(analyses);
+});
+
+// Analyses d'un utilisateur spécifique
+router.get('/users/:id/analyses', (req, res) => {
+  const analyses = db.prepare(`
+    SELECT a.id, a.source, a.lu, a.created_at, a.mail_content, a.result_json,
+      json_extract(a.result_json, '$.adhesifs[0].nom') as premier_produit,
+      json_extract(a.result_json, '$.resume') as resume
+    FROM analyses a
+    WHERE a.user_id = ?
+    ORDER BY a.created_at DESC
+  `).all(req.params.id);
   res.json(analyses);
 });
 
