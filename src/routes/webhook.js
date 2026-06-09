@@ -66,6 +66,13 @@ Réponds UNIQUEMENT en JSON valide :
 
     const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
+    // Pièces jointes image
+    const imageFiles = (req.files || []).filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+    const userContent = [{ type: 'text', text: mailContent }];
+    for (const img of imageFiles.slice(0, 3)) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mimetype, data: img.buffer.toString('base64') } });
+    }
+
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
@@ -73,7 +80,7 @@ Réponds UNIQUEMENT en JSON valide :
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         system: systemPrompt,
-        messages: [{ role: 'user', content: mailContent }],
+        messages: [{ role: 'user', content: userContent }],
       }),
     });
 
