@@ -14,7 +14,16 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const to = req.body.to || '';
     const from = req.body.from || '';
     const subject = req.body.subject || '';
-    const text = req.body.text || req.body.html || '';
+    // Send Raw ON → contenu dans req.body.email (MIME brut), sinon dans text/html
+    let text = req.body.text || req.body.html || '';
+    if (!text && req.body.email) {
+      // Extraire la partie texte du MIME brut
+      const raw = req.body.email;
+      const plainMatch = raw.match(/Content-Type: text\/plain[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?=--|\n--)/i);
+      const htmlMatch = raw.match(/Content-Type: text\/html[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?=--|\n--)/i);
+      text = (plainMatch?.[1] || htmlMatch?.[1] || '').replace(/<[^>]+>/g, ' ').trim();
+      if (!text) text = raw.slice(0, 3000); // fallback : envoyer le brut tronqué
+    }
 
     // Extraire l'adresse inbound complète dans le champ "to"
     const toMatch = to.match(/([^\s<,]+@[^\s>,]+)/);

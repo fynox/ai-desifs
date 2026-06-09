@@ -840,10 +840,20 @@ async function loadHistorique() {
   renderSidebarHisto();
 }
 
+async function refreshHisto() {
+  const btn = document.getElementById('btn-refresh-histo');
+  if (btn) { btn.textContent = '↻'; btn.style.opacity = '0.4'; }
+  try { historique = await api('GET', '/analyses'); renderSidebarHisto(); } catch {}
+  if (btn) { btn.style.opacity = '1'; }
+}
+
 function renderSidebarHisto() {
   const container = document.getElementById('sidebar-histo');
   const unread = historique.filter(h => !h.lu).length;
-  let html = `<div class="sidebar-section-label">Historique ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</div>`;
+  let html = `<div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>Historique ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
+    <button id="btn-refresh-histo" onclick="refreshHisto()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Actualiser">↻</button>
+  </div>`;
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
   else {
     html += historique.map(h => {
@@ -1005,7 +1015,7 @@ function startPolling() {
       const fresh = await api('GET', '/analyses');
       if (fresh.length !== historique.length || (fresh[0] && historique[0] && fresh[0].id !== historique[0].id)) {
         historique = fresh;
-        renderHistorique();
+        renderSidebarHisto();
       }
     } catch {}
   }, 20000);
