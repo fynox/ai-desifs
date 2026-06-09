@@ -2,13 +2,33 @@ const express = require('express');
 const fetch = require('node-fetch');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+async function pdfFirstPage(buffer) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-'));
+  const pdfPath = path.join(tmp, 'input.pdf');
+  const outPrefix = path.join(tmp, 'page');
+  fs.writeFileSync(pdfPath, buffer);
+  return new Promise(resolve => {
+    execFile('pdftoppm', ['-png', '-r', '120', '-l', '1', pdfPath, outPrefix], err => {
+      if (err) { fs.rmSync(tmp, { recursive: true, force: true }); resolve(null); return; }
+      const files = fs.readdirSync(tmp).filter(f => f.endsWith('.png')).sort();
+      const result = files.length ? fs.readFileSync(path.join(tmp, files[0])).toString('base64') : null;
+      fs.rmSync(tmp, { recursive: true, force: true });
+      resolve(result);
+    });
+  });
+}
 
 const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', (req, res) => {
   const rows = db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
-  res.json(rows.map(r => ({ ...r, result: JSON.parse(r.result_json), lu: Boolean(r.lu) })));
+  res.json(rows.map(r => ({ ...r, result: JSON.parse(r.result_json), lu: Boolean(r.lu), visuel_b64: r.visuel_b64 || null, visuel_type: r.visuel_type || null })));
 });
 
 router.put('/:id/lu', (req, res) => {
@@ -107,9 +127,20 @@ Réponds UNIQUEMENT en JSON valide :
     db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
   }
 
+  // Stocker le visuel
+  let visuel_b64 = null, visuel_type = null;
+  if (file_base64 && file_type) {
+    if (file_type.startsWith('image/')) {
+      visuel_b64 = file_base64; visuel_type = file_type;
+    } else if (file_type === 'application/pdf') {
+      const buf = Buffer.from(file_base64, 'base64');
+      visuel_b64 = await pdfFirstPage(buf); visuel_type = visuel_b64 ? 'image/png' : null;
+    }
+  }
+
   const inserted = db.prepare(
-    'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source) VALUES (?, ?, ?, ?, ?)'
-  ).run(req.user.id, mail_content.slice(0, 5000), consignes, JSON.stringify(result), 'manual');
+    'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(req.user.id, mail_content.slice(0, 5000), consignes, JSON.stringify(result), 'manual', visuel_b64, visuel_type);
 
   const analyse = db.prepare('SELECT * FROM analyses WHERE id = ?').get(inserted.lastInsertRowid);
   res.json({ ...analyse, result, lu: false });

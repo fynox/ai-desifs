@@ -55,6 +55,8 @@ db.exec(`
 const migrations = [
   'ALTER TABLE users ADD COLUMN trial_analyses_used INTEGER DEFAULT 0',
   'ALTER TABLE users ADD COLUMN inbound_email TEXT',
+  'ALTER TABLE analyses ADD COLUMN visuel_b64 TEXT',
+  'ALTER TABLE analyses ADD COLUMN visuel_type TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

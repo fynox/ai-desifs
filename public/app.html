@@ -911,7 +911,7 @@ async function openHisto(id) {
   document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
   renderSidebarHisto();
   setTimeout(() => { const el = document.getElementById('histo-' + id); if (el) el.classList.add('selected'); }, 10);
-  renderResult(item.result, null, null);
+  renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null);
 }
 
 function newAnalyse() {
@@ -973,7 +973,7 @@ async function analyzeRequest() {
     if (subscriptionStatus === 'trial') { trialUsed++; renderTrialBanner(); }
     historique.unshift(analyse);
     renderSidebarHisto();
-    renderResult(analyse.result, uploadedFileBase64, uploadedFileType);
+    renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type);
     setTimeout(() => { const el = document.getElementById('histo-' + analyse.id); if (el) el.classList.add('selected'); }, 50);
   } catch (e) {
     if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {

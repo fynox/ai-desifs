@@ -125,9 +125,18 @@ Réponds UNIQUEMENT en JSON valide :
     try { result = JSON.parse(jsonMatch[0]); } catch { return; }
     if (!result.adhesifs || !result.specs) return;
 
+    // Stocker la première image/page PDF comme aperçu visuel
+    let visuel_b64 = null, visuel_type = null;
+    if (imageFiles.length) {
+      visuel_b64 = imageFiles[0].buffer.toString('base64'); visuel_type = imageFiles[0].mimetype;
+    } else if (pdfFiles.length) {
+      const pages = await pdfToImages(pdfFiles[0].buffer);
+      if (pages.length) { visuel_b64 = pages[0].data; visuel_type = 'image/png'; }
+    }
+
     db.prepare(
-      'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source) VALUES (?, ?, ?, ?, ?)'
-    ).run(user.id, mailContent, '', JSON.stringify(result), 'email');
+      'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type);
   } catch (e) {
     console.error('Webhook inbound error:', e);
   }
