@@ -106,6 +106,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .histo-item-text { flex: 1; min-width: 0; }
 .histo-item-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .histo-item-sub { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.histo-delete-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; border: none; font-size: 13px; cursor: pointer; opacity: 0; transition: opacity 0.15s; padding: 4px 6px; border-radius: 5px; line-height: 1; }
+.histo-item:hover .histo-delete-btn { opacity: 0.5; }
+.histo-delete-btn:hover { opacity: 1 !important; background: rgba(240,96,96,0.15); }
+.adhesif-result-card { cursor: pointer; transition: border-color 0.15s; }
+.adhesif-result-card:hover { border-color: var(--accent) !important; }
 .histo-empty { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); text-align: center; padding: 20px 8px; line-height: 1.6; }
 
 .sidebar-bottom { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
@@ -699,6 +704,22 @@ async function loadStock() {
 }
 
 function openStock() { document.getElementById('stock-overlay').classList.add('open'); renderAll(); }
+
+function openStockItem(nom) {
+  openStock();
+  setTimeout(() => {
+    const item = stock.find(i => i.nom.toLowerCase() === nom.toLowerCase());
+    if (!item) return;
+    switchTab(item.cat);
+    const el = document.querySelector(`[data-stock-id="${item.id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.outline = '2px solid var(--accent)';
+      el.style.borderRadius = '10px';
+      setTimeout(() => { el.style.outline = ''; el.style.borderRadius = ''; }, 2000);
+    }
+  }, 100);
+}
 function closeStock() { document.getElementById('stock-overlay').classList.remove('open'); }
 function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
 
@@ -801,7 +822,7 @@ function renderList(cat, items) {
   list.innerHTML = items.map(item => {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[]), ...(item.applications||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
-    return `<div class="adhesif-item">
+    return `<div class="adhesif-item" data-stock-id="${item.id}">
       <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge">${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
@@ -840,6 +861,15 @@ async function loadHistorique() {
   renderSidebarHisto();
 }
 
+async function deleteHisto(e, id) {
+  e.stopPropagation();
+  try {
+    await api('DELETE', '/analyses/' + id);
+    historique = historique.filter(h => h.id !== id);
+    renderSidebarHisto();
+  } catch(err) { alert(err.message); }
+}
+
 async function refreshHisto() {
   const btn = document.getElementById('btn-refresh-histo');
   if (btn) { btn.textContent = '↻'; btn.style.opacity = '0.4'; }
@@ -859,7 +889,7 @@ function renderSidebarHisto() {
     html += historique.map(h => {
       const adhesif = h.result?.adhesifs?.[0]?.nom || '—';
       const date = new Date(h.created_at).toLocaleString('fr-FR');
-      return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})">
+      return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
@@ -867,6 +897,7 @@ function renderSidebarHisto() {
             <div class="histo-item-sub">${date}</div>
           </div>
         </div>
+        <button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>
       </div>`;
     }).join('');
   }
@@ -954,7 +985,7 @@ async function analyzeRequest() {
 }
 
 function renderResult(r) {
-  const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div></div>`).join('');
+  const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
   document.getElementById('output-panel').innerHTML = `
@@ -1018,7 +1049,7 @@ function startPolling() {
         renderSidebarHisto();
       }
     } catch {}
-  }, 20000);
+  }, 10000);
 }
 
 function stopPolling() {

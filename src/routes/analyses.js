@@ -52,10 +52,16 @@ router.post('/analyse', async (req, res) => {
     }).join('\n');
   }).filter(Boolean).join('\n\n');
 
-  const systemPrompt = `Tu es un expert en impression numérique et adhésifs vinyl pour une entreprise de signalétique.
-Tu reçois une demande client et recommandes UNIQUEMENT parmi le stock disponible ci-dessous.
+  const systemPrompt = `Tu es un expert en impression numérique et adhésifs vinyl pour une entreprise de signalétique et d'impression grand format.
 
-STOCK :
+DÉFINITIONS IMPORTANTES — respecte-les strictement :
+- "Imprimable" : adhésif vinyl blanc ou transparent destiné à être imprimé directement (lettrage, décoration, signalétique). C'est la base sur laquelle on imprime.
+- "Liner" : film transparent (PVC, polyester, PP) servant UNIQUEMENT à protéger ou contreplaquer un visuel déjà imprimé. Un liner ne s'imprime PAS. Il se pose PAR-DESSUS l'imprimé pour le protéger ou lui donner une finition. Ne recommande un liner QUE si le client demande explicitement une protection/lamination d'un visuel existant.
+- "Couleur DAO" : vinyl uni coloré (non imprimable) pour découpe et lettrage.
+
+Ne confonds JAMAIS ces catégories. Si le client veut imprimer un visuel, recommande un "Imprimable". Si il veut protéger un visuel déjà imprimé, recommande un "Liner". Si il veut du vinyl de couleur découpé, recommande un "Couleur DAO".
+
+STOCK DISPONIBLE :
 ${stockDesc}
 
 Réponds UNIQUEMENT en JSON valide :
