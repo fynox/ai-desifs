@@ -18,6 +18,8 @@ function parseItem(row) {
     ...row,
     resistances: JSON.parse(row.resistances || '[]'),
     applications: JSON.parse(row.applications || '[]'),
+    largeurs: JSON.parse(row.largeurs || '[]'),
+    prix_m2: row.prix_m2 || null,
     dispo: Boolean(row.dispo),
   };
 }
@@ -87,11 +89,11 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], note = '', dispo = true } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], prix_m2 = null, note = '', dispo = true } = req.body;
   if (!cat || !nom || !finition || !adherence || !env || !duree) return res.status(400).json({ error: 'Champs manquants.' });
   const result = db.prepare(
-    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), note, dispo ? 1 : 0);
+    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,prix_m2,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), JSON.stringify(largeurs), prix_m2, note, dispo ? 1 : 0);
   const row = db.prepare('SELECT * FROM stock WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(parseItem(row));
 });
@@ -99,14 +101,16 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const item = db.prepare('SELECT * FROM stock WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Référence introuvable.' });
-  const { cat, nom, finition, adherence, env, duree, resistances, applications, note, dispo } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances, applications, largeurs, prix_m2, note, dispo } = req.body;
   db.prepare(
-    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,note=?,dispo=? WHERE id=?'
+    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,largeurs=?,prix_m2=?,note=?,dispo=? WHERE id=?'
   ).run(
     cat ?? item.cat, nom ?? item.nom, finition ?? item.finition,
     adherence ?? item.adherence, env ?? item.env, duree ?? item.duree,
     JSON.stringify(resistances ?? JSON.parse(item.resistances)),
     JSON.stringify(applications ?? JSON.parse(item.applications)),
+    JSON.stringify(largeurs ?? JSON.parse(item.largeurs || '[]')),
+    prix_m2 !== undefined ? prix_m2 : item.prix_m2,
     note ?? item.note,
     dispo !== undefined ? (dispo ? 1 : 0) : item.dispo,
     item.id

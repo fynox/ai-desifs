@@ -34,6 +34,8 @@ db.exec(`
     duree TEXT NOT NULL,
     resistances TEXT DEFAULT '[]',
     applications TEXT DEFAULT '[]',
+    largeurs TEXT DEFAULT '[]',
+    prix_m2 REAL,
     note TEXT DEFAULT '',
     dispo INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now'))
@@ -57,6 +59,8 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN inbound_email TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_type TEXT',
+  'ALTER TABLE stock ADD COLUMN largeurs TEXT DEFAULT \'[]\'',
+  'ALTER TABLE stock ADD COLUMN prix_m2 REAL',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
@@ -90,6 +94,8 @@ try {
         duree TEXT NOT NULL,
         resistances TEXT DEFAULT '[]',
         applications TEXT DEFAULT '[]',
+        largeurs TEXT DEFAULT '[]',
+        prix_m2 REAL,
         note TEXT DEFAULT '',
         dispo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (datetime('now'))

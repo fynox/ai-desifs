@@ -298,6 +298,8 @@ textarea:focus { border-color: var(--accent); }
 .adhesif-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .spec-tag { font-size: 10px; font-family: 'DM Mono', monospace; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
 .note-tag { color: var(--accent-dim); border-color: var(--accent-dim); }
+.largeur-tag { color: var(--cat-vitre); border-color: var(--cat-vitre); }
+.prix-tag { color: #7af07a; border-color: #7af07a; }
 .finition-badge { font-size: 11px; font-family: 'DM Mono', monospace; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .toggle-wrap { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
 .toggle-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
@@ -318,6 +320,7 @@ textarea:focus { border-color: var(--accent); }
 .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 440px; max-width: 90vw; max-height: 88vh; overflow-y: auto; }
 .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
 .form-group { margin-bottom: 15px; }
+.form-row { display: flex; gap: 14px; align-items: flex-start; }
 .form-group label { display: block; font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 13px; outline: none; transition: border-color 0.15s; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
@@ -484,7 +487,8 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
     <div class="form-group"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
     <div class="form-group"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
-    <div class="form-group"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..."></textarea></div>
+    <div class="form-group"><label>Largeurs disponibles (cm)</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div></div>
+    <div class="form-group form-row"><div style="flex:1"><label>Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:42px"></textarea></div></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
 </div>
@@ -762,7 +766,8 @@ function openModal(cat) {
   document.querySelector('input[name="adherence"][value="Standard"]').checked = true;
   document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
   document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
-  document.querySelectorAll('input[name="resist"], input[name="appli"]').forEach(i => i.checked = false);
+  document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"]').forEach(i => i.checked = false);
+  document.getElementById('modal-prix').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
   document.getElementById('modal').classList.add('open');
   setTimeout(() => document.getElementById('modal-nom').focus(), 100);
@@ -783,6 +788,8 @@ function openEditModal(id) {
   const dur = document.querySelector(`input[name="duree"][value="${item.duree}"]`); if (dur) dur.checked = true;
   document.querySelectorAll('input[name="resist"]').forEach(i => i.checked = (item.resistances||[]).includes(i.value));
   document.querySelectorAll('input[name="appli"]').forEach(i => i.checked = (item.applications||[]).includes(i.value));
+  document.querySelectorAll('input[name="largeur"]').forEach(i => i.checked = (item.largeurs||[]).includes(i.value));
+  document.getElementById('modal-prix').value = item.prix_m2 || '';
   document.getElementById('modal').classList.add('open');
 }
 
@@ -801,6 +808,8 @@ async function saveAdhesif() {
     duree: document.querySelector('input[name="duree"]:checked')?.value || 'Moyenne durée (1-3 ans)',
     resistances: [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value),
     applications: [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value),
+    largeurs: [...document.querySelectorAll('input[name="largeur"]:checked')].map(i => i.value),
+    prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
   };
   try {
@@ -838,10 +847,12 @@ function renderList(cat, items) {
   const list = document.getElementById('list-' + cat); if (!list) return;
   if (!items.length) { list.innerHTML = '<div class="empty-cat">Aucune référence</div>'; return; }
   list.innerHTML = items.map(item => {
-    const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[]), ...(item.applications||[])].filter(Boolean);
+    const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
+    const largHTML = (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>l+'cm').join(' · ')}</span>` : '';
+    const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge">${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
