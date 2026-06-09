@@ -573,6 +573,7 @@ async function startSession(token, email, status, used, iEmail) {
   if (params.get('subscribed') === '1') {
     window.history.replaceState({}, '', '/app');
     subscriptionStatus = 'active';
+    trialUsed = 0;
   }
 
   if (subscriptionStatus === 'inactive') {
