@@ -885,7 +885,8 @@ function renderSidebarHisto() {
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
   else {
     html += historique.map(h => {
-      const titre = (h.result?.resume || '').slice(0, 55) || h.result?.adhesifs?.[0]?.nom || '—';
+      const resumeRaw = (h.result?.resume || h.result?.adhesifs?.[0]?.nom || '—');
+      const titre = resumeRaw.length > 34 ? resumeRaw.slice(0, 32) + '…' : resumeRaw;
       const date = new Date(h.created_at).toLocaleString('fr-FR');
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
         <div class="histo-item-row">
@@ -911,7 +912,7 @@ async function openHisto(id) {
   document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
   renderSidebarHisto();
   setTimeout(() => { const el = document.getElementById('histo-' + id); if (el) el.classList.add('selected'); }, 10);
-  renderResult(item.result);
+  renderResult(item.result, null, null);
 }
 
 function newAnalyse() {
@@ -967,7 +968,7 @@ async function analyzeRequest() {
     if (subscriptionStatus === 'trial') { trialUsed++; renderTrialBanner(); }
     historique.unshift(analyse);
     renderSidebarHisto();
-    renderResult(analyse.result);
+    renderResult(analyse.result, uploadedFileBase64, uploadedFileType);
     setTimeout(() => { const el = document.getElementById('histo-' + analyse.id); if (el) el.classList.add('selected'); }, 50);
   } catch (e) {
     if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {
@@ -986,12 +987,12 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
-function renderResult(r) {
+function renderResult(r, previewB64, previewType) {
   const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
-  const previewHTML = uploadedFileBase64 && uploadedFileType?.startsWith('image/')
-    ? `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${uploadedFileType};base64,${uploadedFileBase64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#000;display:block;"></div>`
+  const previewHTML = previewB64 && previewType?.startsWith('image/')
+    ? `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#000;display:block;"></div>`
     : '';
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
