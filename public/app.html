@@ -249,6 +249,12 @@ textarea:focus { border-color: var(--accent); }
 .btn-close-stock:hover { border-color: var(--accent); color: var(--accent); }
 .btn-add-ref { background: var(--accent); color: #111; border: none; border-radius: 8px; padding: 8px 16px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-add-ref:hover { background: #b8e030; }
+.btn-import-cat { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.btn-import-cat:hover { border-color: #4af0c8; color: #4af0c8; }
+.btn-import-cat:disabled { opacity: 0.5; cursor: not-allowed; }
+.import-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); z-index: 9999; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 24px #0008; transition: opacity 0.3s; }
+.import-toast.success { border-color: var(--accent); color: var(--accent); }
+.import-toast.error { border-color: var(--danger); color: var(--danger); }
 
 .stock-panel-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
 
@@ -431,7 +437,9 @@ textarea:focus { border-color: var(--accent); }
     <div class="stock-panel-header">
       <h2>Stock adhésifs</h2>
       <button class="btn-add-ref" onclick="openModal()">+ Ajouter</button>
+      <button class="btn-import-cat" onclick="triggerCatalogueImport()" title="Importer un catalogue PDF">📂 Catalogue PDF</button>
       <button class="btn-close-stock" onclick="closeStock()">✕ Fermer</button>
+      <input type="file" id="catalogue-file-input" accept=".pdf" style="display:none" onchange="importCatalogue(this)">
     </div>
     <div class="stock-panel-body">
       <div class="stats-row">
@@ -1097,6 +1105,60 @@ function stopPolling() {
   }
   switchAuthTab('login');
 })();
+
+// ===================== IMPORT CATALOGUE PDF =====================
+function triggerCatalogueImport() {
+  document.getElementById('catalogue-file-input').value = '';
+  document.getElementById('catalogue-file-input').click();
+}
+
+async function importCatalogue(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const btn = document.querySelector('.btn-import-cat');
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ Analyse en cours…';
+  showImportToast('⏳ Analyse du catalogue en cours… (peut prendre 30-60s)', 'loading');
+
+  try {
+    const formData = new FormData();
+    formData.append('catalogue', file);
+    const token = localStorage.getItem('aidesif_token');
+    const resp = await fetch('/api/stock/import-catalogue', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData,
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
+    showImportToast(`✅ ${data.count} produit${data.count > 1 ? 's' : ''} ajouté${data.count > 1 ? 's' : ''} au stock !`, 'success');
+    await loadStock();
+  } catch (e) {
+    showImportToast('❌ ' + (e.message || 'Erreur lors de l\'import'), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+let importToastTimer;
+function showImportToast(msg, type = '') {
+  let toast = document.getElementById('import-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'import-toast';
+    toast.className = 'import-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.className = 'import-toast' + (type && type !== 'loading' ? ' ' + type : '');
+  toast.style.opacity = '1';
+  clearTimeout(importToastTimer);
+  if (type !== 'loading') {
+    importToastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 5000);
+  }
+}
 </script>
 </body>
 </html>
