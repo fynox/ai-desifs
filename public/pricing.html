@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Choisir un abonnement — AI-dhésif</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+:root {
+  --bg: #111210; --surface: #1c1d1a; --surface2: #252622; --border: #2f3029;
+  --accent: #c8f04a; --accent-dim: #8aaa2a; --text: #eceee6; --muted: #7a7d70;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 48px; border-bottom: 1px solid var(--border);
+  background: rgba(17,18,16,0.9); backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; }
+.logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: #111; }
+.btn-back { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 8px 18px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+.btn-back:hover { border-color: var(--accent-dim); color: var(--text); }
+
+.hero { text-align: center; padding: 64px 24px 48px; }
+.hero h1 { font-size: 40px; font-weight: 800; margin-bottom: 12px; }
+.hero p { font-size: 15px; font-family: 'DM Mono', monospace; color: var(--muted); line-height: 1.7; }
+
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1000px; margin: 0 auto; padding: 0 24px 80px; }
+
+.plan-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; gap: 20px; position: relative; transition: border-color 0.2s; }
+.plan-card:hover { border-color: var(--border); }
+.plan-card.featured { border-color: var(--accent-dim); background: #141f03; }
+.plan-card.soon { opacity: 0.6; }
+
+.plan-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #111; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; padding: 3px 14px; border-radius: 20px; white-space: nowrap; }
+.soon-badge { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+.plan-name { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.plan-card.featured .plan-name { color: var(--accent); }
+.plan-price { font-size: 44px; font-weight: 800; line-height: 1; }
+.plan-price span { font-size: 16px; color: var(--muted); font-weight: 400; }
+.plan-desc { font-size: 13px; font-family: 'DM Mono', monospace; color: var(--muted); line-height: 1.7; }
+
+.plan-features { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.plan-feature { font-size: 13px; font-family: 'DM Mono', monospace; display: flex; gap: 10px; align-items: flex-start; }
+.plan-feature .check { color: var(--accent); flex-shrink: 0; }
+.plan-feature .dash { color: var(--border); flex-shrink: 0; }
+.plan-feature.off { color: var(--muted); }
+
+.btn-plan { width: 100%; border-radius: 10px; padding: 13px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; border: none; }
+.btn-plan-accent { background: var(--accent); color: #111; }
+.btn-plan-accent:hover { background: #b8e030; }
+.btn-plan-accent:disabled { background: #333; color: var(--muted); cursor: not-allowed; }
+.btn-plan-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: not-allowed; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 600; }
+
+.note { text-align: center; font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); padding-bottom: 40px; }
+
+@media (max-width: 768px) {
+  .plans { grid-template-columns: 1fr; }
+  nav { padding: 16px 20px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="logo-icon">A</div>
+    AI-dhésif
+  </div>
+  <button class="btn-back" onclick="history.back()">← Retour</button>
+</nav>
+
+<div class="hero">
+  <h1>Choisissez votre formule</h1>
+  <p>Commencez gratuitement, évoluez selon vos besoins.</p>
+</div>
+
+<div class="plans">
+
+  <!-- STARTER -->
+  <div class="plan-card soon">
+    <div class="plan-badge soon-badge">Bientôt disponible</div>
+    <div class="plan-name">Starter</div>
+    <div class="plan-price">9€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les indépendants qui traitent quelques demandes par semaine.</div>
+    <div class="plan-features">
+      <div class="plan-feature"><span class="check">✓</span> 30 analyses / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> Gestion de stock</div>
+      <div class="plan-feature"><span class="check">✓</span> Historique complet</div>
+      <div class="plan-feature off"><span class="dash">—</span> Adresse mail dédiée</div>
+      <div class="plan-feature off"><span class="dash">—</span> Analyses par mail auto</div>
+    </div>
+    <button class="btn-plan btn-plan-ghost" disabled>Bientôt disponible</button>
+  </div>
+
+  <!-- PRO -->
+  <div class="plan-card featured">
+    <div class="plan-badge">Recommandé</div>
+    <div class="plan-name">Pro</div>
+    <div class="plan-price">20€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les professionnels qui traitent des demandes clients au quotidien.</div>
+    <div class="plan-features">
+      <div class="plan-feature"><span class="check">✓</span> Analyses illimitées</div>
+      <div class="plan-feature"><span class="check">✓</span> Gestion de stock</div>
+      <div class="plan-feature"><span class="check">✓</span> Historique complet</div>
+      <div class="plan-feature"><span class="check">✓</span> Adresse mail dédiée</div>
+      <div class="plan-feature"><span class="check">✓</span> Analyses par mail automatiques</div>
+    </div>
+    <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe()">S'abonner pour 20€/mois →</button>
+  </div>
+
+  <!-- BUSINESS -->
+  <div class="plan-card soon">
+    <div class="plan-badge soon-badge">Bientôt disponible</div>
+    <div class="plan-name">Business</div>
+    <div class="plan-price">49€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les équipes et les enseignes avec plusieurs utilisateurs.</div>
+    <div class="plan-features">
+      <div class="plan-feature"><span class="check">✓</span> Analyses illimitées</div>
+      <div class="plan-feature"><span class="check">✓</span> Multi-utilisateurs</div>
+      <div class="plan-feature"><span class="check">✓</span> Plusieurs adresses mail dédiées</div>
+      <div class="plan-feature"><span class="check">✓</span> Dashboard équipe</div>
+      <div class="plan-feature"><span class="check">✓</span> Support prioritaire</div>
+    </div>
+    <button class="btn-plan btn-plan-ghost" disabled>Bientôt disponible</button>
+  </div>
+
+</div>
+
+<div class="note">Sans engagement — résiliable à tout moment depuis votre profil</div>
+
+<script>
+// Récupérer le token depuis sessionStorage (passé depuis app.html)
+const token = sessionStorage.getItem('aidesif_token');
+
+async function subscribe() {
+  if (!token) { window.location.href = '/app'; return; }
+  const btn = document.getElementById('btn-pro');
+  btn.disabled = true; btn.textContent = 'Redirection vers Stripe...';
+  try {
+    const res = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    window.location.href = data.url;
+  } catch (e) {
+    alert(e.message);
+    btn.disabled = false; btn.textContent = 'S\'abonner pour 20€/mois →';
+  }
+}
+</script>
+</body>
+</html>

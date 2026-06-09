@@ -585,6 +585,7 @@ async function startSession(token, email, status, used, iEmail) {
     return;
   }
 
+  sessionStorage.setItem('aidesif_token', token);
   document.getElementById('sub-wall').style.display = 'none';
   document.getElementById('user-email-display').textContent = email;
   document.getElementById('app').classList.add('visible');
@@ -618,16 +619,9 @@ function renderTrialBanner() {
   document.querySelector('.main-content').prepend(banner);
 }
 
-async function startCheckout() {
-  const btn = document.getElementById('btn-subscribe');
-  btn.disabled = true; btn.textContent = 'Redirection...';
-  try {
-    const data = await api('POST', '/stripe/checkout');
-    window.location.href = data.url;
-  } catch (e) {
-    alert(e.message);
-    btn.disabled = false; btn.textContent = 'S\'abonner maintenant →';
-  }
+function startCheckout() {
+  sessionStorage.setItem('aidesif_token', authToken);
+  window.location.href = '/pricing';
 }
 
 function logout() {
