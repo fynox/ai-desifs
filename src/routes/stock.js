@@ -86,7 +86,12 @@ router.patch('/:id/dispo', (req, res) => {
 });
 
 // Import catalogue PDF
-router.post('/import-catalogue', upload.single('catalogue'), async (req, res) => {
+router.post('/import-catalogue', (req, res, next) => {
+  upload.single('catalogue')(req, res, err => {
+    if (err) return res.status(400).json({ error: 'Erreur upload : ' + err.message });
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni.' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Clé API Anthropic non configurée.' });

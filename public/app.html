@@ -1198,12 +1198,9 @@ async function importCatalogue(input) {
       headers: { 'Authorization': 'Bearer ' + token },
       body: formData,
     });
-    const contentType = resp.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      throw new Error(`Serveur inaccessible (HTTP ${resp.status})`);
-    }
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
+    let data;
+    try { data = await resp.json(); } catch { throw new Error(`Serveur inaccessible (HTTP ${resp.status})`); }
+    if (!resp.ok) throw new Error(data.error || `Erreur serveur (HTTP ${resp.status})`);
     stopProgressAnim(true, `✅ ${data.count} produit${data.count > 1 ? 's' : ''} ajouté${data.count > 1 ? 's' : ''} au stock !`);
     await loadStock();
   } catch (e) {
