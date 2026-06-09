@@ -191,9 +191,9 @@ textarea:focus { border-color: var(--accent); }
 .stock-warning { background: #1a1200; border: 1px solid #4a3500; border-radius: 8px; padding: 12px 16px; font-size: 13px; font-family: 'DM Mono', monospace; color: #ffb347; }
 
 /* OUTPUT */
-.analyse-output { position: absolute; inset: 0; background: var(--bg); overflow-y: auto; display: none; flex-direction: column; z-index: 10; padding: 28px; }
-.analyse-output.open { display: flex; }
-.output-close-btn { position: absolute; top: 18px; right: 20px; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 14px; cursor: pointer; padding: 5px 12px; font-family: 'Syne', sans-serif; font-weight: 600; transition: all 0.15s; }
+.analyse-output { position: absolute; inset: 0; background: var(--bg); overflow-y: auto; display: flex; flex-direction: column; z-index: 10; padding: 0; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); pointer-events: none; }
+.analyse-output.open { transform: translateX(0); pointer-events: all; }
+.output-close-btn { background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 13px; cursor: pointer; padding: 5px 14px; font-family: 'Syne', sans-serif; font-weight: 600; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
 .output-close-btn:hover { border-color: var(--danger); color: var(--danger); }
 .output-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); text-align: center; padding: 40px; }
 .output-empty-icon { font-size: 44px; opacity: 0.2; }
@@ -205,7 +205,7 @@ textarea:focus { border-color: var(--accent); }
 
 /* RESULT */
 .result-block { display: flex; flex-direction: column; }
-.result-top { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.result-top { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
 .result-top h2 { font-size: 15px; font-weight: 700; }
 .result-badge { margin-left: auto; font-size: 11px; font-family: 'DM Mono', monospace; background: #1a2a05; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 20px; padding: 3px 10px; }
 .result-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
@@ -419,9 +419,7 @@ textarea:focus { border-color: var(--accent); }
         <div class="stock-warning" id="stock-warning" style="display:none">⚠ Aucun adhésif en stock. Cliquez sur "Gérer le stock" dans la sidebar.</div>
       </div>
 
-      <div class="analyse-output" id="output-panel">
-        <button class="output-close-btn" onclick="closeResult()">✕ Fermer</button>
-      </div>
+      <div class="analyse-output" id="output-panel"></div>
     </div>
   </main>
 </div>
@@ -992,12 +990,15 @@ function renderResult(r) {
   const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
+  const previewHTML = uploadedFileBase64 && uploadedFileType?.startsWith('image/')
+    ? `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${uploadedFileType};base64,${uploadedFileBase64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#000;display:block;"></div>`
+    : '';
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
-    <button class="output-close-btn" onclick="closeResult()">✕ Fermer</button>
     <div class="result-block">
-      <div class="result-top"><h2>Analyse complète</h2><span class="result-badge">✓ Prêt</span></div>
+      <div class="result-top"><h2>Analyse complète</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       <div class="result-section"><div class="rs-label">Résumé</div><div class="rs-text">${r.resume}</div></div>
+      ${previewHTML}
       <div class="result-section"><div class="rs-label">Adhésif recommandé</div>${adhesifsHTML}</div>
       <div class="result-section"><div class="rs-label">Spécifications</div><div class="specs-grid">
         <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
