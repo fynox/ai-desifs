@@ -60,4 +60,7 @@ for (const sql of migrations) {
   try { db.exec(sql); } catch {}
 }
 
+// Migrate inbound_email from @ai-dhesif.fr to @mail.ai-dhesif.fr
+db.prepare(`UPDATE users SET inbound_email = REPLACE(inbound_email, '@ai-dhesif.fr', '@mail.ai-dhesif.fr') WHERE inbound_email LIKE '%@ai-dhesif.fr'`).run();
+
 module.exports = db;
