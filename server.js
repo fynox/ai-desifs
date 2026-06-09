@@ -31,6 +31,7 @@ app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/stock', require('./src/routes/stock'));
 app.use('/api/analyses', require('./src/routes/analyses'));
 app.use('/api/stripe', require('./src/routes/stripe'));
+app.use('/api/admin', require('./src/routes/admin'));
 
 // SendGrid inbound (pas rate limité)
 app.use('/webhooks', require('./src/routes/webhook'));
@@ -39,6 +40,7 @@ app.use('/webhooks', require('./src/routes/webhook'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('/pricing', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pricing.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;

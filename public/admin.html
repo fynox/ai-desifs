@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — AI-dhésif</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+:root {
+  --bg: #111210; --surface: #1c1d1a; --surface2: #252622; --border: #2f3029;
+  --accent: #c8f04a; --accent-dim: #8aaa2a; --text: #eceee6; --muted: #7a7d70;
+  --red: #f04a4a; --orange: #f0a84a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 32px; border-bottom: 1px solid var(--border);
+  background: rgba(17,18,16,0.95); backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 800; }
+.logo-icon { width: 30px; height: 30px; background: var(--red); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; }
+.nav-right { display: flex; gap: 12px; align-items: center; }
+.nav-email { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); }
+.btn-sm { background: transparent; border: 1px solid var(--border); border-radius: 7px; padding: 6px 14px; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.btn-sm:hover { border-color: var(--accent-dim); color: var(--text); }
+
+.layout { display: grid; grid-template-columns: 200px 1fr; min-height: calc(100vh - 57px); }
+
+.sidebar { border-right: 1px solid var(--border); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); transition: all 0.15s; border: none; background: transparent; width: 100%; text-align: left; }
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active { background: var(--surface2); color: var(--text); }
+.nav-item .icon { font-size: 15px; }
+
+.main { padding: 32px; overflow: auto; }
+
+.page { display: none; }
+.page.active { display: block; }
+
+h2 { font-size: 22px; font-weight: 800; margin-bottom: 24px; }
+
+/* Stats */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.stat-val { font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.stat-val.green { color: var(--accent); }
+.stat-val.orange { color: var(--orange); }
+.stat-val.red { color: var(--red); }
+.stat-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+
+/* Table */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.table-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.table-header h3 { font-size: 14px; font-weight: 700; }
+.search-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 6px 12px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px; width: 220px; outline: none; }
+.search-input:focus { border-color: var(--accent-dim); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 16px; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 400; }
+td { padding: 11px 16px; font-size: 12px; font-family: 'DM Mono', monospace; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+
+.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.badge-active { background: #1a2a05; color: var(--accent); border: 1px solid var(--accent-dim); }
+.badge-trial { background: #2a1f05; color: var(--orange); border: 1px solid #6a4a05; }
+.badge-inactive { background: #2a0505; color: var(--red); border: 1px solid #6a0505; }
+
+.action-btn { background: transparent; border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); cursor: pointer; transition: all 0.15s; margin-right: 4px; }
+.action-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+.action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+.loading { text-align: center; padding: 48px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 13px; }
+.empty { text-align: center; padding: 48px; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; width: 380px; }
+.modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.modal p { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.btn-danger { background: var(--red); border: none; border-radius: 8px; padding: 9px 18px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; }
+.btn-cancel { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 9px 18px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+
+.status-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text); cursor: pointer; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="logo-icon">⚙</div>
+    Admin — AI-dhésif
+  </div>
+  <div class="nav-right">
+    <span class="nav-email" id="admin-email"></span>
+    <button class="btn-sm" onclick="window.location.href='/app'">← App</button>
+    <button class="btn-sm" onclick="logout()">Déconnexion</button>
+  </div>
+</nav>
+
+<div class="layout">
+  <div class="sidebar">
+    <button class="nav-item active" onclick="showPage('dashboard', this)"><span class="icon">◉</span> Dashboard</button>
+    <button class="nav-item" onclick="showPage('users', this)"><span class="icon">◎</span> Utilisateurs</button>
+    <button class="nav-item" onclick="showPage('analyses', this)"><span class="icon">◈</span> Analyses</button>
+  </div>
+
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <h2>Dashboard</h2>
+      <div class="stats-grid" id="stats-grid">
+        <div class="loading" style="grid-column:1/-1">Chargement...</div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-header"><h3>Derniers inscrits</h3></div>
+        <div id="recent-users-table"><div class="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+    <!-- UTILISATEURS -->
+    <div class="page" id="page-users">
+      <h2>Utilisateurs</h2>
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3 id="users-count">—</h3>
+          <input class="search-input" type="text" placeholder="Rechercher un email..." oninput="filterUsers(this.value)">
+        </div>
+        <div id="users-table"><div class="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+    <!-- ANALYSES -->
+    <div class="page" id="page-analyses">
+      <h2>Analyses récentes</h2>
+      <div class="table-wrap">
+        <div class="table-header"><h3>50 dernières analyses</h3></div>
+        <div id="analyses-table"><div class="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal suppression -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h3>Supprimer l'utilisateur</h3>
+    <p id="delete-modal-text"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Annuler</button>
+      <button class="btn-danger" onclick="confirmDelete()">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('aidesif_token');
+if (!token) window.location.href = '/app';
+
+let allUsers = [];
+let deleteTargetId = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (res.status === 403) { alert('Accès refusé — compte non admin.'); window.location.href = '/app'; }
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function logout() { localStorage.removeItem('aidesif_token'); window.location.href = '/'; }
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'users') loadUsers();
+  if (name === 'analyses') loadAnalyses();
+}
+
+function statusBadge(s) {
+  if (s === 'active') return '<span class="badge badge-active">Actif</span>';
+  if (s === 'trial') return '<span class="badge badge-trial">Essai</span>';
+  return '<span class="badge badge-inactive">Inactif</span>';
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// DASHBOARD
+async function loadDashboard() {
+  try {
+    const [stats, users] = await Promise.all([api('/api/admin/stats'), api('/api/admin/users')]);
+
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card"><div class="stat-val">${stats.totalUsers}</div><div class="stat-label">Utilisateurs total</div></div>
+      <div class="stat-card"><div class="stat-val green">${stats.activeUsers}</div><div class="stat-label">Abonnés actifs</div></div>
+      <div class="stat-card"><div class="stat-val orange">${stats.trialUsers}</div><div class="stat-label">En essai gratuit</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.totalAnalyses}</div><div class="stat-label">Analyses totales</div></div>
+      <div class="stat-card"><div class="stat-val green">${stats.todayAnalyses}</div><div class="stat-label">Analyses aujourd'hui</div></div>
+      <div class="stat-card"><div class="stat-val red">${stats.inactiveUsers}</div><div class="stat-label">Comptes inactifs</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.totalStock}</div><div class="stat-label">Produits en stock</div></div>
+    `;
+
+    const recent = users.slice(0, 10);
+    document.getElementById('recent-users-table').innerHTML = `
+      <table>
+        <thead><tr><th>Email</th><th>Statut</th><th>Analyses</th><th>Inscrit le</th></tr></thead>
+        <tbody>${recent.map(u => `
+          <tr>
+            <td>${u.email}</td>
+            <td>${statusBadge(u.subscription_status)}</td>
+            <td>${u.analyses_count}</td>
+            <td>${fmtDate(u.created_at)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+
+    // email admin
+    const profile = await api('/api/auth/profile').catch(() => null);
+    if (profile) document.getElementById('admin-email').textContent = profile.email;
+
+  } catch(e) { console.error(e); }
+}
+
+// UTILISATEURS
+async function loadUsers() {
+  if (allUsers.length) return renderUsers(allUsers);
+  try {
+    allUsers = await api('/api/admin/users');
+    renderUsers(allUsers);
+  } catch(e) { document.getElementById('users-table').innerHTML = '<div class="empty">Erreur de chargement</div>'; }
+}
+
+function renderUsers(users) {
+  document.getElementById('users-count').textContent = `${users.length} utilisateur${users.length > 1 ? 's' : ''}`;
+  if (!users.length) { document.getElementById('users-table').innerHTML = '<div class="empty">Aucun utilisateur</div>'; return; }
+  document.getElementById('users-table').innerHTML = `
+    <table>
+      <thead><tr><th>Email</th><th>Statut</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
+      <tbody>${users.map(u => `
+        <tr id="user-row-${u.id}">
+          <td>${u.email}</td>
+          <td>
+            <select class="status-select" onchange="changeStatus(${u.id}, this.value)">
+              <option value="trial" ${u.subscription_status==='trial'?'selected':''}>Essai</option>
+              <option value="active" ${u.subscription_status==='active'?'selected':''}>Actif</option>
+              <option value="inactive" ${u.subscription_status==='inactive'?'selected':''}>Inactif</option>
+            </select>
+          </td>
+          <td>${u.trial_analyses_used}/5</td>
+          <td>${u.analyses_count}</td>
+          <td>${u.stock_count}</td>
+          <td>${fmtDate(u.created_at)}</td>
+          <td>
+            <button class="action-btn" onclick="resetTrial(${u.id})" title="Reset essais">↺ reset</button>
+            <button class="action-btn danger" onclick="openDeleteModal(${u.id}, '${u.email}')">✕ suppr.</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function filterUsers(q) {
+  const filtered = q ? allUsers.filter(u => u.email.toLowerCase().includes(q.toLowerCase())) : allUsers;
+  renderUsers(filtered);
+}
+
+async function changeStatus(id, status) {
+  try {
+    await api(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ subscription_status: status }) });
+    const u = allUsers.find(u => u.id === id);
+    if (u) u.subscription_status = status;
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+async function resetTrial(id) {
+  try {
+    await api(`/api/admin/users/${id}/reset-trial`, { method: 'PATCH' });
+    const u = allUsers.find(u => u.id === id);
+    if (u) { u.trial_analyses_used = 0; renderUsers(allUsers); }
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+function openDeleteModal(id, email) {
+  deleteTargetId = id;
+  document.getElementById('delete-modal-text').textContent = `Supprimer définitivement le compte de ${email} et toutes ses données (stock, analyses) ?`;
+  document.getElementById('delete-modal').classList.add('open');
+}
+function closeDeleteModal() { document.getElementById('delete-modal').classList.remove('open'); deleteTargetId = null; }
+async function confirmDelete() {
+  if (!deleteTargetId) return;
+  try {
+    await api(`/api/admin/users/${deleteTargetId}`, { method: 'DELETE' });
+    allUsers = allUsers.filter(u => u.id !== deleteTargetId);
+    closeDeleteModal();
+    renderUsers(allUsers);
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+// ANALYSES
+async function loadAnalyses() {
+  try {
+    const analyses = await api('/api/admin/analyses');
+    if (!analyses.length) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Aucune analyse</div>'; return; }
+    document.getElementById('analyses-table').innerHTML = `
+      <table>
+        <thead><tr><th>Utilisateur</th><th>Source</th><th>Premier produit</th><th>Lu</th><th>Date</th></tr></thead>
+        <tbody>${analyses.map(a => `
+          <tr>
+            <td>${a.email}</td>
+            <td><span class="badge ${a.source==='mail'?'badge-active':'badge-trial'}">${a.source}</span></td>
+            <td>${a.premier_produit || '—'}</td>
+            <td>${a.lu ? '✓' : '—'}</td>
+            <td>${fmtDate(a.created_at)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Erreur de chargement</div>'; }
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
