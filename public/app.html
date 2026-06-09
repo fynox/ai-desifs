@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI-désifs</title>
+<title>AI-dhésif</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
 
@@ -316,7 +316,7 @@ textarea:focus { border-color: var(--accent); }
   <div class="sub-box">
     <div class="sub-icon">🖨️</div>
     <h2 id="sub-wall-title">Activez votre abonnement</h2>
-    <p id="sub-wall-desc">Pour utiliser AI-désifs et analyser vos commandes clients, un abonnement mensuel est requis.</p>
+    <p id="sub-wall-desc">Pour utiliser AI-dhésif et analyser vos commandes clients, un abonnement mensuel est requis.</p>
     <div class="sub-price">20€ <span>/ mois</span></div>
     <div class="sub-features">
       <div class="sub-feature">Analyses illimitées par IA</div>
@@ -334,7 +334,7 @@ textarea:focus { border-color: var(--accent); }
   <div class="auth-box">
     <div class="auth-logo-row">
       <div class="logo">A</div>
-      <span class="auth-brand">AI-désifs</span>
+      <span class="auth-brand">AI-dhésif</span>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Connexion</button>
@@ -364,7 +364,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="sidebar-top">
       <div class="sidebar-brand">
         <div class="logo">A</div>
-        <span class="brand-name">AI-désifs</span>
+        <span class="brand-name">AI-dhésif</span>
       </div>
       <button class="btn-new-analyse" onclick="newAnalyse()">＋ Nouvelle analyse</button>
     </div>
@@ -478,23 +478,10 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Mot de passe actuel</label><div class="pw-wrap"><input type="password" id="profil-pw-actuel" placeholder="••••••••"><button class="pw-toggle" onclick="togglePw('profil-pw-actuel')">👁</button></div></div>
     <div class="form-group"><label>Nouveau mot de passe</label><div class="pw-wrap"><input type="password" id="profil-pw-new" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('profil-pw-new')">👁</button></div></div>
     <div class="form-group"><label>Confirmer le nouveau mot de passe</label><input type="password" id="profil-pw-confirm" placeholder="••••••••"></div>
-    <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Clé API Anthropic</div>
-    <div class="form-group">
-      <label>Nouvelle clé API</label>
-      <div class="pw-wrap"><input type="password" id="profil-apikey" placeholder="sk-ant-..."><button class="pw-toggle" onclick="togglePw('profil-apikey')">👁</button></div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;">Laissez vide pour conserver la clé actuelle</div>
-    </div>
     <div class="auth-error" id="profil-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="profil-success">✓ Modifications enregistrées</div>
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Adresse mail entrante</div>
-    <div id="profil-inbound-wrap" style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:16px;">
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="profil-inbound-addr" style="font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);flex:1;word-break:break-all;">—</span>
-        <button onclick="copyInbound()" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;" id="btn-copy-inbound">Copier</button>
-      </div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;line-height:1.6;">⚠ Disponible uniquement en plan Pro</div>
-    </div>
+    <div id="profil-inbound-wrap"></div>
 
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Abonnement</div>
     <button class="btn-stock" onclick="openPortail()" style="width:100%">⚙ Gérer mon abonnement Stripe</button>
@@ -613,7 +600,7 @@ function showUpgradeWall(reason) {
     desc.textContent = `Vous avez utilisé vos ${TRIAL_LIMIT} analyses d'essai. Passez à l'abonnement Pro pour continuer.`;
   } else {
     title.textContent = 'Activez votre abonnement';
-    desc.textContent = 'Pour utiliser AI-désifs, un abonnement mensuel est requis.';
+    desc.textContent = 'Pour utiliser AI-dhésif, un abonnement mensuel est requis.';
   }
   document.getElementById('sub-wall').style.display = 'flex';
 }
@@ -654,11 +641,22 @@ function logout() {
 // ===================== PROFIL =====================
 function openProfile() {
   document.getElementById('profil-email').textContent = currentUserEmail;
-  ['profil-pw-actuel','profil-pw-new','profil-pw-confirm','profil-apikey'].forEach(id => document.getElementById(id).value = '');
+  ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';
   document.getElementById('profil-success').style.display = 'none';
-  const addrEl = document.getElementById('profil-inbound-addr');
-  if (addrEl) addrEl.textContent = inboundEmail || '—';
+
+  const wrap = document.getElementById('profil-inbound-wrap');
+  if (subscriptionStatus === 'active' && inboundEmail) {
+    wrap.innerHTML = `
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);flex:1;word-break:break-all;">${inboundEmail}</span>
+        <button onclick="copyInbound()" id="btn-copy-inbound" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;">Copier</button>
+      </div>`;
+  } else {
+    wrap.innerHTML = `<div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px 14px;background:var(--surface2);border-radius:9px;">🔒 Adresse mail dédiée disponible en plan <strong style="color:var(--accent)">Pro</strong></div>`;
+  }
+
   document.getElementById('modal-profil').classList.add('open');
 }
 
@@ -676,7 +674,6 @@ async function saveProfile() {
   const current_password = document.getElementById('profil-pw-actuel').value;
   const new_password = document.getElementById('profil-pw-new').value;
   const confirm = document.getElementById('profil-pw-confirm').value;
-  const api_key = document.getElementById('profil-apikey').value.trim();
   const err = document.getElementById('profil-error');
   const success = document.getElementById('profil-success');
   err.textContent = ''; success.style.display = 'none';
@@ -684,8 +681,8 @@ async function saveProfile() {
   if (new_password && new_password !== confirm) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
 
   try {
-    await api('PUT', '/auth/profile', { current_password: current_password || undefined, new_password: new_password || undefined, api_key: api_key || undefined });
-    ['profil-pw-actuel','profil-pw-new','profil-pw-confirm','profil-apikey'].forEach(id => document.getElementById(id).value = '');
+    await api('PUT', '/auth/profile', { current_password: current_password || undefined, new_password: new_password || undefined });
+    ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
     success.style.display = 'block';
   } catch (e) {
     err.textContent = e.message;
