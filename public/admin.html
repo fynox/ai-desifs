@@ -135,6 +135,7 @@ tr:hover td { background: var(--surface2); }
     <button class="nav-item active" onclick="showPage('dashboard', this)"><span class="icon">◉</span> Dashboard</button>
     <button class="nav-item" onclick="showPage('users', this)"><span class="icon">◎</span> Utilisateurs</button>
     <button class="nav-item" onclick="showPage('analyses', this)"><span class="icon">◈</span> Analyses</button>
+    <button class="nav-item" id="nav-bugs" onclick="showPage('bugs', this)"><span class="icon">🐛</span> Bugs <span id="bugs-badge" style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;display:none"></span></button>
   </div>
 
   <div class="main">
@@ -173,6 +174,15 @@ tr:hover td { background: var(--surface2); }
           <input class="search-input" type="text" placeholder="Filtrer par email..." oninput="filterAnalyses(this.value)">
         </div>
         <div id="analyses-table"><div class="loading">Chargement...</div></div>
+      </div>
+    </div>
+
+    <!-- BUGS -->
+    <div class="page" id="page-bugs">
+      <h2>🐛 Signalements de bugs</h2>
+      <div class="table-wrap">
+        <div class="table-header"><h3 id="bugs-count">Chargement...</h3></div>
+        <div id="bugs-table"><div class="loading">Chargement...</div></div>
       </div>
     </div>
 
@@ -258,6 +268,7 @@ function showPage(name, btn) {
   btn.classList.add('active');
   if (name === 'users') loadUsers();
   if (name === 'analyses') loadAnalyses();
+  if (name === 'bugs') loadBugs();
 }
 
 function statusBadge(s) {
@@ -461,10 +472,65 @@ async function viewUserAnalyses(userId, email) {
   } catch(e) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Erreur</div>'; }
 }
 
+// ===================== BUGS =====================
+let allBugs = [];
+async function loadBugs() {
+  document.getElementById('bugs-table').innerHTML = '<div class="loading">Chargement...</div>';
+  try {
+    const res = await fetch('/api/admin/bugs', { headers: { 'Authorization': 'Bearer ' + token } });
+    allBugs = await res.json();
+    document.getElementById('bugs-count').textContent = `${allBugs.length} signalement(s)`;
+    renderBugs(allBugs);
+  } catch(e) { document.getElementById('bugs-table').innerHTML = '<div class="empty">Erreur</div>'; }
+}
+
+function renderBugs(bugs) {
+  const el = document.getElementById('bugs-table');
+  if (!bugs.length) { el.innerHTML = '<div class="empty">Aucun bug signalé 🎉</div>'; return; }
+  const statusColor = { new: '#f06060', seen: '#f0c84a', done: '#4af0c8' };
+  const statusLabel = { new: 'Nouveau', seen: 'Vu', done: 'Résolu' };
+  el.innerHTML = `<table><thead><tr><th>Date</th><th>Email</th><th>Message</th><th>Statut</th></tr></thead><tbody>` +
+    bugs.map(b => `<tr>
+      <td style="white-space:nowrap;font-size:11px;">${fmtDate(b.created_at)}</td>
+      <td style="font-size:11px;">${b.email || '—'}</td>
+      <td style="max-width:400px;font-size:12px;white-space:pre-wrap;">${b.message}</td>
+      <td><select style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:${statusColor[b.status]||'var(--text)'};font-family:'DM Mono',monospace;font-size:11px;padding:4px 8px;cursor:pointer;" onchange="setBugStatus(${b.id},this.value)">
+        ${['new','seen','done'].map(s => `<option value="${s}" ${b.status===s?'selected':''}>${statusLabel[s]}</option>`).join('')}
+      </select></td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+
+async function loadBugsBadge() {
+  try {
+    const res = await fetch('/api/admin/bugs', { headers: { 'Authorization': 'Bearer ' + token } });
+    const bugs = await res.json();
+    allBugs = bugs;
+    const newCount = bugs.filter(b => b.status === 'new').length;
+    const badge = document.getElementById('bugs-badge');
+    badge.textContent = newCount;
+    badge.style.display = newCount ? 'inline' : 'none';
+  } catch {}
+}
+
+async function setBugStatus(id, status) {
+  await fetch(`/api/admin/bugs/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ status }),
+  });
+  const bug = allBugs.find(b => b.id === id);
+  if (bug) bug.status = status;
+  // Mettre à jour le badge
+  const newCount = allBugs.filter(b => b.status === 'new').length;
+  const badge = document.getElementById('bugs-badge');
+  badge.textContent = newCount;
+  badge.style.display = newCount ? 'inline' : 'none';
+}
+
 // Init
 if (token) {
   fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + token } })
-    .then(r => { if (r.ok) { showApp(); loadDashboard(); } else showLogin(); })
+    .then(r => { if (r.ok) { showApp(); loadDashboard(); loadBugsBadge(); } else showLogin(); })
     .catch(() => showLogin());
 } else {
   showLogin();

@@ -117,6 +117,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .adhesif-result-card { cursor: pointer; transition: border-color 0.15s; }
 .adhesif-result-card:hover { border-color: var(--accent) !important; }
 .histo-empty { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); text-align: center; padding: 20px 8px; line-height: 1.6; }
+.histo-pending { opacity: 0.7; }
+.histo-pending .histo-item-title { color: var(--accent); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.histo-pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse-dot 1.2s ease-in-out infinite; }
 
 .sidebar-bottom { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
 .btn-stock {
@@ -404,6 +408,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="sidebar-bottom">
       <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
       <button class="btn-stock" onclick="openProfile()" style="margin-top:0">⚙ Mon profil</button>
+      <button class="btn-stock" onclick="openBugReport()" style="margin-top:0;color:var(--muted);font-size:12px;">🐛 Signaler un bug</button>
       <div class="user-row">
         <span class="user-email" id="user-email-display"></span>
         <button class="btn-logout" onclick="logout()">Quitter</button>
@@ -487,9 +492,23 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
     <div class="form-group"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
     <div class="form-group"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
-    <div class="form-group"><label>Largeurs disponibles (cm)</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div></div>
+    <div class="form-group"><label>Largeurs disponibles (cm)</label><div class="checkbox-group" id="largeur-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="number" id="largeur-custom-input" placeholder="Autre (cm)" min="1" max="500" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomLargeur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
     <div class="form-group form-row"><div style="flex:1"><label>Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:42px"></textarea></div></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
+  </div>
+</div>
+
+<!-- MODAL BUG REPORT -->
+<div class="modal-overlay" id="modal-bug">
+  <div class="modal" style="max-width:440px">
+    <h3>🐛 Signaler un bug</h3>
+    <div class="form-group"><label>Description du problème</label><textarea id="bug-message" placeholder="Décris ce qui ne fonctionne pas, sur quelle page, quand ça arrive..." style="height:120px"></textarea></div>
+    <div class="auth-error" id="bug-error"></div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="bug-success">✓ Signalement envoyé, merci !</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeBugReport()">Annuler</button>
+      <button class="btn-submit" onclick="sendBugReport()">Envoyer</button>
+    </div>
   </div>
 </div>
 
@@ -915,6 +934,17 @@ function renderSidebarHisto() {
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
   else {
     html += historique.map(h => {
+      if (h._pending) {
+        return `<div class="histo-item histo-pending" id="histo-_pending" style="position:relative;cursor:default;">
+          <div class="histo-item-row">
+            <div class="histo-pending-dot"></div>
+            <div class="histo-item-text">
+              <div class="histo-item-title">Analyse en cours…</div>
+              <div class="histo-item-sub">⏳ L'IA traite votre demande</div>
+            </div>
+          </div>
+        </div>`;
+      }
       const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
       const date = new Date(h.created_at).toLocaleString('fr-FR');
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
@@ -993,6 +1023,11 @@ async function analyzeRequest() {
   document.getElementById('stock-warning').style.display = 'none';
   document.getElementById('output-panel').innerHTML = `<div class="output-loading"><div class="spinner"></div><p>Analyse en cours...</p></div>`;
 
+  // Afficher immédiatement un item "en cours" dans l'historique
+  const pendingEntry = { _pending: true, id: '_pending', created_at: new Date().toISOString() };
+  historique.unshift(pendingEntry);
+  renderSidebarHisto();
+
   try {
     const analyse = await api('POST', '/analyses/analyse', {
       mail_content,
@@ -1001,11 +1036,14 @@ async function analyzeRequest() {
       file_type: uploadedFileType,
     });
     if (subscriptionStatus === 'trial') { trialUsed++; renderTrialBanner(); }
+    historique = historique.filter(h => !h._pending);
     historique.unshift(analyse);
     renderSidebarHisto();
     renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type);
     setTimeout(() => { const el = document.getElementById('histo-' + analyse.id); if (el) el.classList.add('selected'); }, 50);
   } catch (e) {
+    historique = historique.filter(h => !h._pending);
+    renderSidebarHisto();
     if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {
       showUpgradeWall('trial_expired');
     } else if (e.message.includes('stock')) {
@@ -1239,6 +1277,52 @@ function showImportToast(msg, type = '') {
   if (type !== 'loading') {
     importToastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 5000);
   }
+}
+
+// ===================== LARGEUR PERSONNALISÉE =====================
+function addCustomLargeur() {
+  const input = document.getElementById('largeur-custom-input');
+  const val = parseInt(input.value);
+  if (!val || val < 1 || val > 500) { input.focus(); return; }
+  const strVal = String(val);
+  const group = document.getElementById('largeur-group');
+  // Vérifier si déjà existant
+  if (group.querySelector(`input[value="${strVal}"]`)) {
+    group.querySelector(`input[value="${strVal}"]`).checked = true;
+    input.value = '';
+    return;
+  }
+  const label = document.createElement('label');
+  label.className = 'cb-item';
+  label.innerHTML = `<input type="checkbox" name="largeur" value="${strVal}" checked> ${strVal} cm`;
+  group.appendChild(label);
+  input.value = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'largeur-custom-input') { e.preventDefault(); addCustomLargeur(); }
+});
+
+// ===================== BUG REPORT =====================
+function openBugReport() {
+  document.getElementById('bug-message').value = '';
+  document.getElementById('bug-error').textContent = '';
+  document.getElementById('bug-success').style.display = 'none';
+  document.getElementById('modal-bug').classList.add('open');
+  setTimeout(() => document.getElementById('bug-message').focus(), 100);
+}
+function closeBugReport() { document.getElementById('modal-bug').classList.remove('open'); }
+document.getElementById('modal-bug').addEventListener('click', e => { if (e.target === document.getElementById('modal-bug')) closeBugReport(); });
+
+async function sendBugReport() {
+  const msg = document.getElementById('bug-message').value.trim();
+  if (!msg) { document.getElementById('bug-error').textContent = 'Décris le problème avant d\'envoyer.'; return; }
+  document.getElementById('bug-error').textContent = '';
+  try {
+    await api('POST', '/bugs', { message: msg });
+    document.getElementById('bug-success').style.display = 'block';
+    document.getElementById('bug-message').value = '';
+    setTimeout(closeBugReport, 2000);
+  } catch(e) { document.getElementById('bug-error').textContent = e.message; }
 }
 </script>
 </body>

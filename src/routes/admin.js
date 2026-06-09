@@ -87,4 +87,15 @@ router.get('/users/:id/analyses', (req, res) => {
   res.json(analyses);
 });
 
+router.get('/bugs', (req, res) => {
+  const bugs = db.prepare('SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 200').all();
+  res.json(bugs);
+});
+
+router.patch('/bugs/:id/status', (req, res) => {
+  const { status } = req.body;
+  db.prepare('UPDATE bug_reports SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json({ ok: true });
+});
+
 module.exports = router;
