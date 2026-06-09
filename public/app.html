@@ -252,6 +252,16 @@ textarea:focus { border-color: var(--accent); }
 .btn-import-cat { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
 .btn-import-cat:hover { border-color: #4af0c8; color: #4af0c8; }
 .btn-import-cat:disabled { opacity: 0.5; cursor: not-allowed; }
+.import-progress-wrap { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 22px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text); z-index: 9999; box-shadow: 0 4px 24px #0008; min-width: 320px; display: none; flex-direction: column; gap: 10px; }
+.import-progress-wrap.visible { display: flex; }
+.import-progress-step { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; }
+.import-progress-step b { color: var(--text); }
+.import-progress-bar-bg { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; }
+.import-progress-bar { background: var(--accent); height: 6px; border-radius: 999px; width: 0%; transition: width 0.6s ease; }
+.import-progress-wrap.success .import-progress-bar { background: var(--accent); }
+.import-progress-wrap.error .import-progress-bar { background: var(--danger); }
+.import-progress-wrap.success { border-color: var(--accent); }
+.import-progress-wrap.error { border-color: var(--danger); }
 .import-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); z-index: 9999; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 24px #0008; transition: opacity 0.3s; }
 .import-toast.success { border-color: var(--accent); color: var(--accent); }
 .import-toast.error { border-color: var(--danger); color: var(--danger); }
@@ -1112,14 +1122,72 @@ function triggerCatalogueImport() {
   document.getElementById('catalogue-file-input').click();
 }
 
+let _progressTimer = null;
+const IMPORT_STEPS = [
+  { pct: 8,  label: 'Lecture du PDF…' },
+  { pct: 22, label: 'Conversion des pages en images…' },
+  { pct: 40, label: 'Envoi à l\'IA…' },
+  { pct: 60, label: 'Analyse des produits en cours…' },
+  { pct: 78, label: 'Extraction des références…' },
+  { pct: 90, label: 'Enregistrement dans le stock…' },
+];
+
+function getProgressEl() {
+  let el = document.getElementById('import-progress-wrap');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'import-progress-wrap';
+    el.className = 'import-progress-wrap';
+    el.innerHTML = `
+      <div class="import-progress-step" id="import-step"><b>Préparation…</b></div>
+      <div class="import-progress-bar-bg"><div class="import-progress-bar" id="import-bar"></div></div>
+    `;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function startProgressAnim(totalMs) {
+  const wrap = getProgressEl();
+  wrap.className = 'import-progress-wrap visible';
+  const bar = document.getElementById('import-bar');
+  const stepEl = document.getElementById('import-step');
+  let stepIdx = 0;
+  const stepDuration = totalMs / IMPORT_STEPS.length;
+
+  function tick() {
+    if (stepIdx >= IMPORT_STEPS.length) return;
+    const s = IMPORT_STEPS[stepIdx];
+    bar.style.width = s.pct + '%';
+    stepEl.innerHTML = `<b>${s.label}</b>`;
+    stepIdx++;
+    _progressTimer = setTimeout(tick, stepDuration);
+  }
+  tick();
+}
+
+function stopProgressAnim(success, message) {
+  clearTimeout(_progressTimer);
+  const wrap = getProgressEl();
+  const bar = document.getElementById('import-bar');
+  const stepEl = document.getElementById('import-step');
+  bar.style.width = success ? '100%' : '100%';
+  wrap.className = 'import-progress-wrap visible ' + (success ? 'success' : 'error');
+  stepEl.innerHTML = `<b>${message}</b>`;
+  setTimeout(() => { wrap.className = 'import-progress-wrap'; }, success ? 4000 : 6000);
+}
+
 async function importCatalogue(input) {
   const file = input.files[0];
   if (!file) return;
   const btn = document.querySelector('.btn-import-cat');
   btn.disabled = true;
   const originalText = btn.textContent;
-  btn.textContent = '⏳ Analyse en cours…';
-  showImportToast('⏳ Analyse du catalogue en cours… (peut prendre 30-60s)', 'loading');
+  btn.textContent = '⏳ Import…';
+
+  // Estimer la durée selon la taille (~1s/page, min 20s, max 90s)
+  const estimatedMs = Math.min(90000, Math.max(20000, file.size / 1024 / 5 * 1000));
+  startProgressAnim(estimatedMs);
 
   try {
     const formData = new FormData();
@@ -1132,14 +1200,14 @@ async function importCatalogue(input) {
     });
     const contentType = resp.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error(`Serveur inaccessible (HTTP ${resp.status}) — réessaie dans quelques secondes`);
+      throw new Error(`Serveur inaccessible (HTTP ${resp.status})`);
     }
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
-    showImportToast(`✅ ${data.count} produit${data.count > 1 ? 's' : ''} ajouté${data.count > 1 ? 's' : ''} au stock !`, 'success');
+    stopProgressAnim(true, `✅ ${data.count} produit${data.count > 1 ? 's' : ''} ajouté${data.count > 1 ? 's' : ''} au stock !`);
     await loadStock();
   } catch (e) {
-    showImportToast('❌ ' + (e.message || 'Erreur lors de l\'import'), 'error');
+    stopProgressAnim(false, '❌ ' + (e.message || 'Erreur lors de l\'import'));
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
