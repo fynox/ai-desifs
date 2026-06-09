@@ -303,6 +303,7 @@ textarea:focus { border-color: var(--accent); }
 .spec-tag { font-size: 10px; font-family: 'DM Mono', monospace; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
 .note-tag { color: var(--accent-dim); border-color: var(--accent-dim); }
 .largeur-tag { color: var(--cat-vitre); border-color: var(--cat-vitre); }
+.color-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; flex-shrink:0; }
 .prix-tag { color: #7af07a; border-color: #7af07a; }
 .finition-badge { font-size: 11px; font-family: 'DM Mono', monospace; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .toggle-wrap { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
@@ -493,7 +494,24 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
     <div class="form-group"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
     <div class="form-group"><label>Largeurs disponibles (cm)</label><div class="checkbox-group" id="largeur-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="number" id="largeur-custom-input" placeholder="Autre (cm)" min="1" max="500" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomLargeur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
-    <div class="form-group form-row"><div style="flex:1"><label>Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:42px"></textarea></div></div>
+    <div class="form-group"><label>Couleurs disponibles</label><div class="checkbox-group" id="couleur-group">
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Blanc"><span class="color-dot" style="background:#fff;border:1px solid #555"></span>Blanc</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Noir"><span class="color-dot" style="background:#111"></span>Noir</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Gris"><span class="color-dot" style="background:#888"></span>Gris</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Rouge"><span class="color-dot" style="background:#e02020"></span>Rouge</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Bleu"><span class="color-dot" style="background:#2060e0"></span>Bleu</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Vert"><span class="color-dot" style="background:#20a040"></span>Vert</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Jaune"><span class="color-dot" style="background:#f0d000"></span>Jaune</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Orange"><span class="color-dot" style="background:#f07010"></span>Orange</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Violet"><span class="color-dot" style="background:#7030d0"></span>Violet</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Rose"><span class="color-dot" style="background:#e050a0"></span>Rose</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Marron"><span class="color-dot" style="background:#703010"></span>Marron</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Beige"><span class="color-dot" style="background:#d4b896"></span>Beige</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Argent"><span class="color-dot" style="background:#b0c0cc"></span>Argent</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Or"><span class="color-dot" style="background:#c8a000"></span>Or</label>
+      <label class="cb-item"><input type="checkbox" name="couleur" value="Transparent"><span class="color-dot" style="background:transparent;border:1px dashed #666"></span>Transparent</label>
+    </div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="text" id="couleur-custom-input" placeholder="Autre couleur" style="width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomCouleur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
+    <div class="form-group form-row"><div style="flex:1"><label>Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
 </div>
@@ -786,7 +804,8 @@ function openModal(cat) {
   document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
   document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
   resetCustomLargeurs();
-  document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"]').forEach(i => i.checked = false);
+  resetCustomCouleurs();
+  document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"], input[name="couleur"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
   document.getElementById('modal').classList.add('open');
@@ -809,6 +828,12 @@ function openEditModal(id) {
   document.querySelectorAll('input[name="resist"]').forEach(i => i.checked = (item.resistances||[]).includes(i.value));
   document.querySelectorAll('input[name="appli"]').forEach(i => i.checked = (item.applications||[]).includes(i.value));
   resetCustomLargeurs();
+  resetCustomCouleurs();
+  // Recréer les couleurs custom
+  (item.couleurs||[]).forEach(v => {
+    if (!COULEURS_STANDARD.includes(v)) addCustomCouleurVal(v);
+  });
+  document.querySelectorAll('input[name="couleur"]').forEach(i => i.checked = (item.couleurs||[]).includes(i.value));
   // Recréer les largeurs custom (non standards) puis cocher toutes
   (item.largeurs||[]).forEach(v => {
     if (!LARGEURS_STANDARD.includes(v)) {
@@ -841,6 +866,7 @@ async function saveAdhesif() {
     resistances: [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value),
     applications: [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value),
     largeurs: [...document.querySelectorAll('input[name="largeur"]:checked')].map(i => i.value),
+    couleurs: [...document.querySelectorAll('input[name="couleur"]:checked')].map(i => i.value),
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
   };
@@ -882,9 +908,10 @@ function renderList(cat, items) {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
     const largHTML = (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>l+'cm').join(' · ')}</span>` : '';
+    const coulHTML = (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge">${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
@@ -948,12 +975,13 @@ function renderSidebarHisto() {
   else {
     html += historique.map(h => {
       if (h._pending) {
-        return `<div class="histo-item histo-pending" id="histo-_pending" style="position:relative;cursor:default;">
+        const src = h.source === 'email' ? '📧 Mail' : '✍️ Manuel';
+        return `<div class="histo-item histo-pending" id="histo-${h.id||'_pending'}" style="position:relative;cursor:default;">
           <div class="histo-item-row">
             <div class="histo-pending-dot"></div>
             <div class="histo-item-text">
               <div class="histo-item-title">Analyse en cours…</div>
-              <div class="histo-item-sub">⏳ L'IA traite votre demande</div>
+              <div class="histo-item-sub">⏳ ${src} — L'IA traite la demande</div>
             </div>
           </div>
         </div>`;
@@ -1295,6 +1323,7 @@ function showImportToast(msg, type = '') {
 // ===================== LARGEUR PERSONNALISÉE =====================
 // IDs des largeurs standards (non supprimables)
 const LARGEURS_STANDARD = ['61','106','137','152','162','183'];
+const COULEURS_STANDARD = ['Blanc','Noir','Gris','Rouge','Bleu','Vert','Jaune','Orange','Violet','Rose','Marron','Beige','Argent','Or','Transparent'];
 
 function addCustomLargeur() {
   const input = document.getElementById('largeur-custom-input');
@@ -1327,6 +1356,41 @@ function resetCustomLargeurs() {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement?.id === 'largeur-custom-input') { e.preventDefault(); addCustomLargeur(); }
+});
+
+// ===================== COULEURS PERSONNALISÉES =====================
+function addCustomCouleurVal(val) {
+  const group = document.getElementById('couleur-group');
+  if (group.querySelector(`input[name="couleur"][value="${val}"]`)) return; // déjà là
+  const label = document.createElement('label');
+  label.className = 'cb-item cb-item-custom-couleur';
+  label.dataset.customVal = val;
+  label.innerHTML = `<input type="checkbox" name="couleur" value="${val}" checked> ${val} <span onclick="removeCustomCouleur('${val}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
+  group.appendChild(label);
+}
+
+function addCustomCouleur() {
+  const input = document.getElementById('couleur-custom-input');
+  const val = input.value.trim();
+  if (!val) { input.focus(); return; }
+  const capVal = val.charAt(0).toUpperCase() + val.slice(1);
+  const group = document.getElementById('couleur-group');
+  const existing = group.querySelector(`input[name="couleur"][value="${capVal}"]`);
+  if (existing) { existing.checked = true; input.value = ''; return; }
+  addCustomCouleurVal(capVal);
+  input.value = '';
+}
+
+function removeCustomCouleur(val) {
+  document.getElementById('couleur-group').querySelector(`label[data-custom-val="${val}"]`)?.remove();
+}
+
+function resetCustomCouleurs() {
+  document.getElementById('couleur-group').querySelectorAll('.cb-item-custom-couleur').forEach(el => el.remove());
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'couleur-custom-input') { e.preventDefault(); addCustomCouleur(); }
 });
 
 // ===================== BUG REPORT =====================

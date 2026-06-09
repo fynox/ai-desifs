@@ -28,7 +28,17 @@ router.use(requireAuth);
 
 router.get('/', (req, res) => {
   const rows = db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
-  res.json(rows.map(r => ({ ...r, result: JSON.parse(r.result_json), lu: Boolean(r.lu), visuel_b64: r.visuel_b64 || null, visuel_type: r.visuel_type || null })));
+  res.json(rows.map(r => {
+    const isPending = r.status === 'pending';
+    return {
+      ...r,
+      result: isPending ? null : JSON.parse(r.result_json),
+      lu: Boolean(r.lu),
+      visuel_b64: r.visuel_b64 || null,
+      visuel_type: r.visuel_type || null,
+      _pending: isPending,
+    };
+  }));
 });
 
 router.put('/:id/lu', (req, res) => {

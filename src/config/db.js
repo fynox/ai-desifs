@@ -35,6 +35,7 @@ db.exec(`
     resistances TEXT DEFAULT '[]',
     applications TEXT DEFAULT '[]',
     largeurs TEXT DEFAULT '[]',
+    couleurs TEXT DEFAULT '[]',
     prix_m2 REAL,
     note TEXT DEFAULT '',
     dispo INTEGER DEFAULT 1,
@@ -69,7 +70,9 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN visuel_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_type TEXT',
   'ALTER TABLE stock ADD COLUMN largeurs TEXT DEFAULT \'[]\'',
+  'ALTER TABLE stock ADD COLUMN couleurs TEXT DEFAULT \'[]\'',
   'ALTER TABLE stock ADD COLUMN prix_m2 REAL',
+  'ALTER TABLE analyses ADD COLUMN status TEXT DEFAULT \'done\'',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
@@ -97,12 +100,13 @@ try {
         resistances TEXT DEFAULT '[]',
         applications TEXT DEFAULT '[]',
         largeurs TEXT DEFAULT '[]',
+        couleurs TEXT DEFAULT '[]',
         prix_m2 REAL,
         note TEXT DEFAULT '',
         dispo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (datetime('now'))
       );
-      INSERT INTO stock_new SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,'[]',NULL,note,dispo,created_at FROM stock;
+      INSERT INTO stock_new SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,'[]','[]',NULL,note,dispo,created_at FROM stock;
       DROP TABLE stock;
       ALTER TABLE stock_new RENAME TO stock;
     `);

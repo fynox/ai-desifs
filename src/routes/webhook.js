@@ -60,6 +60,12 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
     if (!stockDispo.length) return;
 
+    // Insérer une analyse "pending" visible immédiatement dans l'historique
+    const pendingRow = db.prepare(
+      'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, status) VALUES (?,?,?,?,?,?)'
+    ).run(user.id, mailContent, '', '{}', 'email', 'pending');
+    const pendingId = pendingRow.lastInsertRowid;
+
     const stockDesc = ['imprimable', 'liner', 'dao'].map(cat => {
       const items = stockDispo.filter(i => i.cat === cat);
       if (!items.length) return '';
@@ -119,15 +125,15 @@ Réponds UNIQUEMENT en JSON valide :
       }),
     });
 
-    if (!claudeRes.ok) return;
+    if (!claudeRes.ok) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     const data = await claudeRes.json();
     const raw = data.content?.map(i => i.text || '').join('') || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return;
+    if (!jsonMatch) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
 
     let result;
-    try { result = JSON.parse(jsonMatch[0]); } catch { return; }
-    if (!result.adhesifs || !result.specs) return;
+    try { result = JSON.parse(jsonMatch[0]); } catch { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    if (!result.adhesifs || !result.specs) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
 
     // Stocker la première image/page PDF comme aperçu visuel
     let visuel_b64 = null, visuel_type = null;
@@ -138,9 +144,10 @@ Réponds UNIQUEMENT en JSON valide :
       if (pages.length) { visuel_b64 = pages[0].data; visuel_type = 'image/png'; }
     }
 
+    // Mettre à jour l'analyse pending avec le vrai résultat
     db.prepare(
-      'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type);
+      'UPDATE analyses SET result_json=?, status=?, visuel_b64=?, visuel_type=?, mail_content=? WHERE id=?'
+    ).run(JSON.stringify(result), 'done', visuel_b64, visuel_type, mailContent, pendingId);
   } catch (e) {
     console.error('Webhook inbound error:', e);
   }
