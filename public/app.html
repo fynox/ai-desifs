@@ -785,6 +785,7 @@ function openModal(cat) {
   document.querySelector('input[name="adherence"][value="Standard"]').checked = true;
   document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
   document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
+  resetCustomLargeurs();
   document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
@@ -807,6 +808,18 @@ function openEditModal(id) {
   const dur = document.querySelector(`input[name="duree"][value="${item.duree}"]`); if (dur) dur.checked = true;
   document.querySelectorAll('input[name="resist"]').forEach(i => i.checked = (item.resistances||[]).includes(i.value));
   document.querySelectorAll('input[name="appli"]').forEach(i => i.checked = (item.applications||[]).includes(i.value));
+  resetCustomLargeurs();
+  // Recréer les largeurs custom (non standards) puis cocher toutes
+  (item.largeurs||[]).forEach(v => {
+    if (!LARGEURS_STANDARD.includes(v)) {
+      const group = document.getElementById('largeur-group');
+      const label = document.createElement('label');
+      label.className = 'cb-item cb-item-custom';
+      label.dataset.customVal = v;
+      label.innerHTML = `<input type="checkbox" name="largeur" value="${v}" checked> ${v} cm <span onclick="removeCustomLargeur('${v}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
+      group.appendChild(label);
+    }
+  });
   document.querySelectorAll('input[name="largeur"]').forEach(i => i.checked = (item.largeurs||[]).includes(i.value));
   document.getElementById('modal-prix').value = item.prix_m2 || '';
   document.getElementById('modal').classList.add('open');
@@ -1280,24 +1293,38 @@ function showImportToast(msg, type = '') {
 }
 
 // ===================== LARGEUR PERSONNALISÉE =====================
+// IDs des largeurs standards (non supprimables)
+const LARGEURS_STANDARD = ['61','106','137','152','162','183'];
+
 function addCustomLargeur() {
   const input = document.getElementById('largeur-custom-input');
   const val = parseInt(input.value);
   if (!val || val < 1 || val > 500) { input.focus(); return; }
   const strVal = String(val);
   const group = document.getElementById('largeur-group');
-  // Vérifier si déjà existant
-  if (group.querySelector(`input[value="${strVal}"]`)) {
-    group.querySelector(`input[value="${strVal}"]`).checked = true;
-    input.value = '';
-    return;
-  }
+  // Déjà dans la liste → cocher seulement
+  const existing = group.querySelector(`input[name="largeur"][value="${strVal}"]`);
+  if (existing) { existing.checked = true; input.value = ''; return; }
+  // Nouvelle largeur custom avec bouton ✕ pour retirer
   const label = document.createElement('label');
-  label.className = 'cb-item';
-  label.innerHTML = `<input type="checkbox" name="largeur" value="${strVal}" checked> ${strVal} cm`;
+  label.className = 'cb-item cb-item-custom';
+  label.dataset.customVal = strVal;
+  label.innerHTML = `<input type="checkbox" name="largeur" value="${strVal}" checked> ${strVal} cm <span onclick="removeCustomLargeur('${strVal}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
   group.appendChild(label);
   input.value = '';
 }
+
+function removeCustomLargeur(val) {
+  const group = document.getElementById('largeur-group');
+  const label = group.querySelector(`label[data-custom-val="${val}"]`);
+  if (label) label.remove();
+}
+
+// Réinitialiser les largeurs custom quand on ouvre le modal
+function resetCustomLargeurs() {
+  document.getElementById('largeur-group').querySelectorAll('.cb-item-custom').forEach(el => el.remove());
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement?.id === 'largeur-custom-input') { e.preventDefault(); addCustomLargeur(); }
 });
