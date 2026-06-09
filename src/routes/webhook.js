@@ -2,9 +2,31 @@ const express = require('express');
 const multer = require('multer');
 const fetch = require('node-fetch');
 const db = require('../config/db');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const router = express.Router();
-const upload = multer({ limits: { fieldSize: 10 * 1024 * 1024 } }); // 10MB par champ
+const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 10 * 1024 * 1024, fileSize: 20 * 1024 * 1024 } });
+
+async function pdfToImages(buffer) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-'));
+  const pdfPath = path.join(tmp, 'input.pdf');
+  const outPrefix = path.join(tmp, 'page');
+  fs.writeFileSync(pdfPath, buffer);
+  return new Promise((resolve) => {
+    execFile('pdftoppm', ['-png', '-r', '150', '-l', '3', pdfPath, outPrefix], (err) => {
+      if (err) { fs.rmSync(tmp, { recursive: true, force: true }); resolve([]); return; }
+      const images = fs.readdirSync(tmp)
+        .filter(f => f.endsWith('.png'))
+        .sort()
+        .map(f => ({ mimetype: 'image/png', data: fs.readFileSync(path.join(tmp, f)).toString('base64') }));
+      fs.rmSync(tmp, { recursive: true, force: true });
+      resolve(images);
+    });
+  });
+}
 
 // SendGrid Inbound Parse — réception de mails entrants
 router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
@@ -66,11 +88,20 @@ Réponds UNIQUEMENT en JSON valide :
 
     const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
-    // Pièces jointes image
-    const imageFiles = (req.files || []).filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+    // Pièces jointes : images directes + PDFs convertis en PNG
     const userContent = [{ type: 'text', text: mailContent }];
+    const files = req.files || [];
+    const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
+    const pdfFiles = files.filter(f => f.mimetype === 'application/pdf' || f.originalname?.endsWith('.pdf'));
+
     for (const img of imageFiles.slice(0, 3)) {
       userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mimetype, data: img.buffer.toString('base64') } });
+    }
+    for (const pdf of pdfFiles.slice(0, 2)) {
+      const pages = await pdfToImages(pdf.buffer);
+      for (const p of pages.slice(0, 3)) {
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: p.mimetype, data: p.data } });
+      }
     }
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
