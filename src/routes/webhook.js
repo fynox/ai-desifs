@@ -79,8 +79,7 @@ DÉFINITIONS IMPORTANTES — respecte-les strictement :
 - "Couleur DAO" : vinyl uni coloré non imprimable, pour découpe et lettrage.
 - "Transfert" : papier ou film transfert pour flocage, sérigraphie ou thermocollant.
 - "Covering" : film covering/wrapping pour véhicules, repositionnable, haute résistance.
-- "Vitre" : adhésif vitrine transparent, givré, ou micro-perforé (vision-screen) pour fenêtres.
-- "Film solaire" : film teinté ou réfléchissant pour vitres, contrôle solaire ou occultation.
+- "Vitre" : adhésif vitrine transparent, givré, micro-perforé (vision-screen), film solaire ou occultant pour fenêtres.
 - "Panneau" : support rigide (dibond, alu, PVC expansé, bois) pour contrecoller ou encadrer un visuel.
 
 Ne confonds JAMAIS ces catégories.

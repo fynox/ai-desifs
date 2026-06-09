@@ -41,7 +41,7 @@ async function pdfToImages(buffer) {
 
 const EXTRACT_PROMPT = `Analyse ces pages de catalogue d'adhésifs et extrais TOUS les produits adhésifs mentionnés.
 Pour chaque produit, retourne un objet JSON avec exactement ces champs :
-- cat: "imprimable" (vinyle imprimable/médias d'impression), "liner" (film de protection/contre-collage transparent), "dao" (vinyle couleur uni/découpe), "transfert" (papier transfert), "covering" (film covering voiture/wrapping), "vitre" (adhésif vitrine transparent ou micro-perforé), "solaire" (film solaire/occultant), "panneau" (panneau rigide bois/alu/dibond/PVC)
+- cat: "imprimable" (vinyle imprimable/médias d'impression), "liner" (film de protection/contre-collage transparent), "dao" (vinyle couleur uni/découpe), "transfert" (papier transfert), "covering" (film covering voiture/wrapping), "vitre" (adhésif vitrine transparent, micro-perforé, film solaire ou occultant pour fenêtres), "panneau" (panneau rigide bois/alu/dibond/PVC)
 - nom: nom commercial exact du produit
 - finition: "Brillant", "Mat", "Satiné", "Transparent" ou "Autre"
 - adherence: "Permanente", "Repositionnable", "Extra-forte", "Standard" ou "Amovible"
@@ -160,7 +160,7 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const produits = allProduits;
 
-    const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'solaire', 'panneau'];
+    const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'panneau'];
     const added = [];
     const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,1)');
 

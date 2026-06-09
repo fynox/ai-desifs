@@ -71,7 +71,7 @@ try {
   // Vérifier si la contrainte est encore restrictive en testant un INSERT fictif
   db.prepare(`BEGIN`).run();
   try {
-    db.prepare(`INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree) VALUES (0,'transfert','_test_','Brillant','Standard','Intérieur','1 an')`).run();
+    db.prepare(`INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree) VALUES (0,'vitre','_test_','Brillant','Standard','Intérieur','1 an')`).run();
     db.prepare(`DELETE FROM stock WHERE nom='_test_'`).run();
     db.prepare(`COMMIT`).run();
   } catch {
@@ -82,7 +82,7 @@ try {
       CREATE TABLE stock_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','solaire','panneau')),
+        cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','panneau')),
         nom TEXT NOT NULL,
         finition TEXT NOT NULL,
         adherence TEXT NOT NULL,
