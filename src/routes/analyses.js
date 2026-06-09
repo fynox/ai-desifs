@@ -35,7 +35,8 @@ router.post('/analyse', async (req, res) => {
   if (user.subscription_status === 'trial' && user.trial_analyses_used >= TRIAL_LIMIT) {
     return res.status(403).json({ error: 'trial_expired', used: user.trial_analyses_used, limit: TRIAL_LIMIT });
   }
-  if (!user?.api_key) return res.status(400).json({ error: 'Clé API Anthropic manquante. Configurez-la dans votre profil.' });
+  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
@@ -71,7 +72,7 @@ Réponds UNIQUEMENT en JSON valide :
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': user.api_key,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({

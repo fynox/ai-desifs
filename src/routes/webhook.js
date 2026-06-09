@@ -21,7 +21,10 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     if (!toMatch) return;
     const inboundAddr = toMatch[1].toLowerCase();
     const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
-    if (!user || !user.api_key) return;
+    if (!user) return;
+    if (user.subscription_status !== 'active') return;
+    const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return;
 
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
     if (!stockDispo.length) return;
@@ -50,7 +53,7 @@ Réponds UNIQUEMENT en JSON valide :
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': user.api_key, 'anthropic-version': '2023-06-01' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,

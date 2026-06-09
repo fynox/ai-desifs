@@ -51,4 +51,13 @@ db.exec(`
   );
 `);
 
+// Migrations — safe to run multiple times
+const migrations = [
+  'ALTER TABLE users ADD COLUMN trial_analyses_used INTEGER DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN inbound_email TEXT',
+];
+for (const sql of migrations) {
+  try { db.exec(sql); } catch {}
+}
+
 module.exports = db;

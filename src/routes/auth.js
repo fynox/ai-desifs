@@ -11,19 +11,23 @@ function makeToken(user) {
 }
 
 router.post('/signup', async (req, res) => {
-  const { email, password, api_key } = req.body;
-  if (!email || !password || !api_key) return res.status(400).json({ error: 'Tous les champs sont obligatoires.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Tous les champs sont obligatoires.' });
   if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (8 caractères minimum).' });
-  if (!api_key.startsWith('sk-ant-')) return res.status(400).json({ error: 'Clé API invalide.' });
 
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
   if (existing) return res.status(409).json({ error: 'Un compte existe déjà avec cet email.' });
 
   const hash = await bcrypt.hash(password, 12);
-  const localPart = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
-  const suffix = Math.random().toString(36).slice(2, 6);
-  const inbound_email = `${localPart}-${suffix}@ai-dhesif.fr`;
-  const result = db.prepare('INSERT INTO users (email, password_hash, api_key, subscription_status, inbound_email) VALUES (?, ?, ?, ?, ?)').run(email.toLowerCase(), hash, api_key, 'trial', inbound_email);
+  // Adresse inbound : même préfixe que l'email, avec suffixe si déjà pris
+  const baseLocal = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+  let inbound_email = `${baseLocal}@ai-dhesif.fr`;
+  const taken = db.prepare('SELECT id FROM users WHERE inbound_email = ?').get(inbound_email);
+  if (taken) {
+    const suffix = Math.random().toString(36).slice(2, 5);
+    inbound_email = `${baseLocal}${suffix}@ai-dhesif.fr`;
+  }
+  const result = db.prepare('INSERT INTO users (email, password_hash, subscription_status, inbound_email) VALUES (?, ?, ?, ?)').run(email.toLowerCase(), hash, 'trial', inbound_email);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
   res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
