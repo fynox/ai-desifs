@@ -60,11 +60,14 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
     if (!stockDispo.length) return;
 
-    // Insérer une analyse "pending" visible immédiatement dans l'historique
-    const pendingRow = db.prepare(
-      'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, status) VALUES (?,?,?,?,?,?)'
-    ).run(user.id, mailContent, '', '{}', 'email', 'pending');
-    const pendingId = pendingRow.lastInsertRowid;
+    // Insérer une analyse "pending" visible immédiatement (optionnel — ne bloque pas si colonne absente)
+    let pendingId = null;
+    try {
+      const pendingRow = db.prepare(
+        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, status) VALUES (?,?,?,?,?,?)'
+      ).run(user.id, mailContent, '', '{}', 'email', 'pending');
+      pendingId = pendingRow.lastInsertRowid;
+    } catch { /* colonne status pas encore migrée, on continue sans pending */ }
 
     const stockDesc = ['imprimable', 'liner', 'dao'].map(cat => {
       const items = stockDispo.filter(i => i.cat === cat);
@@ -125,15 +128,15 @@ Réponds UNIQUEMENT en JSON valide :
       }),
     });
 
-    if (!claudeRes.ok) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    if (!claudeRes.ok) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     const data = await claudeRes.json();
     const raw = data.content?.map(i => i.text || '').join('') || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    if (!jsonMatch) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
 
     let result;
-    try { result = JSON.parse(jsonMatch[0]); } catch { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
-    if (!result.adhesifs || !result.specs) { db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    try { result = JSON.parse(jsonMatch[0]); } catch { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    if (!result.adhesifs || !result.specs) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
 
     // Stocker la première image/page PDF comme aperçu visuel
     let visuel_b64 = null, visuel_type = null;
@@ -144,10 +147,17 @@ Réponds UNIQUEMENT en JSON valide :
       if (pages.length) { visuel_b64 = pages[0].data; visuel_type = 'image/png'; }
     }
 
-    // Mettre à jour l'analyse pending avec le vrai résultat
-    db.prepare(
-      'UPDATE analyses SET result_json=?, status=?, visuel_b64=?, visuel_type=?, mail_content=? WHERE id=?'
-    ).run(JSON.stringify(result), 'done', visuel_b64, visuel_type, mailContent, pendingId);
+    if (pendingId) {
+      // Mettre à jour l'analyse pending avec le vrai résultat
+      db.prepare(
+        'UPDATE analyses SET result_json=?, status=?, visuel_b64=?, visuel_type=?, mail_content=? WHERE id=?'
+      ).run(JSON.stringify(result), 'done', visuel_b64, visuel_type, mailContent, pendingId);
+    } else {
+      // Fallback : INSERT direct sans pending
+      db.prepare(
+        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type);
+    }
   } catch (e) {
     console.error('Webhook inbound error:', e);
   }
