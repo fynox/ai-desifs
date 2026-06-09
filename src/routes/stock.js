@@ -28,7 +28,8 @@ async function pdfToImages(buffer) {
   const outPrefix = path.join(tmp, 'page');
   fs.writeFileSync(pdfPath, buffer);
   return new Promise(resolve => {
-    execFile('pdftoppm', ['-png', '-r', '120', pdfPath, outPrefix], err => {
+    // 72dpi suffit pour la lecture de texte, images beaucoup plus légères
+    execFile('pdftoppm', ['-png', '-r', '72', pdfPath, outPrefix], err => {
       if (err) { fs.rmSync(tmp, { recursive: true, force: true }); resolve([]); return; }
       const images = fs.readdirSync(tmp).filter(f => f.endsWith('.png')).sort()
         .map(f => fs.readFileSync(path.join(tmp, f)).toString('base64'));
@@ -36,6 +37,48 @@ async function pdfToImages(buffer) {
       resolve(images);
     });
   });
+}
+
+const EXTRACT_PROMPT = `Analyse ces pages de catalogue d'adhésifs et extrais TOUS les produits adhésifs mentionnés.
+Pour chaque produit, retourne un objet JSON avec exactement ces champs :
+- cat: "imprimable" (vinyle imprimable/médias d'impression), "liner" (film de protection transparent), ou "dao" (vinyle couleur uni/découpe)
+- nom: nom commercial exact du produit
+- finition: "Brillant", "Mat", "Satiné", "Transparent" ou "Autre"
+- adherence: "Permanente", "Repositionnable", "Extra-forte", "Standard" ou "Amovible"
+- env: "Intérieur", "Extérieur", ou "Intérieur/Extérieur"
+- duree: durée de vie ex "3 ans", "5-7 ans", "Court terme (< 1 an)", "Longue durée (7 ans+)"
+- resistances: tableau parmi ["UV", "Humidité", "Chaleur", "Froid", "Rayures", "Solvants"]
+- applications: tableau parmi ["Vitrine", "Véhicule", "Mur/Cloison", "Sol", "Fenêtre", "Signalétique"]
+- note: information supplémentaire courte ou ""
+
+Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ni après, sans markdown :
+[{"cat":"...","nom":"...","finition":"...","adherence":"...","env":"...","duree":"...","resistances":[],"applications":[],"note":""}]`;
+
+async function extractBatch(pages, apiKey) {
+  const userContent = [{ type: 'text', text: EXTRACT_PROMPT }];
+  for (const img of pages) {
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: img } });
+  }
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: userContent }] }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Anthropic HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  const raw = data.content?.map(i => i.text || '').join('') || '';
+  console.log('Claude batch raw (first 300):', raw.slice(0, 300));
+
+  let jsonStr = null;
+  const codeBlock = raw.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+  if (codeBlock) jsonStr = codeBlock[1];
+  else { const m = raw.match(/\[[\s\S]*\]/); if (m) jsonStr = m[0]; }
+  if (!jsonStr) return [];
+
+  try { return JSON.parse(jsonStr); } catch { return []; }
 }
 
 router.get('/', (req, res) => {
@@ -98,57 +141,24 @@ router.post('/import-catalogue', (req, res, next) => {
 
   try {
     const images = await pdfToImages(req.file.buffer);
-    if (!images.length) return res.status(400).json({ error: 'Impossible de lire le PDF.' });
+    if (!images.length) return res.status(400).json({ error: 'Impossible de lire le PDF (pdftoppm indisponible ou PDF corrompu).' });
 
-    const userContent = [
-      { type: 'text', text: `Analyse ce catalogue d'adhésifs et extrais TOUS les produits adhésifs mentionnés.
-Pour chaque produit, retourne un objet JSON avec exactement ces champs :
-- cat: "imprimable" (vinyle imprimable/médias d'impression), "liner" (film de protection/contre-collage transparent), ou "dao" (vinyle couleur uni/découpe)
-- nom: nom commercial exact du produit
-- finition: "Brillant", "Mat", "Satiné", "Transparent" ou "Autre"
-- adherence: "Permanente", "Repositionnable", "Extra-forte", "Standard" ou "Amovible"
-- env: "Intérieur", "Extérieur", ou "Intérieur/Extérieur"
-- duree: durée de vie ex "3 ans", "5-7 ans", "Court terme (< 1 an)", "Longue durée (7 ans+)"
-- resistances: tableau parmi ["UV", "Humidité", "Chaleur", "Froid", "Rayures", "Solvants"]
-- applications: tableau parmi ["Vitrine", "Véhicule", "Mur/Cloison", "Sol", "Fenêtre", "Signalétique"]
-- note: information supplémentaire courte ou ""
+    // Traiter par lots de 5 pages max pour éviter les timeouts
+    const BATCH = 5;
+    const MAX_PAGES = 30;
+    const pages = images.slice(0, MAX_PAGES);
+    const batches = [];
+    for (let i = 0; i < pages.length; i += BATCH) batches.push(pages.slice(i, i + BATCH));
 
-Réponds UNIQUEMENT avec un tableau JSON valide sans texte autour :
-[{"cat":"...","nom":"...","finition":"...","adherence":"...","env":"...","duree":"...","resistances":[],"applications":[],"note":""}]
-Extrais TOUS les produits visibles dans toutes les pages du catalogue.` }
-    ];
+    console.log(`Import catalogue: ${pages.length} pages, ${batches.length} lots`);
 
-    for (const img of images.slice(0, 20)) {
-      userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: img } });
+    const allProduits = [];
+    for (const batch of batches) {
+      const results = await extractBatch(batch, apiKey);
+      allProduits.push(...results);
     }
 
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: userContent }] }),
-    });
-
-    const data = await claudeRes.json();
-    if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || 'Erreur Anthropic' });
-
-    const raw = data.content?.map(i => i.text || '').join('') || '';
-    console.log('Claude raw response (first 500):', raw.slice(0, 500));
-
-    // Extraire le JSON : supporte ```json...```, ```[...]``` ou tableau brut
-    let jsonStr = null;
-    const codeBlock = raw.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-    if (codeBlock) {
-      jsonStr = codeBlock[1];
-    } else {
-      const arrMatch = raw.match(/\[[\s\S]*\]/);
-      if (arrMatch) jsonStr = arrMatch[0];
-    }
-    if (!jsonStr) return res.status(502).json({ error: 'Aucun produit trouvé dans le catalogue. Réponse IA : ' + raw.slice(0, 200) });
-
-    let produits;
-    try { produits = JSON.parse(jsonStr); } catch (parseErr) {
-      return res.status(502).json({ error: 'JSON invalide dans la réponse IA : ' + parseErr.message + ' — extrait : ' + jsonStr.slice(0, 100) });
-    }
+    const produits = allProduits;
 
     const CATS = ['imprimable', 'liner', 'dao'];
     const added = [];
