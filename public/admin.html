@@ -92,9 +92,31 @@ tr:hover td { background: var(--surface2); }
   .sidebar { display: none; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+/* Login */
+.login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px; width: 360px; display: flex; flex-direction: column; gap: 18px; }
+.login-box h2 { font-size: 20px; font-weight: 800; }
+.login-box p { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); }
+.login-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; width: 100%; outline: none; }
+.login-input:focus { border-color: var(--accent-dim); }
+.btn-login { background: var(--accent); border: none; border-radius: 8px; padding: 11px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #111; cursor: pointer; width: 100%; }
+.btn-login:hover { background: #b8e030; }
+.login-error { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--red); display: none; }
 </style>
 </head>
 <body>
+
+<!-- Login screen -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <h2>⚙ Admin — AI-dhésif</h2>
+    <p>Connexion réservée aux administrateurs.</p>
+    <input class="login-input" type="email" id="login-email" placeholder="Email admin" autocomplete="email">
+    <input class="login-input" type="password" id="login-password" placeholder="Mot de passe" autocomplete="current-password">
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-login" onclick="doLogin()">Se connecter</button>
+  </div>
+</div>
 
 <nav>
   <a class="nav-logo" href="/" style="text-decoration:none;color:inherit;cursor:pointer;">
@@ -167,23 +189,53 @@ tr:hover td { background: var(--surface2); }
 </div>
 
 <script>
-const token = localStorage.getItem('aidesif_token');
-if (!token) window.location.href = '/app';
-
+let token = sessionStorage.getItem('admin_token');
 let allUsers = [];
 let deleteTargetId = null;
+
+function showApp() { document.getElementById('login-overlay').style.display = 'none'; }
+function showLogin() { document.getElementById('login-overlay').style.display = 'flex'; }
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    token = data.token;
+    sessionStorage.setItem('admin_token', token);
+    // Vérifier que c'est bien un admin
+    const check = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (check.status === 403) throw new Error('Ce compte n\'est pas administrateur.');
+    document.getElementById('admin-email').textContent = email;
+    showApp();
+    loadDashboard();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('login-overlay').style.display !== 'none') doLogin(); });
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     ...opts,
     headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
   });
-  if (res.status === 403) { alert('Accès refusé — compte non admin.'); window.location.href = '/app'; }
+  if (res.status === 403) { alert('Accès refusé — compte non admin.'); showLogin(); throw new Error('403'); }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-function logout() { localStorage.removeItem('aidesif_token'); window.location.href = '/'; }
+function logout() { sessionStorage.removeItem('admin_token'); token = null; showLogin(); }
 
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -337,7 +389,14 @@ async function loadAnalyses() {
   } catch(e) { document.getElementById('analyses-table').innerHTML = '<div class="empty">Erreur de chargement</div>'; }
 }
 
-loadDashboard();
+// Init
+if (token) {
+  fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => { if (r.ok) { showApp(); loadDashboard(); } else showLogin(); })
+    .catch(() => showLogin());
+} else {
+  showLogin();
+}
 </script>
 </body>
 </html>
