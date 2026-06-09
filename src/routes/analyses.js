@@ -71,11 +71,11 @@ router.post('/analyse', async (req, res) => {
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
 
-  const stockDesc = ['imprimable', 'liner', 'dao'].map(cat => {
+  const CAT_LABELS = { imprimable:'Imprimable', liner:'Liner', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
+  const stockDesc = Object.keys(CAT_LABELS).map(cat => {
     const items = stockDispo.filter(i => i.cat === cat);
     if (!items.length) return '';
-    const label = cat === 'imprimable' ? 'Imprimable' : cat === 'liner' ? 'Liner' : 'Couleur DAO';
-    return `--- ${label} ---\n` + items.map(i => {
+    return `--- ${CAT_LABELS[cat]} ---\n` + items.map(i => {
       const res = JSON.parse(i.resistances || '[]');
       const app = JSON.parse(i.applications || '[]');
       return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${res.length ? ' | ' + res.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;

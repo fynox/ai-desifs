@@ -69,11 +69,11 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
       pendingId = pendingRow.lastInsertRowid;
     } catch { /* colonne status pas encore migrée, on continue sans pending */ }
 
-    const stockDesc = ['imprimable', 'liner', 'dao'].map(cat => {
+    const CAT_LABELS = { imprimable:'Imprimable', liner:'Liner', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
+    const stockDesc = Object.keys(CAT_LABELS).map(cat => {
       const items = stockDispo.filter(i => i.cat === cat);
       if (!items.length) return '';
-      const label = cat === 'imprimable' ? 'Imprimable' : cat === 'liner' ? 'Liner' : 'Couleur DAO';
-      return `--- ${label} ---\n` + items.map(i => {
+      return `--- ${CAT_LABELS[cat]} ---\n` + items.map(i => {
         const res2 = JSON.parse(i.resistances || '[]');
         const app = JSON.parse(i.applications || '[]');
         return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
