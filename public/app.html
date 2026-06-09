@@ -1130,6 +1130,10 @@ async function importCatalogue(input) {
       headers: { 'Authorization': 'Bearer ' + token },
       body: formData,
     });
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Serveur inaccessible (HTTP ${resp.status}) — réessaie dans quelques secondes`);
+    }
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
     showImportToast(`✅ ${data.count} produit${data.count > 1 ? 's' : ''} ajouté${data.count > 1 ? 's' : ''} au stock !`, 'success');
