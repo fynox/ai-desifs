@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 const db = require('../config/db');
 
 const router = express.Router();
-const upload = multer();
+const upload = multer({ limits: { fieldSize: 10 * 1024 * 1024 } }); // 10MB par champ
 
 // SendGrid Inbound Parse — réception de mails entrants
 router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
