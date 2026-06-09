@@ -20,9 +20,9 @@ router.post('/signup', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'Un compte existe déjà avec cet email.' });
 
   const hash = await bcrypt.hash(password, 12);
-  const result = db.prepare('INSERT INTO users (email, password_hash, api_key) VALUES (?, ?, ?)').run(email.toLowerCase(), hash, api_key);
+  const result = db.prepare('INSERT INTO users (email, password_hash, api_key, subscription_status) VALUES (?, ?, ?, ?)').run(email.toLowerCase(), hash, api_key, 'trial');
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used });
 });
 
 router.post('/login', async (req, res) => {
@@ -35,7 +35,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
 
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

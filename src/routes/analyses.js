@@ -28,8 +28,12 @@ router.post('/analyse', async (req, res) => {
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  if (user.subscription_status !== 'active') {
+  const TRIAL_LIMIT = 5;
+  if (user.subscription_status === 'inactive') {
     return res.status(403).json({ error: 'subscription_required' });
+  }
+  if (user.subscription_status === 'trial' && user.trial_analyses_used >= TRIAL_LIMIT) {
+    return res.status(403).json({ error: 'trial_expired', used: user.trial_analyses_used, limit: TRIAL_LIMIT });
   }
   if (!user?.api_key) return res.status(400).json({ error: 'Clé API Anthropic manquante. Configurez-la dans votre profil.' });
 
@@ -91,6 +95,10 @@ Réponds UNIQUEMENT en JSON valide :
   let result;
   try { result = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
   if (!result.adhesifs || !result.specs) return res.status(502).json({ error: 'Structure de réponse incomplète.' });
+
+  if (user.subscription_status === 'trial') {
+    db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
+  }
 
   const inserted = db.prepare(
     'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source) VALUES (?, ?, ?, ?, ?)'

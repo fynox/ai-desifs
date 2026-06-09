@@ -17,7 +17,8 @@ db.exec(`
     password_hash TEXT NOT NULL,
     api_key TEXT,
     stripe_customer_id TEXT,
-    subscription_status TEXT DEFAULT 'inactive',
+    subscription_status TEXT DEFAULT 'trial',
+    trial_analyses_used INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
