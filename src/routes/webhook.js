@@ -84,7 +84,7 @@ STOCK DISPONIBLE :
 ${stockDesc}
 
 Réponds UNIQUEMENT en JSON valide :
-{"resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null"}`;
+{"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null"}`;
 
     const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
