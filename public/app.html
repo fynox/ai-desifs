@@ -1234,13 +1234,18 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
+// Marge de chevauchement des raccords (cm) — modifiable par l'utilisateur sous le plan
+let _lesRecouvrement = 1;
+
 // Construit le visuel du plan de lés (deduite = 'largeur'|'hauteur' si dimension calculée depuis le ratio du fichier)
 function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
+  // Contexte mémorisé pour recalculer le plan quand on change la marge
+  window._lesCtx = { largeur, hauteur, laize, sensLes, previewB64, previewType, deduite };
   let vert;
   if (sensLes === 'vertical') vert = true;
   else if (sensLes === 'horizontal') vert = false;
   else vert = Math.ceil(largeur / laize) <= Math.ceil(hauteur / laize);
-  const RECOUVREMENT = 1; // cm de chevauchement pour les raccords
+  const RECOUVREMENT = _lesRecouvrement; // cm de chevauchement pour les raccords
   const totale = vert ? largeur : hauteur; // dimension à couvrir par les lés
   // Chaque lé avance de (laize - recouvrement), sauf si un seul suffit
   let n, segs = [];
@@ -1280,9 +1285,25 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   if (hasImg && n > 1) {
     window._lesParams = { laize, vert, segs, totale, recouvrement: RECOUVREMENT, previewB64, previewType };
   }
-  return `<div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
+  return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
   <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>
-  ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}`;
+  ${n > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
+    Marge de raccord :
+    <input type="number" value="${RECOUVREMENT}" min="0" max="10" step="0.5" onchange="changerMarge(this.value)" style="width:64px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 8px;text-align:center;"> cm
+  </div>` : ''}
+  ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}</div>`;
+}
+
+// Changement de la marge de raccord → recalcul instantané du plan de lés et de l'export
+function changerMarge(v) {
+  let m = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(m) || m < 0) m = 0;
+  if (m > 10) m = 10;
+  const c = window._lesCtx;
+  if (c && m >= c.laize) m = Math.max(0, c.laize - 1); // la marge ne peut pas dépasser la laize
+  _lesRecouvrement = m;
+  const el = document.getElementById('les-wrap');
+  if (el && c) el.outerHTML = buildLesHTML(c.largeur, c.hauteur, c.laize, c.sensLes, c.previewB64, c.previewType, c.deduite);
 }
 
 // Découpe le visuel en un fichier image par lé, chevauchement de raccord inclus dans chaque lé
@@ -1339,6 +1360,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
   }
   // Visuel montage : plan de lés
   let montageHTML = '';
+  _lesRecouvrement = 1; // marge de raccord par défaut pour chaque analyse affichée
   const m = r.montage;
   if (m) {
     let lesHTML = '';
