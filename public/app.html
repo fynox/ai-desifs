@@ -680,6 +680,7 @@ async function login() {
   btn.disabled = true; btn.textContent = 'Connexion...';
   try {
     const data = await api('POST', '/auth/login', { email, password });
+    if (data.settings) try { userSettings = { marge_raccord: 1, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
@@ -698,6 +699,7 @@ async function signup() {
   btn.disabled = true; btn.textContent = 'Création...';
   try {
     const data = await api('POST', '/auth/signup', { email, password });
+    if (data.settings) try { userSettings = { marge_raccord: 1, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;

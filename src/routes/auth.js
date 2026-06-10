@@ -43,7 +43,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
 
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email, settings: user.settings || '{}' });
 });
 
 router.get('/profile', requireAuth, async (req, res) => {
