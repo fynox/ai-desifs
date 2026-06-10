@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const fetch = require('node-fetch');
 const db = require('../config/db');
+const { logUsage } = require('../utils/usage');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -137,6 +138,7 @@ Réponds UNIQUEMENT en JSON valide :
 
     if (!claudeRes.ok) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     const data = await claudeRes.json();
+    logUsage(user.id, 'analyse_email', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
     const raw = data.content?.map(i => i.text || '').join('') || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }

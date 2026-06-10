@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { logUsage } = require('../utils/usage');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -103,6 +104,7 @@ Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
 
   const data = await claudeRes.json();
   if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || `Erreur Anthropic ${claudeRes.status}` });
+  logUsage(req.user.id, 'relance', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
 
   const raw = data.content?.map(i => i.text || '').join('') || '';
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -189,6 +191,8 @@ Réponds UNIQUEMENT en JSON valide :
   const raw = data.content?.map(i => i.text || '').join('') || '';
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
+
+  logUsage(req.user.id, 'devis', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
 
   let devis;
   try { devis = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
@@ -283,6 +287,8 @@ Réponds UNIQUEMENT en JSON valide :
   const raw = data.content?.map(i => i.text || '').join('') || '';
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
+
+  logUsage(req.user.id, 'analyse', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
 
   let result;
   try { result = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }

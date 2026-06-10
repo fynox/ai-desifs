@@ -87,6 +87,50 @@ router.get('/users/:id/analyses', (req, res) => {
   res.json(analyses);
 });
 
+// Coûts API par utilisateur (tracking interne des tokens Claude)
+router.get('/usage', (req, res) => {
+  const parUser = db.prepare(`
+    SELECT u.id as user_id, u.email,
+      COUNT(l.id) as appels,
+      SUM(l.input_tokens) as input_tokens,
+      SUM(l.output_tokens) as output_tokens,
+      SUM(CASE WHEN l.own_key=0 THEN l.cost_usd ELSE 0 END) as cost_usd,
+      SUM(CASE WHEN l.own_key=1 THEN l.cost_usd ELSE 0 END) as cost_own_key_usd,
+      SUM(CASE WHEN l.created_at >= datetime('now','start of month') AND l.own_key=0 THEN l.cost_usd ELSE 0 END) as cost_mois_usd
+    FROM usage_log l
+    LEFT JOIN users u ON u.id = l.user_id
+    GROUP BY l.user_id
+    ORDER BY cost_usd DESC
+  `).all();
+
+  const parType = db.prepare(`
+    SELECT type, COUNT(*) as appels, SUM(cost_usd) as cost_usd
+    FROM usage_log WHERE own_key=0
+    GROUP BY type ORDER BY cost_usd DESC
+  `).all();
+
+  const totaux = db.prepare(`
+    SELECT
+      SUM(CASE WHEN own_key=0 THEN cost_usd ELSE 0 END) as total_usd,
+      SUM(CASE WHEN own_key=0 AND created_at >= datetime('now','start of month') THEN cost_usd ELSE 0 END) as mois_usd,
+      SUM(CASE WHEN own_key=0 AND date(created_at)=date('now') THEN cost_usd ELSE 0 END) as jour_usd
+    FROM usage_log
+  `).get();
+
+  res.json({ parUser, parType, totaux });
+});
+
+// Détail mensuel d'un utilisateur
+router.get('/users/:id/usage', (req, res) => {
+  const rows = db.prepare(`
+    SELECT strftime('%Y-%m', created_at) as mois, type, COUNT(*) as appels,
+      SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(cost_usd) as cost_usd
+    FROM usage_log WHERE user_id = ?
+    GROUP BY mois, type ORDER BY mois DESC
+  `).all(req.params.id);
+  res.json(rows);
+});
+
 router.get('/bugs', (req, res) => {
   const bugs = db.prepare('SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 200').all();
   res.json(bugs);

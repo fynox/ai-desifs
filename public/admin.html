@@ -135,6 +135,7 @@ tr:hover td { background: var(--surface2); }
     <button class="nav-item active" onclick="showPage('dashboard', this)"><span class="icon">◉</span> Dashboard</button>
     <button class="nav-item" onclick="showPage('users', this)"><span class="icon">◎</span> Utilisateurs</button>
     <button class="nav-item" onclick="showPage('analyses', this)"><span class="icon">◈</span> Analyses</button>
+    <button class="nav-item" onclick="showPage('usage', this)"><span class="icon">💰</span> Coûts API</button>
     <button class="nav-item" id="nav-bugs" onclick="showPage('bugs', this)"><span class="icon">🐛</span> Bugs <span id="bugs-badge" style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;display:none"></span></button>
   </div>
 
@@ -175,6 +176,23 @@ tr:hover td { background: var(--surface2); }
         </div>
         <div id="analyses-table"><div class="loading">Chargement...</div></div>
       </div>
+    </div>
+
+    <!-- COÛTS API -->
+    <div class="page" id="page-usage">
+      <h2>💰 Coûts API Claude</h2>
+      <div class="stats-grid" id="usage-stats">
+        <div class="loading" style="grid-column:1/-1">Chargement...</div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="table-header"><h3>Par compte</h3></div>
+        <div id="usage-users-table"><div class="loading">Chargement...</div></div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header"><h3>Par type d'opération</h3></div>
+        <div id="usage-types-table"><div class="loading">Chargement...</div></div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:12px;">Coûts estimés en USD (tarifs Sonnet : $3/M tokens entrée, $15/M sortie). Les appels faits avec la clé API personnelle d'un client ne sont pas comptés dans tes coûts. Le tracking démarre à partir d'aujourd'hui — les analyses antérieures ne sont pas comptabilisées.</p>
     </div>
 
     <!-- BUGS -->
@@ -287,6 +305,42 @@ function showPage(name, btn) {
   if (name === 'users') loadUsers();
   if (name === 'analyses') loadAnalyses();
   if (name === 'bugs') loadBugs();
+  if (name === 'usage') loadUsage();
+}
+
+function fmtCost(v) { const n = Number(v) || 0; return n === 0 ? '$0' : (n < 0.01 ? '<$0.01' : '$' + n.toFixed(2)); }
+function fmtTok(v) { const n = Number(v) || 0; return n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+
+async function loadUsage() {
+  try {
+    const d = await api('/api/admin/usage');
+    const t = d.totaux || {};
+    document.getElementById('usage-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-val">${fmtCost(t.jour_usd)}</div><div class="stat-label">Aujourd'hui</div></div>
+      <div class="stat-card"><div class="stat-val">${fmtCost(t.mois_usd)}</div><div class="stat-label">Ce mois-ci</div></div>
+      <div class="stat-card"><div class="stat-val green">${fmtCost(t.total_usd)}</div><div class="stat-label">Total</div></div>`;
+
+    const uEl = document.getElementById('usage-users-table');
+    if (!d.parUser.length) uEl.innerHTML = '<div class="empty">Aucune consommation enregistrée pour le moment.</div>';
+    else uEl.innerHTML = `<table><thead><tr><th>Email</th><th>Appels</th><th>Tokens in</th><th>Tokens out</th><th>Ce mois</th><th>Total</th><th>Clé perso</th></tr></thead><tbody>` +
+      d.parUser.map(u => `<tr>
+        <td>${u.email || '<i>compte supprimé</i>'}</td>
+        <td>${u.appels}</td>
+        <td>${fmtTok(u.input_tokens)}</td>
+        <td>${fmtTok(u.output_tokens)}</td>
+        <td>${fmtCost(u.cost_mois_usd)}</td>
+        <td><b>${fmtCost(u.cost_usd)}</b></td>
+        <td>${Number(u.cost_own_key_usd) > 0 ? fmtCost(u.cost_own_key_usd) : '—'}</td>
+      </tr>`).join('') + `</tbody></table>`;
+
+    const TYPE_LABELS = { analyse:'Analyse manuelle', analyse_email:'Analyse par mail', relance:'Mail de relance', devis:'Devis auto', import_catalogue:'Import catalogue' };
+    const tEl = document.getElementById('usage-types-table');
+    if (!d.parType.length) tEl.innerHTML = '<div class="empty">Aucune donnée.</div>';
+    else tEl.innerHTML = `<table><thead><tr><th>Opération</th><th>Appels</th><th>Coût total</th></tr></thead><tbody>` +
+      d.parType.map(r => `<tr><td>${TYPE_LABELS[r.type] || r.type}</td><td>${r.appels}</td><td>${fmtCost(r.cost_usd)}</td></tr>`).join('') + `</tbody></table>`;
+  } catch(e) {
+    document.getElementById('usage-users-table').innerHTML = '<div class="empty">Erreur de chargement</div>';
+  }
 }
 
 function statusBadge(s) {

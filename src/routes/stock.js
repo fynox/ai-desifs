@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { logUsage } = require('../utils/usage');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -69,7 +70,7 @@ Champs pour chaque produit :
 Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown :
 [{"cat":"dao","nom":"Exemple 631","finition":"Mat","adherence":"Permanente","env":"Extérieur","duree":"5-7 ans","resistances":["UV"],"applications":["Vitrine"],"largeurs":[61,106],"couleurs":["Blanc","Noir","Rouge"],"note":""}]`;
 
-async function extractBatch(pages, apiKey) {
+async function extractBatch(pages, apiKey, userId) {
   const userContent = [{ type: 'text', text: EXTRACT_PROMPT }];
   for (const img of pages) {
     userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: img } });
@@ -84,6 +85,7 @@ async function extractBatch(pages, apiKey) {
     throw new Error(err?.error?.message || `Anthropic HTTP ${resp.status}`);
   }
   const data = await resp.json();
+  logUsage(userId, 'import_catalogue', 'claude-sonnet-4-6', data.usage);
   const raw = data.content?.map(i => i.text || '').join('') || '';
   console.log('Claude batch raw (first 300):', raw.slice(0, 300));
 
@@ -173,7 +175,7 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const allProduits = [];
     for (const batch of batches) {
-      const results = await extractBatch(batch, apiKey);
+      const results = await extractBatch(batch, apiKey, req.user.id);
       allProduits.push(...results);
     }
 
