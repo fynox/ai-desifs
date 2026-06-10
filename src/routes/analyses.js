@@ -222,7 +222,8 @@ router.post('/analyse', async (req, res) => {
     return `--- ${CAT_LABELS[cat]} ---\n` + items.map(i => {
       const res = JSON.parse(i.resistances || '[]');
       const app = JSON.parse(i.applications || '[]');
-      return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${res.length ? ' | ' + res.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
+      const lar = JSON.parse(i.largeurs || '[]');
+      return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : ''}${res.length ? ' | ' + res.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
     }).join('\n');
   }).filter(Boolean).join('\n\n');
 
@@ -242,8 +243,10 @@ Ne confonds JAMAIS ces catégories.
 STOCK DISPONIBLE :
 ${stockDesc}
 
+MONTAGE : si les dimensions du visuel sont connues (dans le mail), calcule le nombre de lés nécessaires d'après la laize la plus adaptée de l'adhésif recommandé (prévois ~1 cm de recouvrement entre lés). "couches" = liste des couches du montage, de la surface visible vers le support (ex: liner de protection, vinyle imprimé, panneau). Mets null pour les valeurs inconnues.
+
 Réponds UNIQUEMENT en JSON valide :
-{"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null"}`;
+{"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal","couches":["Liner de protection","Vinyle imprimé XXX","Panneau dibond"]}}`;
 
   const userContent = [{ type: 'text', text: `Mail client :\n${mail_content}${consignes ? `\n\nConsignes : ${consignes}` : ''}` }];
   if (file_base64 && file_type && file_type.startsWith('image/')) {
