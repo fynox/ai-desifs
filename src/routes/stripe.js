@@ -37,7 +37,10 @@ router.post('/checkout', async (req, res) => {
         : process.env.STRIPE_PRICE_ID;
     }
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    // URL de retour : on prend l'origine réelle de la requête (le domaine sur lequel l'utilisateur navigue),
+    // avec APP_URL en secours. Évite les redirections cassées si APP_URL est absent ou en http.
+    let appUrl = req.headers.origin || process.env.APP_URL || 'https://ai-dhesif.fr';
+    if (appUrl.startsWith('http://') && !appUrl.includes('localhost')) appUrl = appUrl.replace('http://', 'https://');
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -61,9 +64,11 @@ router.post('/portal', async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     if (!user.stripe_customer_id) return res.status(400).json({ error: 'Aucun abonnement trouvé.' });
 
+    let appUrl = req.headers.origin || process.env.APP_URL || 'https://ai-dhesif.fr';
+    if (appUrl.startsWith('http://') && !appUrl.includes('localhost')) appUrl = appUrl.replace('http://', 'https://');
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripe_customer_id,
-      return_url: (process.env.APP_URL || 'http://localhost:3000') + '/app',
+      return_url: appUrl + '/app',
     });
 
     res.json({ url: session.url });
