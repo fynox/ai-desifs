@@ -1419,30 +1419,30 @@ function changerDebord(v) {
   _rebuildLes();
 }
 
-// Cherche le sens + le raccord qui consomment le moins de matière (raccord >= 1 cm)
+// Cherche le raccord qui consomme le moins de matière (raccord >= 1 cm).
+// Lés toujours VERTICAUX : la pose se fait de haut en bas, des lés horizontaux
+// de grande longueur sont trop compliqués à poser.
 function optimiserLes() {
   const c = window._lesCtx;
   if (!c) return;
   const laizeU = Math.max(1, c.laize - 2 * _lesMargeImp);
+  const totale = c.largeur + 2 * _lesDebord;
+  const longueur = c.hauteur + 2 * _lesDebord;
   let best = null;
-  for (const vert of [true, false]) {
-    const totale = (vert ? c.largeur : c.hauteur) + 2 * _lesDebord;
-    const longueur = (vert ? c.hauteur : c.largeur) + 2 * _lesDebord;
-    for (let r = 1; r <= 3.001; r += 0.5) {
-      const n = totale <= laizeU ? 1 : Math.ceil((totale - r) / (laizeU - r));
-      const matiere = n * c.laize * longueur; // cm² de rouleau consommés (laize pleine x longueur de chaque lé)
-      // À matière égale on préfère le raccord le plus généreux (pose plus sûre)
-      if (!best || matiere < best.matiere - 0.01 || (Math.abs(matiere - best.matiere) <= 0.01 && r > best.r)) {
-        best = { vert, r, n, matiere };
-      }
+  for (let r = 1; r <= 3.001; r += 0.5) {
+    const n = totale <= laizeU ? 1 : Math.ceil((totale - r) / (laizeU - r));
+    const matiere = n * c.laize * longueur; // cm² de rouleau consommés (laize pleine x longueur de chaque lé)
+    // À matière égale on préfère le raccord le plus généreux (pose plus sûre)
+    if (!best || matiere < best.matiere - 0.01 || (Math.abs(matiere - best.matiere) <= 0.01 && r > best.r)) {
+      best = { r, n, matiere };
     }
   }
   if (!best) return;
-  _lesSens = best.vert ? 'vertical' : 'horizontal';
+  _lesSens = 'vertical';
   _lesRecouvrement = best.r;
   _rebuildLes();
   const note = document.getElementById('les-optim-note');
-  if (note) note.textContent = `💡 Optimisé : ${best.n} lé${best.n > 1 ? 's' : ''} ${best.vert ? 'verticaux' : 'horizontaux'}, raccord ${best.r} cm — ${(best.matiere / 10000).toFixed(2)} m² de rouleau consommés`;
+  if (note) note.textContent = `💡 Optimisé : ${best.n} lé${best.n > 1 ? 's' : ''} verticaux, raccord ${best.r} cm — ${(best.matiere / 10000).toFixed(2)} m² de rouleau consommés`;
 }
 
 // Découpe le visuel en un fichier image par lé, chevauchement de raccord inclus dans chaque lé
