@@ -1188,6 +1188,52 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
+// Construit le visuel du plan de lés (deduite = 'largeur'|'hauteur' si dimension calculée depuis le ratio du fichier)
+function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
+  let vert;
+  if (sensLes === 'vertical') vert = true;
+  else if (sensLes === 'horizontal') vert = false;
+  else vert = Math.ceil(largeur / laize) <= Math.ceil(hauteur / laize);
+  const RECOUVREMENT = 1; // cm de chevauchement pour les raccords
+  const totale = vert ? largeur : hauteur; // dimension à couvrir par les lés
+  // Chaque lé avance de (laize - recouvrement), sauf si un seul suffit
+  let n, segs = [];
+  if (totale <= laize) { n = 1; segs = [totale]; }
+  else {
+    const avance = laize - RECOUVREMENT;
+    n = Math.ceil((totale - RECOUVREMENT) / avance);
+    for (let k = 0; k < n - 1; k++) segs.push(laize);
+    segs.push(Math.round((totale - (n - 1) * avance) * 10) / 10); // dernier lé = reste + recouvrement
+  }
+  // Traits de raccord + étiquette largeur de chaque lé
+  let overlays = '';
+  let cursor = 0;
+  for (let k = 0; k < n; k++) {
+    const start = cursor;
+    const width = segs[k];
+    const centre = ((start + Math.min(width, totale - start) / 2) / totale * 100).toFixed(2);
+    overlays += vert
+      ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`
+      : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`;
+    if (k < n - 1) {
+      cursor += laize - RECOUVREMENT;
+      const pos = (cursor / totale * 100).toFixed(2) + '%';
+      overlays += vert
+        ? `<div style="position:absolute;left:${pos};top:0;bottom:0;width:0;border-left:2px dashed #f03030;"></div>`
+        : `<div style="position:absolute;top:${pos};left:0;right:0;height:0;border-top:2px dashed #f03030;"></div>`;
+    }
+  }
+  const bg = previewB64 && previewType && previewType.startsWith('image/')
+    ? `background:url(data:${previewType};base64,${previewB64}) center/contain no-repeat;background-color:#161616;`
+    : `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
+  // Conteneur aux proportions exactes — visuel entier, jamais rogné
+  const maxH = 340;
+  const wPx = Math.round(maxH * largeur / hauteur);
+  const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${largeur}</span>` : largeur} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${hauteur}</span>` : hauteur} cm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}`;
+  return `<div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
+  <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
+}
+
 function renderResult(r, previewB64, previewType, analyseId) {
   const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
@@ -1216,53 +1262,29 @@ function renderResult(r, previewB64, previewType, analyseId) {
         if (ls.length) { laize = Math.max(...ls); break; }
       }
     }
+    const isImg = previewB64 && previewType && previewType.startsWith('image/');
     if (largeur && hauteur && laize) {
-      // Sens : celui qui minimise le nombre de lés si non précisé
-      let vert;
-      if (m.sens_les === 'vertical') vert = true;
-      else if (m.sens_les === 'horizontal') vert = false;
-      else vert = Math.ceil(largeur / laize) <= Math.ceil(hauteur / laize);
-      const RECOUVREMENT = 1; // cm de chevauchement pour les raccords
-      const totale = vert ? largeur : hauteur; // dimension à couvrir par les lés
-      // Calcul réel : chaque lé avance de (laize - recouvrement), sauf si un seul suffit
-      let n, segs = [];
-      if (totale <= laize) { n = 1; segs = [totale]; }
-      else {
-        const avance = laize - RECOUVREMENT;
-        n = Math.ceil((totale - RECOUVREMENT) / avance);
-        for (let k = 0; k < n - 1; k++) segs.push(laize);
-        segs.push(Math.round((totale - (n - 1) * avance) * 10) / 10); // dernier lé = reste + recouvrement
-      }
-      // Positions des traits de découpe/raccord (bord avant de chaque lé suivant)
-      let overlays = '';
-      let cursor = 0;
-      for (let k = 0; k < n; k++) {
-        const start = cursor;
-        const width = segs[k];
-        const centre = ((start + Math.min(width, totale - start) / 2) / totale * 100).toFixed(2);
-        // Étiquette largeur du lé (en mm comme sur les rouleaux)
-        overlays += vert
-          ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`
-          : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`;
-        if (k < n - 1) {
-          cursor += laize - RECOUVREMENT;
-          const pos = (cursor / totale * 100).toFixed(2) + '%';
-          overlays += vert
-            ? `<div style="position:absolute;left:${pos};top:0;bottom:0;width:0;border-left:2px dashed #f03030;"></div>`
-            : `<div style="position:absolute;top:${pos};left:0;right:0;height:0;border-top:2px dashed #f03030;"></div>`;
-        }
-      }
-      const bg = previewB64 && previewType && previewType.startsWith('image/')
-        ? `background:url(data:${previewType};base64,${previewB64}) center/contain no-repeat;background-color:#161616;`
-        : `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
-      // Conteneur dimensionné pour montrer le visuel ENTIER (proportions exactes, jamais rogné)
-      const maxH = 340;
-      const wPx = Math.round(maxH * largeur / hauteur);
-      lesHTML = `<div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${largeur} × ${hauteur} cm — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
+      lesHTML = buildLesHTML(largeur, hauteur, laize, m.sens_les, previewB64, previewType, false);
+    } else if ((largeur || hauteur) && laize && isImg) {
+      // Une seule dimension connue : on déduit l'autre du ratio du fichier visuel (asynchrone)
+      lesHTML = `<div id="les-async" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;">Calcul du plan de lés d'après le ratio du visuel…</div>`;
+      const img = new Image();
+      img.onload = () => {
+        const ratio = img.naturalWidth / img.naturalHeight;
+        const L = largeur || Math.round(hauteur * ratio * 10) / 10;
+        const H = hauteur || Math.round(largeur / ratio * 10) / 10;
+        const el = document.getElementById('les-async');
+        if (el) el.outerHTML = buildLesHTML(L, H, laize, m.sens_les, previewB64, previewType, largeur ? 'hauteur' : 'largeur');
+      };
+      img.onerror = () => {
+        const el = document.getElementById('les-async');
+        if (el) el.textContent = '⚠ Impossible de lire le ratio du visuel.';
+      };
+      img.src = `data:${previewType};base64,${previewB64}`;
     } else {
       const manques = [];
-      if (!largeur || !hauteur) manques.push('dimensions du visuel non précisées par le client');
+      if (!largeur && !hauteur) manques.push('dimensions du visuel non précisées par le client');
+      else if (!isImg) manques.push('une seule dimension connue et pas de fichier visuel pour déduire l\'autre');
       if (!laize) manques.push('aucune largeur de rouleau (laize) renseignée sur l\'adhésif dans le stock');
       lesHTML = `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;">⚠ Plan de lés indisponible : ${manques.join(' · ')}.</div>`;
     }
