@@ -218,6 +218,18 @@ tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+<!-- Modal historique des gains d'un utilisateur -->
+<div class="modal-overlay" id="gains-modal" onclick="if(event.target===this)closeGains()">
+  <div class="modal" style="width:560px;max-width:95vw;max-height:85vh;overflow-y:auto;">
+    <h3 style="margin-bottom:4px;">📈 Gains mensuels</h3>
+    <div id="gains-meta" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:14px;"></div>
+    <div id="gains-body"><div class="loading">Chargement...</div></div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeGains()">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal détail bug -->
 <div class="modal-overlay" id="bug-detail-overlay" onclick="if(event.target===this)closeBugDetail()">
   <div class="modal" style="width:560px;max-width:95vw;max-height:85vh;overflow-y:auto;">
@@ -308,6 +320,14 @@ function showPage(name, btn) {
   if (name === 'usage') loadUsage();
 }
 
+function fmtEur(v) { const n = Number(v) || 0; return (Number.isInteger(n) ? n : n.toFixed(2)) + ' €'; }
+function fmtGain(v) { const n = Number(v) || 0; return (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(2) + ' €'; }
+function planBadge(p) {
+  const colors = { free:'#8a8f98', smart:'#4a9eff', pro:'#b06af0', ultra:'#f0b43c' };
+  const labels = { free:'Free', smart:'Smart', pro:'Pro', ultra:'Ultra' };
+  const plan = labels[p] ? p : 'free';
+  return `<span style="font-size:10px;font-weight:700;border:1px solid ${colors[plan]};color:${colors[plan]};border-radius:20px;padding:2px 9px;">${labels[plan]}</span>`;
+}
 function fmtCost(v) { const n = Number(v) || 0; return n === 0 ? '$0' : (n < 0.01 ? '<$0.01' : '$' + n.toFixed(2)); }
 function fmtTok(v) { const n = Number(v) || 0; return n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
 
@@ -322,15 +342,16 @@ async function loadUsage() {
 
     const uEl = document.getElementById('usage-users-table');
     if (!d.parUser.length) uEl.innerHTML = '<div class="empty">Aucune consommation enregistrée pour le moment.</div>';
-    else uEl.innerHTML = `<table><thead><tr><th>Email</th><th>Appels</th><th>Tokens in</th><th>Tokens out</th><th>Ce mois</th><th>Total</th><th>Clé perso</th></tr></thead><tbody>` +
+    else uEl.innerHTML = `<table><thead><tr><th>Email</th><th>Plan</th><th>Abonnement</th><th>Appels</th><th>Coût ce mois</th><th>Coût total</th><th>Gain ce mois</th><th></th></tr></thead><tbody>` +
       d.parUser.map(u => `<tr>
         <td>${u.email || '<i>compte supprimé</i>'}</td>
+        <td>${planBadge(u.plan)}</td>
+        <td>${Number(u.revenue_eur) > 0 ? fmtEur(u.revenue_eur) + '/mois' + (u.plan_period === 'annual' ? ' <span style="font-size:9px;color:var(--muted)">(annuel)</span>' : '') : '—'}</td>
         <td>${u.appels}</td>
-        <td>${fmtTok(u.input_tokens)}</td>
-        <td>${fmtTok(u.output_tokens)}</td>
         <td>${fmtCost(u.cost_mois_usd)}</td>
-        <td><b>${fmtCost(u.cost_usd)}</b></td>
-        <td>${Number(u.cost_own_key_usd) > 0 ? fmtCost(u.cost_own_key_usd) : '—'}</td>
+        <td><b>${fmtCost(u.cost_usd)}</b>${Number(u.cost_own_key_usd) > 0 ? ` <span style="font-size:9px;color:var(--muted)" title="Consommé sur sa clé API perso">+${fmtCost(u.cost_own_key_usd)} clé perso</span>` : ''}</td>
+        <td><b style="color:${Number(u.gain_mois_eur) >= 0 ? 'var(--success,#3fcf6f)' : 'var(--danger,#f05050)'}">${fmtGain(u.gain_mois_eur)}</b></td>
+        <td>${u.user_id ? `<button class="btn-sm" onclick="openGains(${u.user_id})" title="Historique mensuel des gains">📈</button>` : ''}</td>
       </tr>`).join('') + `</tbody></table>`;
 
     const TYPE_LABELS = { analyse:'Analyse manuelle', analyse_email:'Analyse par mail', relance:'Mail de relance', devis:'Devis auto', import_catalogue:'Import catalogue' };
@@ -341,6 +362,43 @@ async function loadUsage() {
   } catch(e) {
     document.getElementById('usage-users-table').innerHTML = '<div class="empty">Erreur de chargement</div>';
   }
+}
+
+async function openGains(userId) {
+  const overlay = document.getElementById('gains-modal');
+  overlay.classList.add('open');
+  overlay.style.display = 'flex';
+  document.getElementById('gains-body').innerHTML = '<div class="loading">Chargement...</div>';
+  document.getElementById('gains-meta').textContent = '';
+  try {
+    const d = await api(`/api/admin/users/${userId}/gains`);
+    const period = d.plan_period === 'annual' ? 'annuel (ramené au mois)' : 'mensuel';
+    document.getElementById('gains-meta').innerHTML = `${d.email} — ${planBadge(d.plan)} ${Number(d.revenue_eur) > 0 ? `· ${fmtEur(d.revenue_eur)}/mois (${period})` : '· pas d\'abonnement payant'}`;
+    if (!d.historique.length) {
+      document.getElementById('gains-body').innerHTML = '<div class="empty">Aucune donnée pour le moment.</div>';
+      return;
+    }
+    const totalGain = d.historique.reduce((s, h) => s + h.gain_eur, 0);
+    document.getElementById('gains-body').innerHTML =
+      `<table><thead><tr><th>Mois</th><th>Appels API</th><th>Coût API</th><th>Abonnement</th><th>Gain net</th></tr></thead><tbody>` +
+      d.historique.map(h => `<tr>
+        <td>${h.mois}</td>
+        <td>${h.appels}</td>
+        <td>${h.cost_eur < 0.01 && h.cost_eur > 0 ? '<0,01 €' : h.cost_eur.toFixed(2) + ' €'}</td>
+        <td>${h.revenue_eur > 0 ? fmtEur(h.revenue_eur) : '—'}</td>
+        <td><b style="color:${h.gain_eur >= 0 ? 'var(--success,#3fcf6f)' : 'var(--danger,#f05050)'}">${fmtGain(h.gain_eur)}</b></td>
+      </tr>`).join('') +
+      `</tbody></table>
+      <div style="font-size:12px;font-family:'DM Mono',monospace;margin-top:12px;text-align:right;">Total : <b style="color:${totalGain >= 0 ? 'var(--success,#3fcf6f)' : 'var(--danger,#f05050)'}">${fmtGain(totalGain)}</b></div>
+      <p style="font-size:10px;color:var(--muted);margin-top:8px;">L'abonnement affiché est celui du plan actuel — les changements de plan passés ne sont pas rétroactifs dans cet historique.</p>`;
+  } catch(e) {
+    document.getElementById('gains-body').innerHTML = '<div class="empty">Erreur de chargement</div>';
+  }
+}
+function closeGains() {
+  const overlay = document.getElementById('gains-modal');
+  overlay.classList.remove('open');
+  overlay.style.display = 'none';
 }
 
 function statusBadge(s) {
@@ -404,10 +462,11 @@ function renderUsers(users) {
   if (!users.length) { document.getElementById('users-table').innerHTML = '<div class="empty">Aucun utilisateur</div>'; return; }
   document.getElementById('users-table').innerHTML = `
     <table>
-      <thead><tr><th>Email</th><th>Statut</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
       <tbody>${users.map(u => `
         <tr id="user-row-${u.id}">
           <td>${u.email}</td>
+          <td>${planBadge(u.subscription_status === 'active' ? u.plan : 'free')}</td>
           <td>
             <select class="status-select" onchange="changeStatus(${u.id}, this.value)">
               <option value="trial" ${u.subscription_status==='trial'?'selected':''}>Essai</option>

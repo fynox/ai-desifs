@@ -1,6 +1,9 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { monthlyRevenueEur, PLAN_INFO } = require('../utils/plans');
+
+const USD_TO_EUR = 0.93; // taux fixe pour convertir les coûts API (facturés en USD) en €
 
 const router = express.Router();
 
@@ -30,7 +33,7 @@ router.get('/stats', (req, res) => {
 // Liste des utilisateurs
 router.get('/users', (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.email, u.subscription_status, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
+    SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
       (SELECT COUNT(*) FROM analyses WHERE user_id=u.id) as analyses_count,
       (SELECT COUNT(*) FROM stock WHERE user_id=u.id) as stock_count
     FROM users u
@@ -90,7 +93,7 @@ router.get('/users/:id/analyses', (req, res) => {
 // Coûts API par utilisateur (tracking interne des tokens Claude)
 router.get('/usage', (req, res) => {
   const parUser = db.prepare(`
-    SELECT u.id as user_id, u.email,
+    SELECT u.id as user_id, u.email, u.plan, u.plan_period, u.subscription_status,
       COUNT(l.id) as appels,
       SUM(l.input_tokens) as input_tokens,
       SUM(l.output_tokens) as output_tokens,
@@ -117,7 +120,67 @@ router.get('/usage', (req, res) => {
     FROM usage_log
   `).get();
 
-  res.json({ parUser, parType, totaux });
+  // Gains : revenu mensuel de l'abonnement − coûts API du mois (en €)
+  const enriched = parUser.map(u => {
+    const active = u.subscription_status === 'active';
+    const revenue = active ? monthlyRevenueEur(u.plan || 'free', u.plan_period || 'monthly') : 0;
+    const costMoisEur = (Number(u.cost_mois_usd) || 0) * USD_TO_EUR;
+    return {
+      ...u,
+      plan: active ? (u.plan || 'free') : 'free',
+      revenue_eur: revenue,
+      gain_mois_eur: revenue - costMoisEur,
+    };
+  });
+
+  // Comptes abonnés sans aucune conso (pour qu'ils apparaissent quand même dans les gains)
+  const dejaListe = new Set(enriched.map(u => u.user_id));
+  const abonnesSansConso = db.prepare(`
+    SELECT id as user_id, email, plan, plan_period, subscription_status FROM users
+    WHERE subscription_status = 'active'
+  `).all().filter(u => !dejaListe.has(u.user_id)).map(u => ({
+    ...u, appels: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0, cost_own_key_usd: 0, cost_mois_usd: 0,
+    revenue_eur: monthlyRevenueEur(u.plan || 'free', u.plan_period || 'monthly'),
+    gain_mois_eur: monthlyRevenueEur(u.plan || 'free', u.plan_period || 'monthly'),
+  }));
+
+  res.json({ parUser: [...enriched, ...abonnesSansConso], parType, totaux, usd_to_eur: USD_TO_EUR, plans: PLAN_INFO });
+});
+
+// Historique mensuel des gains d'un utilisateur (abonnement − coûts API)
+router.get('/users/:id/gains', (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+  const active = user.subscription_status === 'active';
+  const revenue = active ? monthlyRevenueEur(user.plan || 'free', user.plan_period || 'monthly') : 0;
+
+  const couts = db.prepare(`
+    SELECT strftime('%Y-%m', created_at) as mois,
+      SUM(CASE WHEN own_key=0 THEN cost_usd ELSE 0 END) as cost_usd,
+      COUNT(*) as appels
+    FROM usage_log WHERE user_id = ?
+    GROUP BY mois ORDER BY mois DESC LIMIT 24
+  `).all(user.id);
+
+  // Inclure le mois courant même sans conso
+  const moisCourant = new Date().toISOString().slice(0, 7);
+  if (!couts.find(c => c.mois === moisCourant)) couts.unshift({ mois: moisCourant, cost_usd: 0, appels: 0 });
+
+  res.json({
+    email: user.email,
+    plan: active ? (user.plan || 'free') : 'free',
+    plan_period: user.plan_period || 'monthly',
+    revenue_eur: revenue,
+    historique: couts.map(c => ({
+      mois: c.mois,
+      appels: c.appels,
+      cost_usd: c.cost_usd || 0,
+      cost_eur: (c.cost_usd || 0) * USD_TO_EUR,
+      revenue_eur: revenue,
+      gain_eur: revenue - (c.cost_usd || 0) * USD_TO_EUR,
+    })),
+  });
 });
 
 // Détail mensuel d'un utilisateur

@@ -3,6 +3,7 @@ const multer = require('multer');
 const fetch = require('node-fetch');
 const db = require('../config/db');
 const { logUsage } = require('../utils/usage');
+const { planFromPriceId } = require('../utils/plans');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -184,11 +185,14 @@ router.post('/stripe', express.raw({ type: 'application/json' }), (req, res) => 
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
     const sub = event.data.object;
-    db.prepare('UPDATE users SET subscription_status = ? WHERE stripe_customer_id = ?').run(sub.status, sub.customer);
+    const priceId = sub.items?.data?.[0]?.price?.id;
+    const [plan, period] = planFromPriceId(priceId);
+    db.prepare('UPDATE users SET subscription_status = ?, plan = ?, plan_period = ? WHERE stripe_customer_id = ?')
+      .run(sub.status, sub.status === 'active' ? plan : 'free', period, sub.customer);
   }
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object;
-    db.prepare('UPDATE users SET subscription_status = ? WHERE stripe_customer_id = ?').run('inactive', sub.customer);
+    db.prepare('UPDATE users SET subscription_status = ?, plan = ? WHERE stripe_customer_id = ?').run('inactive', 'free', sub.customer);
   }
 
   res.json({ received: true });

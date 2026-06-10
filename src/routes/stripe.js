@@ -12,7 +12,7 @@ function getStripe() {
 router.post('/checkout', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { period = 'monthly' } = req.body;
+    const { period = 'monthly', plan = '' } = req.body;
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
     let customerId = user.stripe_customer_id;
@@ -22,9 +22,20 @@ router.post('/checkout', async (req, res) => {
       db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customerId, user.id);
     }
 
-    const priceId = period === 'annual'
-      ? (process.env.STRIPE_PRICE_ID_ANNUAL || process.env.STRIPE_PRICE_ID)
-      : process.env.STRIPE_PRICE_ID;
+    // Multi-plans : STRIPE_PRICE_SMART / STRIPE_PRICE_PRO / STRIPE_PRICE_ULTRA (+ _ANNUAL).
+    // Sans plan précisé, on garde l'abonnement historique (STRIPE_PRICE_ID).
+    const PLAN_ENVS = { smart: 'STRIPE_PRICE_SMART', pro: 'STRIPE_PRICE_PRO', ultra: 'STRIPE_PRICE_ULTRA' };
+    let priceId;
+    if (PLAN_ENVS[plan]) {
+      priceId = period === 'annual'
+        ? (process.env[PLAN_ENVS[plan] + '_ANNUAL'] || process.env[PLAN_ENVS[plan]])
+        : process.env[PLAN_ENVS[plan]];
+    }
+    if (!priceId) {
+      priceId = period === 'annual'
+        ? (process.env.STRIPE_PRICE_ID_ANNUAL || process.env.STRIPE_PRICE_ID)
+        : process.env.STRIPE_PRICE_ID;
+    }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const session = await stripe.checkout.sessions.create({

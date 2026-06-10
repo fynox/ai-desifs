@@ -29,4 +29,17 @@ function logUsage(userId, type, model, usage, ownKey = false) {
   }
 }
 
-module.exports = { logUsage };
+/**
+ * Logge un coût API fixe (ex: Replicate pour l'upscale — pas de tokens).
+ */
+function logCost(userId, type, model, costUsd) {
+  try {
+    db.prepare(
+      'INSERT INTO usage_log (user_id, type, model, input_tokens, output_tokens, cost_usd, own_key) VALUES (?,?,?,0,0,?,0)'
+    ).run(userId, type, model, costUsd);
+  } catch (e) {
+    console.error('logCost error:', e.message);
+  }
+}
+
+module.exports = { logUsage, logCost };

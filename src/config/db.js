@@ -89,6 +89,8 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN status TEXT DEFAULT \'done\'',
   'ALTER TABLE bug_reports ADD COLUMN images TEXT DEFAULT \'[]\'',
   'ALTER TABLE stock ADD COLUMN variantes TEXT DEFAULT \'[]\'',
+  'ALTER TABLE users ADD COLUMN plan TEXT DEFAULT \'free\'',
+  'ALTER TABLE users ADD COLUMN plan_period TEXT DEFAULT \'monthly\'',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

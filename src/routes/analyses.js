@@ -2,7 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
-const { logUsage } = require('../utils/usage');
+const { logUsage, logCost } = require('../utils/usage');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -250,6 +250,7 @@ router.post('/:id/upscale', async (req, res) => {
     const newType = imgRes.headers.get('content-type') || 'image/png';
 
     db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?').run(newB64, newType, item.id);
+    logCost(req.user.id, 'upscale', 'real-esrgan', parseFloat(process.env.REPLICATE_COST_PER_UPSCALE || '0.01'));
     res.json({ visuel_b64: newB64, visuel_type: newType });
   } catch (e) {
     console.error('Upscale error:', e);
