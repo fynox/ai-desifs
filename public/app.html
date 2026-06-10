@@ -573,6 +573,7 @@ textarea:focus { border-color: var(--accent); }
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
       <button class="btn-submit" style="width:100%" onclick="ouvrirMessagerie('gmail')">✉ Gmail</button>
       <button class="btn-submit" style="width:100%" onclick="ouvrirMessagerie('pc')">💻 Messagerie du PC</button>
+      <button class="btn-submit" style="width:100%;background:#25D366;border-color:#25D366;" onclick="ouvrirMessagerie('whatsapp')">🟢 WhatsApp</button>
       <button class="btn-cancel" style="width:100%" onclick="closeMessagerieChoice()">Annuler</button>
     </div>
   </div>
@@ -1577,6 +1578,10 @@ function ouvrirMessagerie(mode) {
   const corps = encodeURIComponent(document.getElementById('relance-corps').value);
   if (mode === 'gmail') {
     window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${objet}&body=${corps}`, '_blank');
+  } else if (mode === 'whatsapp') {
+    // WhatsApp : pas d'objet, message seul. S'ouvre sur le choix du contact (ou l'app PC si installée).
+    const texte = encodeURIComponent(`${document.getElementById('relance-objet').value}\n\n${document.getElementById('relance-corps').value}`);
+    window.open(`https://wa.me/?text=${texte}`, '_blank');
   } else {
     window.location.href = `mailto:${to}?subject=${objet}&body=${corps}`;
   }
