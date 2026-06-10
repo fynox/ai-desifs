@@ -1200,10 +1200,10 @@ function renderResult(r, previewB64, previewType, analyseId) {
       previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
     }
   }
-  // Visuel montage : lés + couches
+  // Visuel montage : plan de lés
   let montageHTML = '';
   const m = r.montage;
-  if (m && (m.nb_les || (m.couches || []).length)) {
+  if (m) {
     let lesHTML = '';
     const largeur = parseFloat(m.largeur_cm) || 0;
     const hauteur = parseFloat(m.hauteur_cm) || 0;
@@ -1255,25 +1255,18 @@ function renderResult(r, previewB64, previewType, analyseId) {
       const bg = previewB64 && previewType && previewType.startsWith('image/')
         ? `background:url(data:${previewType};base64,${previewB64}) center/contain no-repeat;background-color:#161616;`
         : `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
-      lesHTML = `<div style="position:relative;width:100%;aspect-ratio:${largeur}/${hauteur};max-height:260px;border:2px solid var(--text);border-radius:4px;overflow:hidden;${bg}">${overlays}</div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;">${largeur} × ${hauteur} cm — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
+      // Conteneur dimensionné pour montrer le visuel ENTIER (proportions exactes, jamais rogné)
+      const maxH = 340;
+      const wPx = Math.round(maxH * largeur / hauteur);
+      lesHTML = `<div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${largeur} × ${hauteur} cm — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
     } else {
       const manques = [];
       if (!largeur || !hauteur) manques.push('dimensions du visuel non précisées par le client');
       if (!laize) manques.push('aucune largeur de rouleau (laize) renseignée sur l\'adhésif dans le stock');
       lesHTML = `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;">⚠ Plan de lés indisponible : ${manques.join(' · ')}.</div>`;
     }
-    let couchesHTML = '';
-    if ((m.couches || []).length) {
-      const colors = ['#7ad7f0', '#9af04a', '#f0c84a', '#f06a4a', '#b06af0', '#999'];
-      couchesHTML = `<div style="margin-top:${lesHTML ? '16px' : '0'};"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Couches du montage (surface → support)</div>` +
-        m.couches.map((c, i) => `
-        <div style="display:flex;align-items:center;gap:12px;margin-left:${i * 20}px;${i ? 'margin-top:-5px;' : ''}">
-          <div style="flex:0 0 170px;height:20px;background:${colors[i % colors.length]}26;border:1.5px solid ${colors[i % colors.length]};border-radius:4px;transform:skewX(-20deg);"></div>
-          <span style="font-size:11px;font-family:'DM Mono',monospace;"><span style="color:${colors[i % colors.length]};">${i + 1}.</span> ${c}</span>
-        </div>`).join('') + `</div>`;
-    }
-    montageHTML = `<div class="result-section"><div class="rs-label">Aperçu impression / montage</div>${lesHTML}${couchesHTML}</div>`;
+    montageHTML = `<div class="result-section"><div class="rs-label">Plan de lés / impression</div>${lesHTML}</div>`;
   }
 
   const panel = document.getElementById('output-panel');
