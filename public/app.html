@@ -411,6 +411,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="sidebar-bottom">
       <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
       <button class="btn-stock" onclick="openProfile()" style="margin-top:0">⚙ Mon profil</button>
+      <button class="btn-stock" onclick="startCheckout()" style="margin-top:8px">💎 Abonnements</button>
       <button class="btn-stock" onclick="openBugReport()" style="margin-top:0;color:var(--muted);font-size:12px;">🐛 Signaler un bug</button>
       <div class="user-row">
         <span class="user-email" id="user-email-display"></span>
@@ -776,7 +777,7 @@ function renderProfilPlan() {
       <span style="font-size:13px;font-weight:700;border:1.5px solid ${color};color:${color};border-radius:20px;padding:3px 14px;">${label}</span>
       <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);">${statusTxt}${periodTxt}</span>
     </div>
-    ${!isActive ? `<button class="btn-submit" onclick="window.location.href='/pricing'" style="width:100%;margin-top:10px;font-size:12px;">Voir les formules →</button>` : ''}`;
+    <button class="btn-submit" onclick="window.location.href='/pricing'" style="width:100%;margin-top:10px;font-size:12px;">${isActive ? 'Voir les formules / changer de formule →' : 'Voir les formules →'}</button>`;
 }
 
 function openProfile() {
