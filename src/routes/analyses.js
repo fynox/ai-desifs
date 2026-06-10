@@ -164,7 +164,8 @@ ${encreLines}
 RÈGLES :
 - Utilise en priorité les adhésifs recommandés par l'analyse et leurs prix réels du stock.
 - Calcule la surface à partir des dimensions du mail. Si dimensions absentes, fais une hypothèse raisonnable et signale-la.
-- Tiens compte des laizes (largeurs de rouleau) pour estimer le nombre de lés et les chutes.
+- Tiens compte des laizes (largeurs de rouleau) pour estimer le nombre de lés.
+- IMPORTANT : la matière se compte en laize PLEINE du rouleau, pas en surface du visuel. Les chutes (bords du lé non couverts par le visuel, marges d'impression, débord de pose) sont coupées et JETÉES, non réutilisables. Surface matière = nb de lés × laize complète du rouleau × longueur du lé (longueur du visuel + ~4 cm de débord). Détaille cette perte dans la ligne du devis.
 - Ajoute le coût d'encre si le support est imprimé.
 - Ajoute une ligne main d'œuvre/découpe raisonnable (~35-50 €/h selon complexité) et indique l'hypothèse.
 - Si un prix manque dans le stock, fais une estimation marché et signale-le dans les hypothèses.
