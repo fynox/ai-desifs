@@ -1254,9 +1254,10 @@ function renderResult(r, previewB64, previewType, analyseId) {
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
   let previewHTML = '';
+  const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
-      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;"></div>`;
+      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;"><div id="dpi-check"></div></div>`;
     } else if (previewType === 'application/pdf') {
       previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
     }
@@ -1322,10 +1323,62 @@ function renderResult(r, previewB64, previewType, analyseId) {
       ${montageHTML}
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;"><button class="btn-submit" id="btn-relance" style="flex:1;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button></div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button>${isImgGlobal ? `<button class="btn-submit" id="btn-upscale" style="flex:1;min-width:140px;font-size:12px;opacity:.65;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution <span style="font-size:9px;background:var(--accent-dim);color:#000;border-radius:10px;padding:1px 6px;vertical-align:middle;">bientôt</span></button>` : ''}</div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
+  // Contrôle de résolution du visuel pour la taille d'impression demandée
+  if (isImgGlobal && m) checkDPI(previewB64, previewType, parseFloat(m.largeur_cm) || 0, parseFloat(m.hauteur_cm) || 0);
+}
+
+// Calcule les DPI effectifs à l'impression et affiche un avertissement si insuffisant
+function checkDPI(b64, type, largeurCm, hauteurCm) {
+  if (!largeurCm && !hauteurCm) return;
+  const img = new Image();
+  img.onload = () => {
+    const el = document.getElementById('dpi-check');
+    if (!el) return;
+    let dpi;
+    if (largeurCm && hauteurCm) {
+      dpi = Math.min(img.naturalWidth / (largeurCm / 2.54), img.naturalHeight / (hauteurCm / 2.54));
+    } else if (largeurCm) {
+      dpi = img.naturalWidth / (largeurCm / 2.54);
+    } else {
+      dpi = img.naturalHeight / (hauteurCm / 2.54);
+    }
+    dpi = Math.round(dpi);
+    let html;
+    if (dpi >= 100) {
+      html = `<div style="margin-top:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--success,#3fcf6f);background:rgba(60,200,110,.08);border:1px solid rgba(60,200,110,.3);border-radius:8px;padding:8px 12px;">✓ Résolution : ${dpi} DPI à la taille demandée — excellente qualité d'impression (${img.naturalWidth}×${img.naturalHeight} px)</div>`;
+    } else if (dpi >= 50) {
+      html = `<div style="margin-top:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);background:rgba(240,180,60,.08);border:1px solid rgba(240,180,60,.3);border-radius:8px;padding:8px 12px;">◐ Résolution : ${dpi} DPI à la taille demandée — correcte pour une vision à 1-2 m, légèrement douce en vue rapprochée (${img.naturalWidth}×${img.naturalHeight} px)</div>`;
+    } else if (dpi >= 25) {
+      html = `<div style="margin-top:8px;font-size:11px;font-family:'DM Mono',monospace;color:#f0a030;background:rgba(240,140,40,.1);border:1px solid rgba(240,140,40,.35);border-radius:8px;padding:8px 12px;">⚠ Résolution : ${dpi} DPI à la taille demandée — acceptable UNIQUEMENT pour une vision à +3 m (façade, panneau routier). Pixelisé de près (${img.naturalWidth}×${img.naturalHeight} px). Demander un fichier HD au client si vue rapprochée.</div>`;
+    } else {
+      html = `<div style="margin-top:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--danger,#f05050);background:rgba(240,70,70,.1);border:1px solid rgba(240,70,70,.35);border-radius:8px;padding:8px 12px;">✕ Résolution : ${dpi} DPI à la taille demandée — INSUFFISANT, rendu très pixelisé (${img.naturalWidth}×${img.naturalHeight} px). Demander un fichier HD/vectoriel au client, ou utiliser l'amélioration de résolution.</div>`;
+    }
+    el.innerHTML = html;
+  };
+  img.src = `data:${type};base64,${b64}`;
+}
+
+// Upscale IA du visuel via Replicate (Real-ESRGAN)
+async function upscaleVisuel(id) {
+  const btn = document.getElementById('btn-upscale');
+  if (btn) { btn.disabled = true; btn.textContent = '✨ Amélioration en cours… (peut prendre 1 min)'; }
+  try {
+    const data = await api('POST', `/analyses/${id}/upscale`);
+    if (data.visuel_b64) {
+      alert('✓ Résolution améliorée ! Le visuel a été remplacé par la version haute définition.');
+      const item = historique.find(a => a.id === id);
+      if (item) { item.visuel_b64 = data.visuel_b64; item.visuel_type = data.visuel_type; renderResult(item.result, item.visuel_b64, item.visuel_type, item.id); }
+    }
+  } catch (e) {
+    if ((e.message || '').includes('dev')) alert('🛠 Fonction en cours de développement — disponible très bientôt !');
+    else alert('Erreur : ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Améliorer la résolution <span style="font-size:9px;background:var(--accent-dim);color:#000;border-radius:10px;padding:1px 6px;vertical-align:middle;">bientôt</span>'; }
+  }
 }
 
 async function openPortail() {

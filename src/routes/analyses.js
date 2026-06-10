@@ -201,6 +201,62 @@ Réponds UNIQUEMENT en JSON valide :
   res.json(devis);
 });
 
+// Upscale IA du visuel via Replicate (Real-ESRGAN x4)
+// Nécessite REPLICATE_API_TOKEN dans les variables d'environnement Railway.
+router.post('/:id/upscale', async (req, res) => {
+  const replicateToken = process.env.REPLICATE_API_TOKEN;
+  if (!replicateToken) return res.status(503).json({ error: 'dev' }); // fonction en cours de dev tant que le compte Replicate n'est pas créé
+
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  if (!item.visuel_b64 || !item.visuel_type || !item.visuel_type.startsWith('image/')) {
+    return res.status(400).json({ error: 'Aucun visuel image sur cette analyse.' });
+  }
+
+  try {
+    // Real-ESRGAN sur Replicate (nightmareai/real-esrgan)
+    const createRes = await fetch('https://api.replicate.com/v1/predictions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + replicateToken },
+      body: JSON.stringify({
+        version: 'f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa',
+        input: {
+          image: `data:${item.visuel_type};base64,${item.visuel_b64}`,
+          scale: 4,
+          face_enhance: false,
+        },
+      }),
+    });
+    const pred = await createRes.json();
+    if (!createRes.ok) return res.status(502).json({ error: pred?.detail || 'Erreur Replicate.' });
+
+    // Polling jusqu'à la fin (max ~90s)
+    let status = pred.status, outputUrl = null, getUrl = pred.urls?.get;
+    for (let i = 0; i < 45 && getUrl; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const poll = await fetch(getUrl, { headers: { 'Authorization': 'Bearer ' + replicateToken } });
+      const p = await poll.json();
+      status = p.status;
+      if (status === 'succeeded') { outputUrl = Array.isArray(p.output) ? p.output[0] : p.output; break; }
+      if (status === 'failed' || status === 'canceled') break;
+    }
+    if (!outputUrl) return res.status(502).json({ error: 'L\'amélioration a échoué ou pris trop de temps — réessayez.' });
+
+    // Télécharger le résultat et remplacer le visuel
+    const imgRes = await fetch(outputUrl);
+    if (!imgRes.ok) return res.status(502).json({ error: 'Impossible de récupérer l\'image améliorée.' });
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    const newB64 = buf.toString('base64');
+    const newType = imgRes.headers.get('content-type') || 'image/png';
+
+    db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?').run(newB64, newType, item.id);
+    res.json({ visuel_b64: newB64, visuel_type: newType });
+  } catch (e) {
+    console.error('Upscale error:', e);
+    res.status(502).json({ error: 'Erreur pendant l\'amélioration du visuel.' });
+  }
+});
+
 router.post('/analyse', async (req, res) => {
   const { mail_content, consignes = '', file_base64, file_type } = req.body;
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });
