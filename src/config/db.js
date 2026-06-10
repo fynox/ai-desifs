@@ -47,6 +47,7 @@ db.exec(`
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     email TEXT,
     message TEXT NOT NULL,
+    images TEXT DEFAULT '[]',
     status TEXT DEFAULT 'new',
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -73,6 +74,7 @@ const migrations = [
   'ALTER TABLE stock ADD COLUMN couleurs TEXT DEFAULT \'[]\'',
   'ALTER TABLE stock ADD COLUMN prix_m2 REAL',
   'ALTER TABLE analyses ADD COLUMN status TEXT DEFAULT \'done\'',
+  'ALTER TABLE bug_reports ADD COLUMN images TEXT DEFAULT \'[]\'',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

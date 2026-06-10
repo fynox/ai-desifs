@@ -522,6 +522,12 @@ textarea:focus { border-color: var(--accent); }
   <div class="modal" style="max-width:440px">
     <h3>🐛 Signaler un bug</h3>
     <div class="form-group"><label>Description du problème</label><textarea id="bug-message" placeholder="Décris ce qui ne fonctionne pas, sur quelle page, quand ça arrive..." style="height:120px"></textarea></div>
+    <div class="form-group">
+      <label>Captures d'écran (optionnel, max 3)</label>
+      <input type="file" id="bug-images-input" accept="image/*" multiple style="display:none" onchange="onBugImagesSelected(this.files)">
+      <button type="button" class="btn-cancel" style="width:100%;font-size:12px;" onclick="document.getElementById('bug-images-input').click()">📷 Joindre des images</button>
+      <div id="bug-images-preview" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
+    </div>
     <div class="auth-error" id="bug-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="bug-success">✓ Signalement envoyé, merci !</div>
     <div class="modal-actions">
@@ -1410,12 +1416,59 @@ document.addEventListener('keydown', e => {
 });
 
 // ===================== BUG REPORT =====================
+let bugImages = [];
 function openBugReport() {
   document.getElementById('bug-message').value = '';
   document.getElementById('bug-error').textContent = '';
   document.getElementById('bug-success').style.display = 'none';
+  bugImages = [];
+  document.getElementById('bug-images-input').value = '';
+  renderBugImagesPreview();
   document.getElementById('modal-bug').classList.add('open');
   setTimeout(() => document.getElementById('bug-message').focus(), 100);
+}
+
+// Redimensionne une image en JPEG max 1280px pour limiter le poids
+function resizeImageToDataURL(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1280;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height);
+        width = Math.round(width * ratio); height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function onBugImagesSelected(files) {
+  for (const f of Array.from(files)) {
+    if (bugImages.length >= 3) break;
+    if (!f.type.startsWith('image/')) continue;
+    const dataUrl = await resizeImageToDataURL(f);
+    if (dataUrl) bugImages.push(dataUrl);
+  }
+  document.getElementById('bug-images-input').value = '';
+  renderBugImagesPreview();
+}
+
+function removeBugImage(i) { bugImages.splice(i, 1); renderBugImagesPreview(); }
+
+function renderBugImagesPreview() {
+  const el = document.getElementById('bug-images-preview');
+  el.innerHTML = bugImages.map((src, i) =>
+    `<div style="position:relative"><img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"><button type="button" onclick="removeBugImage(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--danger,#f06060);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button></div>`
+  ).join('');
 }
 function closeBugReport() { document.getElementById('modal-bug').classList.remove('open'); }
 document.getElementById('modal-bug').addEventListener('click', e => { if (e.target === document.getElementById('modal-bug')) closeBugReport(); });
@@ -1425,9 +1478,11 @@ async function sendBugReport() {
   if (!msg) { document.getElementById('bug-error').textContent = 'Décris le problème avant d\'envoyer.'; return; }
   document.getElementById('bug-error').textContent = '';
   try {
-    await api('POST', '/bugs', { message: msg });
+    await api('POST', '/bugs', { message: msg, images: bugImages });
     document.getElementById('bug-success').style.display = 'block';
     document.getElementById('bug-message').value = '';
+    bugImages = [];
+    renderBugImagesPreview();
     setTimeout(closeBugReport, 2000);
   } catch(e) { document.getElementById('bug-error').textContent = e.message; }
 }

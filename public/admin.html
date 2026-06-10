@@ -200,6 +200,24 @@ tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+<!-- Modal détail bug -->
+<div class="modal-overlay" id="bug-detail-overlay" onclick="if(event.target===this)closeBugDetail()">
+  <div class="modal" style="width:560px;max-width:95vw;max-height:85vh;overflow-y:auto;">
+    <h3 style="margin-bottom:6px;">🐛 Détail du signalement</h3>
+    <div id="bug-detail-meta" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:12px;"></div>
+    <div id="bug-detail-message" style="font-size:13px;white-space:pre-wrap;line-height:1.6;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;"></div>
+    <div id="bug-detail-images" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;"></div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeBugDetail()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zoom image bug -->
+<div class="modal-overlay" id="bug-zoom-overlay" style="z-index:200;cursor:zoom-out;" onclick="closeBugZoom()">
+  <img id="bug-zoom-img" style="max-width:92vw;max-height:92vh;border-radius:8px;">
+</div>
+
 <!-- Modal suppression -->
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
@@ -490,15 +508,46 @@ function renderBugs(bugs) {
   const statusColor = { new: '#f06060', seen: '#f0c84a', done: '#4af0c8' };
   const statusLabel = { new: 'Nouveau', seen: 'Vu', done: 'Résolu' };
   el.innerHTML = `<table><thead><tr><th>Date</th><th>Email</th><th>Message</th><th>Statut</th></tr></thead><tbody>` +
-    bugs.map(b => `<tr>
+    bugs.map(b => {
+      const imgs = safeParseImages(b.images);
+      return `<tr>
       <td style="white-space:nowrap;font-size:11px;">${fmtDate(b.created_at)}</td>
       <td style="font-size:11px;">${b.email || '—'}</td>
-      <td style="max-width:400px;font-size:12px;white-space:pre-wrap;">${b.message}</td>
+      <td style="max-width:400px;font-size:12px;cursor:pointer;" onclick="openBugDetail(${b.id})" title="Cliquer pour voir en entier">
+        <span style="display:block;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(b.message)}</span>
+        ${imgs.length ? `<span style="font-size:10px;color:var(--muted,#888);">📷 ${imgs.length} image(s) — </span>` : ''}<span style="font-size:10px;color:#4af0c8;">voir détail ↗</span>
+      </td>
       <td><select style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:${statusColor[b.status]||'var(--text)'};font-family:'DM Mono',monospace;font-size:11px;padding:4px 8px;cursor:pointer;" onchange="setBugStatus(${b.id},this.value)">
         ${['new','seen','done'].map(s => `<option value="${s}" ${b.status===s?'selected':''}>${statusLabel[s]}</option>`).join('')}
       </select></td>
-    </tr>`).join('') + `</tbody></table>`;
+    </tr>`;
+    }).join('') + `</tbody></table>`;
 }
+
+function safeParseImages(raw) {
+  try { const a = JSON.parse(raw || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openBugDetail(id) {
+  const b = allBugs.find(x => x.id === id);
+  if (!b) return;
+  const imgs = safeParseImages(b.images);
+  document.getElementById('bug-detail-meta').textContent = `${fmtDate(b.created_at)} — ${b.email || 'anonyme'}`;
+  document.getElementById('bug-detail-message').textContent = b.message;
+  document.getElementById('bug-detail-images').innerHTML = imgs.map(src =>
+    `<img src="${src}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomBugImage(this.src)">`
+  ).join('');
+  document.getElementById('bug-detail-overlay').classList.add('open');
+}
+function closeBugDetail() { document.getElementById('bug-detail-overlay').classList.remove('open'); }
+function zoomBugImage(src) {
+  document.getElementById('bug-zoom-img').src = src;
+  document.getElementById('bug-zoom-overlay').classList.add('open');
+}
+function closeBugZoom() { document.getElementById('bug-zoom-overlay').classList.remove('open'); }
 
 async function loadBugsBadge() {
   try {
