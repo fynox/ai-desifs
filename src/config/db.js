@@ -91,6 +91,7 @@ const migrations = [
   'ALTER TABLE stock ADD COLUMN variantes TEXT DEFAULT \'[]\'',
   'ALTER TABLE users ADD COLUMN plan TEXT DEFAULT \'free\'',
   'ALTER TABLE users ADD COLUMN plan_period TEXT DEFAULT \'monthly\'',
+  'ALTER TABLE users ADD COLUMN plan_override INTEGER DEFAULT 0',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

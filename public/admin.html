@@ -466,7 +466,15 @@ function renderUsers(users) {
       <tbody>${users.map(u => `
         <tr id="user-row-${u.id}">
           <td>${u.email}</td>
-          <td>${planBadge(u.subscription_status === 'active' ? u.plan : 'free')}</td>
+          <td>
+            <select class="status-select" onchange="changePlan(${u.id}, this.value)" title="${u.plan_override ? 'Plan forcé manuellement' : 'Plan suivi automatiquement depuis Stripe'}">
+              <option value="auto" ${!u.plan_override ? 'selected' : ''}>Auto${!u.plan_override ? ' (' + ({free:'Free',smart:'Smart',pro:'Pro',ultra:'Ultra'}[u.subscription_status === 'active' ? (u.plan || 'free') : 'free']) + ')' : ''}</option>
+              <option value="free" ${u.plan_override && u.plan === 'free' ? 'selected' : ''}>⚠ Free forcé</option>
+              <option value="smart" ${u.plan_override && u.plan === 'smart' ? 'selected' : ''}>⚠ Smart forcé</option>
+              <option value="pro" ${u.plan_override && u.plan === 'pro' ? 'selected' : ''}>⚠ Pro forcé</option>
+              <option value="ultra" ${u.plan_override && u.plan === 'ultra' ? 'selected' : ''}>⚠ Ultra forcé</option>
+            </select>
+          </td>
           <td>
             <select class="status-select" onchange="changeStatus(${u.id}, this.value)">
               <option value="trial" ${u.subscription_status==='trial'?'selected':''}>Essai</option>
@@ -498,6 +506,18 @@ async function changeStatus(id, status) {
     await api(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ subscription_status: status }) });
     const u = allUsers.find(u => u.id === id);
     if (u) u.subscription_status = status;
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+async function changePlan(id, value) {
+  try {
+    await api(`/api/admin/users/${id}/plan`, { method: 'PATCH', body: JSON.stringify({ plan: value }) });
+    const u = allUsers.find(u => u.id === id);
+    if (u) {
+      if (value === 'auto') { u.plan_override = 0; }
+      else { u.plan_override = 1; u.plan = value; }
+    }
+    renderUsers(allUsers);
   } catch(e) { alert('Erreur: ' + e.message); }
 }
 

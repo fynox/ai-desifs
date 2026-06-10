@@ -33,7 +33,7 @@ router.get('/stats', (req, res) => {
 // Liste des utilisateurs
 router.get('/users', (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
+    SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.plan_override, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
       (SELECT COUNT(*) FROM analyses WHERE user_id=u.id) as analyses_count,
       (SELECT COUNT(*) FROM stock WHERE user_id=u.id) as stock_count
     FROM users u
@@ -49,6 +49,20 @@ router.patch('/users/:id', (req, res) => {
   if (!valid.includes(subscription_status)) return res.status(400).json({ error: 'Statut invalide.' });
   db.prepare('UPDATE users SET subscription_status=? WHERE id=?').run(subscription_status, req.params.id);
   res.json({ ok: true });
+});
+
+// Changer manuellement le plan d'un utilisateur ('auto' = re-laisser Stripe décider)
+router.patch('/users/:id/plan', (req, res) => {
+  const { plan, period } = req.body;
+  if (plan === 'auto') {
+    db.prepare('UPDATE users SET plan_override=0 WHERE id=?').run(req.params.id);
+    return res.json({ ok: true, mode: 'auto' });
+  }
+  const valid = ['free', 'smart', 'pro', 'ultra'];
+  if (!valid.includes(plan)) return res.status(400).json({ error: 'Plan invalide.' });
+  const validPeriod = ['monthly', 'annual'].includes(period) ? period : 'monthly';
+  db.prepare('UPDATE users SET plan=?, plan_period=?, plan_override=1 WHERE id=?').run(plan, validPeriod, req.params.id);
+  res.json({ ok: true, mode: 'override' });
 });
 
 // Reset essais gratuits

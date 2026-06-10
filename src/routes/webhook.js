@@ -187,12 +187,13 @@ router.post('/stripe', express.raw({ type: 'application/json' }), (req, res) => 
     const sub = event.data.object;
     const priceId = sub.items?.data?.[0]?.price?.id;
     const [plan, period] = planFromPriceId(priceId);
-    db.prepare('UPDATE users SET subscription_status = ?, plan = ?, plan_period = ? WHERE stripe_customer_id = ?')
+    // plan_override = plan forcé manuellement par l'admin, on ne touche pas au plan dans ce cas
+    db.prepare('UPDATE users SET subscription_status = ?, plan = CASE WHEN plan_override=1 THEN plan ELSE ? END, plan_period = ? WHERE stripe_customer_id = ?')
       .run(sub.status, sub.status === 'active' ? plan : 'free', period, sub.customer);
   }
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object;
-    db.prepare('UPDATE users SET subscription_status = ?, plan = ? WHERE stripe_customer_id = ?').run('inactive', 'free', sub.customer);
+    db.prepare('UPDATE users SET subscription_status = ?, plan = CASE WHEN plan_override=1 THEN plan ELSE ? END WHERE stripe_customer_id = ?').run('inactive', 'free', sub.customer);
   }
 
   res.json({ received: true });

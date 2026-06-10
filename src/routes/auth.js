@@ -47,10 +47,11 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/profile', requireAuth, async (req, res) => {
-  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, trial_analyses_used, inbound_email, stripe_customer_id FROM users WHERE id = ?').get(req.user.id);
+  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id FROM users WHERE id = ?').get(req.user.id);
 
-  // Synchro directe avec Stripe (filet de sécurité si le webhook n'est pas passé)
-  if (user.stripe_customer_id && process.env.STRIPE_SECRET_KEY) {
+  // Synchro directe avec Stripe (filet de sécurité si le webhook n'est pas passé).
+  // Désactivée si l'admin a forcé un plan manuellement (plan_override).
+  if (!user.plan_override && user.stripe_customer_id && process.env.STRIPE_SECRET_KEY) {
     try {
       const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
       const subs = await stripe.subscriptions.list({ customer: user.stripe_customer_id, status: 'active', limit: 1 });
