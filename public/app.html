@@ -549,8 +549,19 @@ textarea:focus { border-color: var(--accent); }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRelance()">Fermer</button>
       <button class="btn-cancel" onclick="copierRelance()">⧉ Copier</button>
-      <button class="btn-submit" onclick="ouvrirMessagerie('pc')">💻 Messagerie PC</button>
-      <button class="btn-submit" onclick="ouvrirMessagerie('gmail')">✉ Gmail</button>
+      <button class="btn-submit" onclick="openMessagerieChoice()">Ouvrir ma messagerie →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHOIX MESSAGERIE -->
+<div class="modal-overlay" id="modal-messagerie" style="z-index:200">
+  <div class="modal" style="max-width:320px;text-align:center">
+    <h3>Ouvrir avec…</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <button class="btn-submit" style="width:100%" onclick="ouvrirMessagerie('gmail')">✉ Gmail</button>
+      <button class="btn-submit" style="width:100%" onclick="ouvrirMessagerie('pc')">💻 Messagerie du PC</button>
+      <button class="btn-cancel" style="width:100%" onclick="closeMessagerieChoice()">Annuler</button>
     </div>
   </div>
 </div>
@@ -1537,7 +1548,12 @@ async function copierRelance() {
   } catch { document.getElementById('relance-error').textContent = 'Copie impossible — sélectionne le texte manuellement.'; }
 }
 
+function openMessagerieChoice() { document.getElementById('modal-messagerie').classList.add('open'); }
+function closeMessagerieChoice() { document.getElementById('modal-messagerie').classList.remove('open'); }
+document.getElementById('modal-messagerie').addEventListener('click', e => { if (e.target === document.getElementById('modal-messagerie')) closeMessagerieChoice(); });
+
 function ouvrirMessagerie(mode) {
+  closeMessagerieChoice();
   const to = encodeURIComponent(document.getElementById('relance-to').value.trim());
   const objet = encodeURIComponent(document.getElementById('relance-objet').value);
   const corps = encodeURIComponent(document.getElementById('relance-corps').value);
