@@ -125,7 +125,7 @@ Réponds UNIQUEMENT en JSON valide :
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
