@@ -64,6 +64,13 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
 
     const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
+    // Déduplication : SendGrid peut livrer le même mail deux fois → on ignore si une analyse
+    // identique (même contenu) existe déjà depuis moins de 10 minutes
+    const dup = db.prepare(
+      "SELECT id FROM analyses WHERE user_id = ? AND mail_content = ? AND created_at >= datetime('now','-10 minutes')"
+    ).get(user.id, mailContent);
+    if (dup) return;
+
     // Insérer une analyse "pending" visible immédiatement (optionnel — ne bloque pas si colonne absente)
     let pendingId = null;
     try {

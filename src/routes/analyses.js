@@ -28,6 +28,8 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', (req, res) => {
+  // Nettoyer les analyses "en cours" zombies (webhook qui a échoué sans supprimer le pending)
+  db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(req.user.id);
   const rows = db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
   res.json(rows.map(r => {
     const isPending = r.status === 'pending';
@@ -177,7 +179,7 @@ Réponds UNIQUEMENT en JSON valide :
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 3000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
