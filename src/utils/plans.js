@@ -6,22 +6,33 @@ const PLAN_INFO = {
   ultra: { label: 'Ultra', monthly: 49, annual: null }, // prix annuel pas encore choisi
 };
 
+// Price IDs Stripe par plan/période (une variable Railway du même nom prend le dessus si définie).
+// Smart annuel et Ultra annuel : prix pas encore choisis → null (la facturation annuelle retombe sur le mensuel).
+const STRIPE_PRICE_IDS = {
+  smart: {
+    monthly: process.env.STRIPE_PRICE_SMART || 'price_1TgEuAP9wUBWfeABU1iDvWWe',
+    annual: process.env.STRIPE_PRICE_SMART_ANNUAL || null,
+  },
+  pro: {
+    monthly: process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRICE_ID || null,
+    annual: process.env.STRIPE_PRICE_PRO_ANNUAL || 'price_1TgEvsP9wUBWfeABanrl7Y5H',
+  },
+  ultra: {
+    monthly: process.env.STRIPE_PRICE_ULTRA || 'price_1TgEuvP9wUBWfeABn2pU14C3',
+    annual: process.env.STRIPE_PRICE_ULTRA_ANNUAL || null,
+  },
+};
+
 // Mappe un price ID Stripe vers [plan, période].
-// Variables Railway à créer : STRIPE_PRICE_SMART, STRIPE_PRICE_SMART_ANNUAL,
-// STRIPE_PRICE_PRO, STRIPE_PRICE_PRO_ANNUAL, STRIPE_PRICE_ULTRA, STRIPE_PRICE_ULTRA_ANNUAL.
-// Les anciens STRIPE_PRICE_ID / STRIPE_PRICE_ID_ANNUAL (abonnement unique actuel) comptent comme Pro.
+// L'ancien STRIPE_PRICE_ID_ANNUAL (abonnement unique historique) compte comme Pro.
 function planFromPriceId(priceId) {
   if (!priceId) return ['pro', 'monthly'];
   const map = {};
-  const add = (env, plan, period) => { if (process.env[env]) map[process.env[env]] = [plan, period]; };
-  add('STRIPE_PRICE_SMART', 'smart', 'monthly');
-  add('STRIPE_PRICE_SMART_ANNUAL', 'smart', 'annual');
-  add('STRIPE_PRICE_PRO', 'pro', 'monthly');
-  add('STRIPE_PRICE_PRO_ANNUAL', 'pro', 'annual');
-  add('STRIPE_PRICE_ULTRA', 'ultra', 'monthly');
-  add('STRIPE_PRICE_ULTRA_ANNUAL', 'ultra', 'annual');
-  add('STRIPE_PRICE_ID', 'pro', 'monthly');
-  add('STRIPE_PRICE_ID_ANNUAL', 'pro', 'annual');
+  for (const [plan, prices] of Object.entries(STRIPE_PRICE_IDS)) {
+    if (prices.monthly) map[prices.monthly] = [plan, 'monthly'];
+    if (prices.annual) map[prices.annual] = [plan, 'annual'];
+  }
+  if (process.env.STRIPE_PRICE_ID_ANNUAL) map[process.env.STRIPE_PRICE_ID_ANNUAL] = ['pro', 'annual'];
   return map[priceId] || ['pro', 'monthly'];
 }
 
@@ -33,4 +44,4 @@ function monthlyRevenueEur(plan, period) {
   return p.monthly;
 }
 
-module.exports = { PLAN_INFO, planFromPriceId, monthlyRevenueEur };
+module.exports = { PLAN_INFO, STRIPE_PRICE_IDS, planFromPriceId, monthlyRevenueEur };

@@ -99,17 +99,16 @@ nav {
     <div class="toggle-thumb"></div>
   </label>
   <span class="billing-opt" id="opt-annual" onclick="setBilling('annual')">Annuel</span>
-  <span class="annual-badge">-20%</span>
+  <span class="annual-badge">jusqu'à -20%</span>
 </div>
 
 <div class="plans">
 
-  <!-- STARTER -->
-  <div class="plan-card soon">
-    <div class="plan-badge soon-badge">Bientôt disponible</div>
-    <div class="plan-name">Starter</div>
-    <div class="plan-price">9€ <span>/ mois</span></div>
-    <div class="plan-desc">Pour les indépendants qui traitent quelques demandes par semaine.</div>
+  <!-- SMART -->
+  <div class="plan-card">
+    <div class="plan-name">Smart</div>
+    <div class="plan-price" id="smart-price">12€ <span>/ mois</span></div>
+    <div class="plan-desc" id="smart-desc">Pour les indépendants qui traitent quelques demandes par semaine.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> 30 analyses / mois</div>
       <div class="plan-feature"><span class="check">✓</span> Gestion de stock</div>
@@ -117,12 +116,13 @@ nav {
       <div class="plan-feature off"><span class="dash">—</span> Adresse mail dédiée</div>
       <div class="plan-feature off"><span class="dash">—</span> Analyses par mail auto</div>
     </div>
-    <button class="btn-plan btn-plan-ghost" disabled>Bientôt disponible</button>
+    <button class="btn-plan btn-plan-accent" id="btn-smart" onclick="subscribe('smart')">S'abonner pour 12€/mois →</button>
+    <div id="smart-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-10px;">Tarif annuel bientôt disponible — facturé au mois</div>
   </div>
 
   <!-- PRO -->
   <div class="plan-card featured">
-    <div class="plan-badge">Recommandé</div>
+    <div class="plan-badge" id="pro-badge">Recommandé</div>
     <div class="plan-name">Pro</div>
     <div class="plan-price" id="pro-price">20€ <span>/ mois</span></div>
     <div class="plan-desc" id="pro-desc">Pour les professionnels qui traitent des demandes clients au quotidien.</div>
@@ -133,16 +133,15 @@ nav {
       <div class="plan-feature"><span class="check">✓</span> Adresse mail dédiée</div>
       <div class="plan-feature"><span class="check">✓</span> Analyses par mail automatiques</div>
     </div>
-    <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe()">S'abonner pour 20€/mois →</button>
-    <div id="pro-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:-10px;">192€ facturés en une fois</div>
+    <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe('pro')">S'abonner pour 20€/mois →</button>
+    <div id="pro-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:-10px;">192€ facturés en une fois — soit -20% sur l'année</div>
   </div>
 
-  <!-- BUSINESS -->
-  <div class="plan-card soon">
-    <div class="plan-badge soon-badge">Bientôt disponible</div>
-    <div class="plan-name">Business</div>
-    <div class="plan-price">49€ <span>/ mois</span></div>
-    <div class="plan-desc">Pour les équipes et les enseignes avec plusieurs utilisateurs.</div>
+  <!-- ULTRA -->
+  <div class="plan-card">
+    <div class="plan-name">Ultra</div>
+    <div class="plan-price" id="ultra-price">49€ <span>/ mois</span></div>
+    <div class="plan-desc" id="ultra-desc">Pour les équipes et les enseignes avec plusieurs utilisateurs.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Analyses illimitées</div>
       <div class="plan-feature"><span class="check">✓</span> Multi-utilisateurs</div>
@@ -150,7 +149,8 @@ nav {
       <div class="plan-feature"><span class="check">✓</span> Dashboard équipe</div>
       <div class="plan-feature"><span class="check">✓</span> Support prioritaire</div>
     </div>
-    <button class="btn-plan btn-plan-ghost" disabled>Bientôt disponible</button>
+    <button class="btn-plan btn-plan-accent" id="btn-ultra" onclick="subscribe('ultra')">S'abonner pour 49€/mois →</button>
+    <div id="ultra-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-10px;">Tarif annuel bientôt disponible — facturé au mois</div>
   </div>
 
 </div>
@@ -161,6 +161,25 @@ nav {
 const token = sessionStorage.getItem('aidesif_token');
 let billingPeriod = 'monthly';
 
+// monthly = prix mensuel ; annual = prix facturé sur l'année (null = pas encore disponible)
+const PLANS = {
+  smart: { monthly: 12, annual: null, descMonthly: 'Pour les indépendants qui traitent quelques demandes par semaine.' },
+  pro:   { monthly: 20, annual: 192, descMonthly: 'Pour les professionnels qui traitent des demandes clients au quotidien.' },
+  ultra: { monthly: 49, annual: null, descMonthly: 'Pour les équipes et les enseignes avec plusieurs utilisateurs.' },
+};
+
+function discountPct(p) {
+  if (!p.annual) return 0;
+  return Math.round((1 - p.annual / (p.monthly * 12)) * 100);
+}
+
+function btnLabel(plan, isAnnual) {
+  const p = PLANS[plan];
+  return isAnnual && p.annual
+    ? `S'abonner pour ${p.annual}€/an →`
+    : `S'abonner pour ${p.monthly}€/mois →`;
+}
+
 function setBilling(period) {
   billingPeriod = period;
   const isAnnual = period === 'annual';
@@ -169,27 +188,36 @@ function setBilling(period) {
   document.getElementById('opt-monthly').classList.toggle('active', !isAnnual);
   document.getElementById('opt-annual').classList.toggle('active', isAnnual);
 
-  document.getElementById('pro-price').innerHTML = isAnnual
-    ? '16€ <span>/ mois</span>'
-    : '20€ <span>/ mois</span>';
-  document.getElementById('pro-desc').textContent = isAnnual
-    ? 'Économisez 48€ par an — facturé 192€ en une fois.'
-    : 'Pour les professionnels qui traitent des demandes clients au quotidien.';
-  document.getElementById('btn-pro').textContent = isAnnual
-    ? 'S\'abonner pour 192€/an →'
-    : 'S\'abonner pour 20€/mois →';
-  document.getElementById('pro-annual-note').style.display = isAnnual ? 'block' : 'none';
+  for (const plan of Object.keys(PLANS)) {
+    const p = PLANS[plan];
+    const pct = discountPct(p);
+    const priceEl = document.getElementById(plan + '-price');
+    const descEl = document.getElementById(plan + '-desc');
+    const btnEl = document.getElementById('btn-' + plan);
+    const noteEl = document.getElementById(plan + '-annual-note');
+
+    if (isAnnual && p.annual) {
+      const perMonth = p.annual / 12;
+      priceEl.innerHTML = `${Number.isInteger(perMonth) ? perMonth : perMonth.toFixed(2)}€ <span>/ mois</span> <span style="font-size:13px;font-family:'DM Mono',monospace;background:#1a2a05;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:2px 10px;vertical-align:middle;">-${pct}%</span>`;
+      descEl.textContent = `Économisez ${p.monthly * 12 - p.annual}€ par an — facturé ${p.annual}€ en une fois.`;
+    } else {
+      priceEl.innerHTML = `${p.monthly}€ <span>/ mois</span>`;
+      descEl.textContent = p.descMonthly;
+    }
+    if (btnEl) btnEl.textContent = btnLabel(plan, isAnnual);
+    if (noteEl) noteEl.style.display = isAnnual ? 'block' : 'none';
+  }
 }
 
-async function subscribe() {
+async function subscribe(plan) {
   if (!token) { window.location.href = '/app'; return; }
-  const btn = document.getElementById('btn-pro');
+  const btn = document.getElementById('btn-' + plan);
   btn.disabled = true; btn.textContent = 'Redirection vers Stripe...';
   try {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ period: billingPeriod })
+      body: JSON.stringify({ plan, period: billingPeriod })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
@@ -197,7 +225,7 @@ async function subscribe() {
   } catch (e) {
     alert(e.message);
     btn.disabled = false;
-    btn.textContent = billingPeriod === 'annual' ? 'S\'abonner pour 192€/an →' : 'S\'abonner pour 20€/mois →';
+    btn.textContent = btnLabel(plan, billingPeriod === 'annual');
   }
 }
 </script>

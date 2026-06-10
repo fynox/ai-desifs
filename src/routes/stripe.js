@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { STRIPE_PRICE_IDS } = require('../utils/plans');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -22,18 +23,17 @@ router.post('/checkout', async (req, res) => {
       db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customerId, user.id);
     }
 
-    // Multi-plans : STRIPE_PRICE_SMART / STRIPE_PRICE_PRO / STRIPE_PRICE_ULTRA (+ _ANNUAL).
-    // Sans plan précisé, on garde l'abonnement historique (STRIPE_PRICE_ID).
-    const PLAN_ENVS = { smart: 'STRIPE_PRICE_SMART', pro: 'STRIPE_PRICE_PRO', ultra: 'STRIPE_PRICE_ULTRA' };
+    // Multi-plans : price IDs centralisés dans utils/plans.js.
+    // Si la période annuelle n'a pas encore de prix (Smart/Ultra), on retombe sur le mensuel.
     let priceId;
-    if (PLAN_ENVS[plan]) {
-      priceId = period === 'annual'
-        ? (process.env[PLAN_ENVS[plan] + '_ANNUAL'] || process.env[PLAN_ENVS[plan]])
-        : process.env[PLAN_ENVS[plan]];
+    const prices = STRIPE_PRICE_IDS[plan];
+    if (prices) {
+      priceId = period === 'annual' ? (prices.annual || prices.monthly) : prices.monthly;
     }
     if (!priceId) {
+      // Sans plan précisé : abonnement historique (compté comme Pro)
       priceId = period === 'annual'
-        ? (process.env.STRIPE_PRICE_ID_ANNUAL || process.env.STRIPE_PRICE_ID)
+        ? (process.env.STRIPE_PRICE_ID_ANNUAL || STRIPE_PRICE_IDS.pro.annual || process.env.STRIPE_PRICE_ID)
         : process.env.STRIPE_PRICE_ID;
     }
 
