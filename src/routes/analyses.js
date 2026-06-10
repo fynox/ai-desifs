@@ -80,7 +80,9 @@ Analyse réalisée en interne :
 Résumé : ${result.resume || 'N/A'}
 ${result.attention ? `Point d'attention : ${result.attention}` : ''}
 
-Rédige un mail de réponse courtois et professionnel en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), tutoiement interdit, termine par une formule de politesse SANS signature nominative (le client signera lui-même).
+${req.body?.ton === 'familier'
+    ? `Rédige un mail de réponse chaleureux et décontracté en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). C'est un client de longue date : tutoiement autorisé, ton amical et direct, mais reste pro sur le fond. Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), termine par une formule sympa SANS signature nominative (l'expéditeur signera lui-même).`
+    : `Rédige un mail de réponse courtois et professionnel en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), tutoiement interdit, termine par une formule de politesse SANS signature nominative (le client signera lui-même).`}
 
 Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
 

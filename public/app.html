@@ -554,6 +554,18 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL CHOIX TON -->
+<div class="modal-overlay" id="modal-ton" style="z-index:600">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <h3>Quel ton pour ce mail ?</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+      <button class="btn-submit" style="width:100%" onclick="choisirTon('pro')">👔 Professionnel<br><span style="font-size:10px;opacity:.7">Vouvoiement, formel</span></button>
+      <button class="btn-submit" style="width:100%" onclick="choisirTon('familier')">😊 Familier<br><span style="font-size:10px;opacity:.7">Client de longue date, tutoiement</span></button>
+      <button class="btn-cancel" style="width:100%" onclick="closeTonChoice()">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CHOIX MESSAGERIE -->
 <div class="modal-overlay" id="modal-messagerie" style="z-index:600">
   <div class="modal" style="max-width:320px;text-align:center">
@@ -1164,7 +1176,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
       </div></div>
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section"><button class="btn-submit" id="btn-relance" style="width:100%;font-size:12px;" onclick="genererRelance(${analyseId})">✉ Mail au client — demander les infos manquantes</button></div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section"><button class="btn-submit" id="btn-relance" style="width:100%;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client — demander les infos manquantes</button></div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -1518,11 +1530,17 @@ async function sendBugReport() {
 }
 
 // ===================== RELANCE CLIENT =====================
-async function genererRelance(id) {
+let _tonAnalyseId = null;
+function openTonChoice(id) { _tonAnalyseId = id; document.getElementById('modal-ton').classList.add('open'); }
+function closeTonChoice() { document.getElementById('modal-ton').classList.remove('open'); }
+document.getElementById('modal-ton').addEventListener('click', e => { if (e.target === document.getElementById('modal-ton')) closeTonChoice(); });
+function choisirTon(ton) { closeTonChoice(); genererRelance(_tonAnalyseId, ton); }
+
+async function genererRelance(id, ton = 'pro') {
   const btn = document.getElementById('btn-relance');
   if (btn) { btn.disabled = true; btn.textContent = '✉ Rédaction du mail en cours…'; }
   try {
-    const mail = await api('POST', `/analyses/${id}/relance`);
+    const mail = await api('POST', `/analyses/${id}/relance`, { ton });
     document.getElementById('relance-to').value = mail.to || '';
     document.getElementById('relance-objet').value = mail.objet || '';
     document.getElementById('relance-corps').value = mail.corps || '';
