@@ -39,6 +39,7 @@ router.get('/', (req, res) => {
       lu: Boolean(r.lu),
       visuel_b64: r.visuel_b64 || null,
       visuel_type: r.visuel_type || null,
+      devis: r.devis_json ? JSON.parse(r.devis_json) : null,
       _pending: isPending,
     };
   }));
@@ -199,6 +200,9 @@ Réponds UNIQUEMENT en JSON valide :
   let devis;
   try { devis = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
   if (!devis.lignes) return res.status(502).json({ error: 'Réponse incomplète — réessayez.' });
+
+  // Sauvegarder le devis pour pouvoir le rouvrir sans le regénérer
+  db.prepare('UPDATE analyses SET devis_json = ? WHERE id = ?').run(JSON.stringify(devis), item.id);
 
   res.json(devis);
 });

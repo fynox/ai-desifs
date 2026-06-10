@@ -555,6 +555,7 @@ textarea:focus { border-color: var(--accent); }
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="devis-copied">✓ Copié dans le presse-papier</div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeDevis()">Fermer</button>
+      <button class="btn-cancel" id="btn-regen-devis" title="Refaire le calcul (utile si le stock ou les prix ont changé)">↻ Régénérer</button>
       <button class="btn-submit" onclick="copierDevis()">⧉ Copier le devis</button>
     </div>
   </div>
@@ -1762,11 +1763,27 @@ async function sendBugReport() {
 
 // ===================== DEVIS AUTO =====================
 let _devisData = null;
-async function genererDevis(id) {
+async function genererDevis(id, force = false) {
+  // Devis déjà généré → on le rouvre tel quel (bouton Régénérer dans la fenêtre pour le refaire)
+  const saved = historique.find(a => a.id === id);
+  if (!force && saved && saved.devis) {
+    afficherDevis(saved.devis, id);
+    return;
+  }
   const btn = document.getElementById('btn-devis');
   if (btn) { btn.disabled = true; btn.textContent = '📋 Calcul du devis…'; }
   try {
     const d = await api('POST', `/analyses/${id}/devis`);
+    if (saved) saved.devis = d;
+    afficherDevis(d, id);
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📋 Devis approximatif'; }
+}
+
+function afficherDevis(d, id) {
+  {
     _devisData = d;
     const fmtPrix = v => typeof v === 'number' ? v.toFixed(2) + ' €' : (v || '—');
     const lignes = (d.lignes || []).map(l => `<tr>
@@ -1791,11 +1808,9 @@ async function genererDevis(id) {
       <div style="font-size:10px;color:var(--muted);margin-top:10px;font-style:italic;">Devis indicatif généré automatiquement — à valider avant envoi au client.</div>`;
     document.getElementById('devis-error').textContent = '';
     document.getElementById('devis-copied').style.display = 'none';
+    document.getElementById('btn-regen-devis').onclick = () => { closeDevis(); genererDevis(id, true); };
     document.getElementById('modal-devis').classList.add('open');
-  } catch(e) {
-    alert('Erreur : ' + e.message);
   }
-  if (btn) { btn.disabled = false; btn.textContent = '📋 Devis approximatif'; }
 }
 
 function closeDevis() { document.getElementById('modal-devis').classList.remove('open'); }
