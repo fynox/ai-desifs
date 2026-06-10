@@ -115,6 +115,88 @@ Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
   res.json({ to: clientEmail, objet: mail.objet, corps: mail.corps });
 });
 
+// Génère un devis automatique approximatif basé sur le stock (prix m², encre)
+router.post('/:id/devis', async (req, res) => {
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
+
+  let result = {};
+  try { result = JSON.parse(item.result_json || '{}'); } catch {}
+
+  const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
+  const encres = stockDispo.filter(i => i.cat === 'encre');
+  const adhesifs = stockDispo.filter(i => i.cat !== 'encre');
+
+  // Adhésifs recommandés en priorité, sinon tout le stock avec prix
+  const nomsReco = (result.adhesifs || []).map(a => a.nom);
+  const stockLines = adhesifs.map(i => {
+    const largeurs = JSON.parse(i.largeurs || '[]');
+    return `• ${i.nom} (${i.cat})${nomsReco.includes(i.nom) ? ' [RECOMMANDÉ PAR L\'ANALYSE]' : ''} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m²' : 'NON RENSEIGNÉ'}${largeurs.length ? ' | laizes: ' + largeurs.join(', ') + ' cm' : ''}`;
+  }).join('\n');
+  const encreLines = encres.length
+    ? encres.map(i => `• ${i.nom} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m² imprimé' : 'NON RENSEIGNÉ'}${i.note ? ' | ' + i.note : ''}`).join('\n')
+    : 'Aucune encre renseignée — utilise une estimation standard de 0,80 €/m² imprimé et signale-le dans les hypothèses.';
+
+  const prompt = `Tu es un imprimeur professionnel (signalétique / adhésifs grand format). Établis un DEVIS APPROXIMATIF pour cette demande client :
+
+---
+${(item.mail_content || '').slice(0, 3000)}
+---
+
+Analyse interne : ${result.resume || 'N/A'}
+Adhésif(s) recommandé(s) : ${nomsReco.join(', ') || 'N/A'}
+
+STOCK ADHÉSIFS (prix au m² HT) :
+${stockLines || 'Aucun'}
+
+ENCRES D'IMPRESSION (coût au m² imprimé) :
+${encreLines}
+
+RÈGLES :
+- Utilise en priorité les adhésifs recommandés par l'analyse et leurs prix réels du stock.
+- Calcule la surface à partir des dimensions du mail. Si dimensions absentes, fais une hypothèse raisonnable et signale-la.
+- Tiens compte des laizes (largeurs de rouleau) pour estimer le nombre de lés et les chutes.
+- Ajoute le coût d'encre si le support est imprimé.
+- Ajoute une ligne main d'œuvre/découpe raisonnable (~35-50 €/h selon complexité) et indique l'hypothèse.
+- Si un prix manque dans le stock, fais une estimation marché et signale-le dans les hypothèses.
+- Tous les montants en € HT.
+
+Réponds UNIQUEMENT en JSON valide :
+{"lignes":[{"designation":"...","details":"surface, nb lés, etc.","quantite":"...","prix_unitaire":"...","total":0}],"total_ht":0,"marge_conseillee":"ex: x2 à x2.5 pour le prix de vente","hypotheses":["..."]}`;
+
+  let claudeRes;
+  try {
+    claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+  } catch {
+    return res.status(502).json({ error: 'Impossible de joindre l\'API Anthropic.' });
+  }
+
+  const data = await claudeRes.json();
+  if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || `Erreur Anthropic ${claudeRes.status}` });
+
+  const raw = data.content?.map(i => i.text || '').join('') || '';
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
+
+  let devis;
+  try { devis = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
+  if (!devis.lignes) return res.status(502).json({ error: 'Réponse incomplète — réessayez.' });
+
+  res.json(devis);
+});
+
 router.post('/analyse', async (req, res) => {
   const { mail_content, consignes = '', file_base64, file_type } = req.body;
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });

@@ -175,7 +175,7 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const produits = allProduits;
 
-    const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'panneau'];
+    const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
     const added = [];
     const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)');
 

@@ -26,7 +26,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS stock (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao')),
+    cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','panneau','encre')),
     nom TEXT NOT NULL,
     finition TEXT NOT NULL,
     adherence TEXT NOT NULL,
@@ -86,14 +86,15 @@ db.prepare(`UPDATE users SET inbound_email = REPLACE(inbound_email, '@ai-dhesif.
 // Migration stock : élargir les catégories si l'ancienne contrainte est encore présente
 try {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();
-  const needsMigration = row && row.sql && !row.sql.includes("'transfert'");
+  const needsMigration = row && row.sql && !row.sql.includes("'encre'");
   if (needsMigration) {
+    const hadNewCols = row.sql.includes('largeurs');
     db.pragma('foreign_keys = OFF');
     db.exec(`
       CREATE TABLE stock_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','panneau')),
+        cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','panneau','encre')),
         nom TEXT NOT NULL,
         finition TEXT NOT NULL,
         adherence TEXT NOT NULL,
@@ -108,12 +109,12 @@ try {
         dispo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (datetime('now'))
       );
-      INSERT INTO stock_new SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,'[]','[]',NULL,note,dispo,created_at FROM stock;
+      INSERT INTO stock_new SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,${hadNewCols ? 'largeurs,couleurs,prix_m2' : `'[]','[]',NULL`},note,dispo,created_at FROM stock;
       DROP TABLE stock;
       ALTER TABLE stock_new RENAME TO stock;
     `);
     db.pragma('foreign_keys = ON');
-    console.log('Migration stock: nouvelles catégories activées');
+    console.log('Migration stock: catégorie encre activée');
   }
 } catch (e) {
   console.error('Migration stock error:', e.message);

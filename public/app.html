@@ -21,6 +21,7 @@
   --cat-liner: #f0c84a;
   --cat-dao: #c84af0;
   --cat-transfert: #f06a4a;
+  --cat-encre: #b06af0;
   --cat-covering: #4a8af0;
   --cat-vitre: #4af0f0;
   --cat-solaire: #f0a04a;
@@ -470,6 +471,7 @@ textarea:focus { border-color: var(--accent); }
         <button class="cat-tab" id="tab-covering" onclick="switchTab('covering')"><span class="cat-tab-dot" style="background:var(--cat-covering)"></span>Covering<span class="cat-tab-count" id="count-covering">0</span></button>
         <button class="cat-tab" id="tab-vitre" onclick="switchTab('vitre')"><span class="cat-tab-dot" style="background:var(--cat-vitre)"></span>Vitre / Solaire<span class="cat-tab-count" id="count-vitre">0</span></button>
         <button class="cat-tab" id="tab-panneau" onclick="switchTab('panneau')"><span class="cat-tab-dot" style="background:var(--cat-panneau)"></span>Panneau<span class="cat-tab-count" id="count-panneau">0</span></button>
+        <button class="cat-tab" id="tab-encre" onclick="switchTab('encre')"><span class="cat-tab-dot" style="background:var(--cat-encre)"></span>Encre<span class="cat-tab-count" id="count-encre">0</span></button>
       </div>
       <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-liner" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('liner',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-liner"><div class="empty-cat">Aucune référence</div></div></div>
@@ -478,6 +480,7 @@ textarea:focus { border-color: var(--accent); }
       <div class="cat-panel" id="panel-covering" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('covering',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-covering"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-vitre" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('vitre',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-vitre"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-panneau" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('panneau',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-panneau"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-encre" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('encre',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-encre"><div class="empty-cat">Aucune référence</div></div></div>
     </div>
   </div>
 </div>
@@ -486,16 +489,16 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">Nouvelle référence</h3>
-    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option></select></div>
+    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option><option value="encre">Encre d'impression</option></select></div>
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
-    <div class="form-group"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
-    <div class="form-group"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
-    <div class="form-group"><label>Environnement</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="env" value="Intérieur"> Intérieur</label><label class="cb-item"><input type="radio" name="env" value="Extérieur" checked> Extérieur</label><label class="cb-item"><input type="radio" name="env" value="Intérieur et extérieur"> Intérieur & extérieur</label></div></div>
-    <div class="form-group"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
-    <div class="form-group"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
-    <div class="form-group"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
-    <div class="form-group"><label>Largeurs disponibles (cm)</label><div class="checkbox-group" id="largeur-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="number" id="largeur-custom-input" placeholder="Autre (cm)" min="1" max="500" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomLargeur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
-    <div class="form-group"><label>Couleurs disponibles</label><div class="checkbox-group" id="couleur-group">
+    <div class="form-group" id="fg-finition"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
+    <div class="form-group" id="fg-adherence"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
+    <div class="form-group" id="fg-env"><label>Environnement</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="env" value="Intérieur"> Intérieur</label><label class="cb-item"><input type="radio" name="env" value="Extérieur" checked> Extérieur</label><label class="cb-item"><input type="radio" name="env" value="Intérieur et extérieur"> Intérieur & extérieur</label></div></div>
+    <div class="form-group" id="fg-duree"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
+    <div class="form-group" id="fg-resist"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
+    <div class="form-group" id="fg-appli"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
+    <div class="form-group" id="fg-largeurs"><label>Largeurs disponibles (cm)</label><div class="checkbox-group" id="largeur-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="number" id="largeur-custom-input" placeholder="Autre (cm)" min="1" max="500" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomLargeur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
+    <div class="form-group" id="fg-couleurs"><label>Couleurs disponibles</label><div class="checkbox-group" id="couleur-group">
       <label class="cb-item"><input type="checkbox" name="couleur" value="Blanc"><span class="color-dot" style="background:#fff;border:1px solid #555"></span>Blanc</label>
       <label class="cb-item"><input type="checkbox" name="couleur" value="Noir"><span class="color-dot" style="background:#111"></span>Noir</label>
       <label class="cb-item"><input type="checkbox" name="couleur" value="Gris"><span class="color-dot" style="background:#888"></span>Gris</label>
@@ -512,7 +515,7 @@ textarea:focus { border-color: var(--accent); }
       <label class="cb-item"><input type="checkbox" name="couleur" value="Or"><span class="color-dot" style="background:#c8a000"></span>Or</label>
       <label class="cb-item"><input type="checkbox" name="couleur" value="Transparent"><span class="color-dot" style="background:transparent;border:1px dashed #666"></span>Transparent</label>
     </div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="text" id="couleur-custom-input" placeholder="Autre couleur" style="width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomCouleur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
-    <div class="form-group form-row"><div style="flex:1"><label>Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
+    <div class="form-group form-row"><div style="flex:1"><label id="label-prix">Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
 </div>
@@ -550,6 +553,20 @@ textarea:focus { border-color: var(--accent); }
       <button class="btn-cancel" onclick="closeRelance()">Fermer</button>
       <button class="btn-cancel" onclick="copierRelance()">⧉ Copier</button>
       <button class="btn-submit" onclick="openMessagerieChoice()">Ouvrir ma messagerie →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DEVIS -->
+<div class="modal-overlay" id="modal-devis">
+  <div class="modal" style="max-width:620px">
+    <h3>📋 Devis approximatif</h3>
+    <div id="devis-body" style="margin-top:10px;"></div>
+    <div class="auth-error" id="devis-error"></div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="devis-copied">✓ Copié dans le presse-papier</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDevis()">Fermer</button>
+      <button class="btn-submit" onclick="copierDevis()">⧉ Copier le devis</button>
     </div>
   </div>
 </div>
@@ -831,7 +848,7 @@ function closeStock() { document.getElementById('stock-overlay').classList.remov
 function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
 
 let currentTab = 'imprimable';
-const ALL_CATS = ['imprimable','liner','dao','transfert','covering','vitre','panneau'];
+const ALL_CATS = ['imprimable','liner','dao','transfert','covering','vitre','panneau','encre'];
 function switchTab(cat) {
   currentTab = cat;
   ALL_CATS.forEach(c => {
@@ -842,6 +859,17 @@ function switchTab(cat) {
 }
 
 let editingId = null;
+// Masque les champs adhésif quand la catégorie est "encre"
+function toggleEncreFields() {
+  const isEncre = document.getElementById('modal-cat').value === 'encre';
+  ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-largeurs','fg-couleurs'].forEach(id => {
+    document.getElementById(id).style.display = isEncre ? 'none' : '';
+  });
+  document.getElementById('label-prix').textContent = isEncre ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
+  document.getElementById('modal-nom').placeholder = isEncre ? 'Ex: Encre éco-solvant CMJN' : 'Ex: ORAJET 3551 Blanc Mat';
+}
+document.getElementById('modal-cat').addEventListener('change', toggleEncreFields);
+
 function openModal(cat) {
   editingId = null;
   document.getElementById('modal-title').textContent = 'Nouvelle référence';
@@ -857,6 +885,7 @@ function openModal(cat) {
   document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"], input[name="couleur"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
+  toggleEncreFields();
   document.getElementById('modal').classList.add('open');
   setTimeout(() => document.getElementById('modal-nom').focus(), 100);
 }
@@ -896,6 +925,7 @@ function openEditModal(id) {
   });
   document.querySelectorAll('input[name="largeur"]').forEach(i => i.checked = (item.largeurs||[]).includes(i.value));
   document.getElementById('modal-prix').value = item.prix_m2 || '';
+  toggleEncreFields();
   document.getElementById('modal').classList.add('open');
 }
 
@@ -905,7 +935,15 @@ document.getElementById('modal').addEventListener('click', e => { if (e.target =
 async function saveAdhesif() {
   const nom = document.getElementById('modal-nom').value.trim();
   if (!nom) { document.getElementById('modal-nom').focus(); return; }
-  const body = {
+  const isEncre = document.getElementById('modal-cat').value === 'encre';
+  const body = isEncre ? {
+    cat: 'encre',
+    nom,
+    finition: '—', adherence: '—', env: '—', duree: '—',
+    resistances: [], applications: [], largeurs: [], couleurs: [],
+    prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
+    note: document.getElementById('modal-note').value.trim(),
+  } : {
     cat: document.getElementById('modal-cat').value,
     nom,
     finition: document.getElementById('modal-finition').value,
@@ -1177,7 +1215,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
       </div></div>
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section"><button class="btn-submit" id="btn-relance" style="width:100%;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client — demander les infos manquantes</button></div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;"><button class="btn-submit" id="btn-relance" style="flex:1;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button></div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -1528,6 +1566,63 @@ async function sendBugReport() {
     renderBugImagesPreview();
     setTimeout(closeBugReport, 2000);
   } catch(e) { document.getElementById('bug-error').textContent = e.message; }
+}
+
+// ===================== DEVIS AUTO =====================
+let _devisData = null;
+async function genererDevis(id) {
+  const btn = document.getElementById('btn-devis');
+  if (btn) { btn.disabled = true; btn.textContent = '📋 Calcul du devis…'; }
+  try {
+    const d = await api('POST', `/analyses/${id}/devis`);
+    _devisData = d;
+    const fmtPrix = v => typeof v === 'number' ? v.toFixed(2) + ' €' : (v || '—');
+    const lignes = (d.lignes || []).map(l => `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;">${l.designation}${l.details ? `<br><span style="font-size:10px;color:var(--muted);">${l.details}</span>` : ''}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;">${l.quantite || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;">${fmtPrix(l.prix_unitaire)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:600;">${fmtPrix(l.total)}</td>
+    </tr>`).join('');
+    document.getElementById('devis-body').innerHTML = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Désignation</th>
+          <th style="text-align:center;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Qté</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">P.U.</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Total</th>
+        </tr></thead>
+        <tbody>${lignes}</tbody>
+      </table>
+      <div style="text-align:right;margin-top:12px;font-size:15px;font-weight:700;">Total coût : ${typeof d.total_ht === 'number' ? d.total_ht.toFixed(2) : d.total_ht} € HT</div>
+      ${d.marge_conseillee ? `<div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;">Marge conseillée : ${d.marge_conseillee}</div>` : ''}
+      ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}
+      <div style="font-size:10px;color:var(--muted);margin-top:10px;font-style:italic;">Devis indicatif généré automatiquement — à valider avant envoi au client.</div>`;
+    document.getElementById('devis-error').textContent = '';
+    document.getElementById('devis-copied').style.display = 'none';
+    document.getElementById('modal-devis').classList.add('open');
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📋 Devis approximatif'; }
+}
+
+function closeDevis() { document.getElementById('modal-devis').classList.remove('open'); }
+document.getElementById('modal-devis').addEventListener('click', e => { if (e.target === document.getElementById('modal-devis')) closeDevis(); });
+
+async function copierDevis() {
+  if (!_devisData) return;
+  const d = _devisData;
+  const fmtP = v => typeof v === 'number' ? v.toFixed(2) + ' €' : (v || '—');
+  let txt = 'DEVIS APPROXIMATIF (coûts HT)\n\n';
+  (d.lignes || []).forEach(l => { txt += `${l.designation}${l.details ? ' (' + l.details + ')' : ''} — ${l.quantite || ''} x ${fmtP(l.prix_unitaire)} = ${fmtP(l.total)}\n`; });
+  txt += `\nTOTAL COÛT : ${typeof d.total_ht === 'number' ? d.total_ht.toFixed(2) : d.total_ht} € HT`;
+  if (d.marge_conseillee) txt += `\nMarge conseillée : ${d.marge_conseillee}`;
+  if ((d.hypotheses || []).length) txt += `\n\nHypothèses :\n${d.hypotheses.map(h => '- ' + h).join('\n')}`;
+  try {
+    await navigator.clipboard.writeText(txt);
+    document.getElementById('devis-copied').style.display = 'block';
+    setTimeout(() => document.getElementById('devis-copied').style.display = 'none', 2500);
+  } catch { document.getElementById('devis-error').textContent = 'Copie impossible.'; }
 }
 
 // ===================== RELANCE CLIENT =====================
