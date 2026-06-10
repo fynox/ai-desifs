@@ -1205,11 +1205,25 @@ function renderResult(r, previewB64, previewType, analyseId) {
   const m = r.montage;
   if (m && (m.nb_les || (m.couches || []).length)) {
     let lesHTML = '';
-    if (m.largeur_cm && m.hauteur_cm && m.laize_cm) {
-      const vert = (m.sens_les || 'vertical') === 'vertical';
+    const largeur = parseFloat(m.largeur_cm) || 0;
+    const hauteur = parseFloat(m.hauteur_cm) || 0;
+    let laize = parseFloat(m.laize_cm) || 0;
+    // Fallback : récupérer la laize depuis le stock de l'adhésif recommandé
+    if (!laize && (r.adhesifs || []).length && typeof stock !== 'undefined') {
+      for (const a of r.adhesifs) {
+        const it = stock.find(s => s.nom === a.nom);
+        const ls = (it?.largeurs || []).map(Number).filter(Boolean);
+        if (ls.length) { laize = Math.max(...ls); break; }
+      }
+    }
+    if (largeur && hauteur && laize) {
+      // Sens : celui qui minimise le nombre de lés si non précisé
+      let vert;
+      if (m.sens_les === 'vertical') vert = true;
+      else if (m.sens_les === 'horizontal') vert = false;
+      else vert = Math.ceil(largeur / laize) <= Math.ceil(hauteur / laize);
       const RECOUVREMENT = 1; // cm de chevauchement pour les raccords
-      const totale = vert ? m.largeur_cm : m.hauteur_cm; // dimension à couvrir par les lés
-      const laize = m.laize_cm;
+      const totale = vert ? largeur : hauteur; // dimension à couvrir par les lés
       // Calcul réel : chaque lé avance de (laize - recouvrement), sauf si un seul suffit
       let n, segs = [];
       if (totale <= laize) { n = 1; segs = [totale]; }
@@ -1241,8 +1255,13 @@ function renderResult(r, previewB64, previewType, analyseId) {
       const bg = previewB64 && previewType && previewType.startsWith('image/')
         ? `background:url(data:${previewType};base64,${previewB64}) center/contain no-repeat;background-color:#161616;`
         : `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
-      lesHTML = `<div style="position:relative;width:100%;aspect-ratio:${m.largeur_cm}/${m.hauteur_cm};max-height:260px;border:2px solid var(--text);border-radius:4px;overflow:hidden;${bg}">${overlays}</div>
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;">${m.largeur_cm} × ${m.hauteur_cm} cm — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
+      lesHTML = `<div style="position:relative;width:100%;aspect-ratio:${largeur}/${hauteur};max-height:260px;border:2px solid var(--text);border-radius:4px;overflow:hidden;${bg}">${overlays}</div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;">${largeur} × ${hauteur} cm — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>`;
+    } else {
+      const manques = [];
+      if (!largeur || !hauteur) manques.push('dimensions du visuel non précisées par le client');
+      if (!laize) manques.push('aucune largeur de rouleau (laize) renseignée sur l\'adhésif dans le stock');
+      lesHTML = `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;">⚠ Plan de lés indisponible : ${manques.join(' · ')}.</div>`;
     }
     let couchesHTML = '';
     if ((m.couches || []).length) {
