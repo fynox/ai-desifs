@@ -549,7 +549,8 @@ textarea:focus { border-color: var(--accent); }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRelance()">Fermer</button>
       <button class="btn-cancel" onclick="copierRelance()">⧉ Copier</button>
-      <button class="btn-submit" onclick="ouvrirMessagerie()">Ouvrir ma messagerie →</button>
+      <button class="btn-submit" onclick="ouvrirMessagerie('pc')">💻 Messagerie PC</button>
+      <button class="btn-submit" onclick="ouvrirMessagerie('gmail')">✉ Gmail</button>
     </div>
   </div>
 </div>
@@ -1536,11 +1537,15 @@ async function copierRelance() {
   } catch { document.getElementById('relance-error').textContent = 'Copie impossible — sélectionne le texte manuellement.'; }
 }
 
-function ouvrirMessagerie() {
-  const to = document.getElementById('relance-to').value.trim();
+function ouvrirMessagerie(mode) {
+  const to = encodeURIComponent(document.getElementById('relance-to').value.trim());
   const objet = encodeURIComponent(document.getElementById('relance-objet').value);
   const corps = encodeURIComponent(document.getElementById('relance-corps').value);
-  window.location.href = `mailto:${to}?subject=${objet}&body=${corps}`;
+  if (mode === 'gmail') {
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${objet}&body=${corps}`, '_blank');
+  } else {
+    window.location.href = `mailto:${to}?subject=${objet}&body=${corps}`;
+  }
 }
 </script>
 </body>
