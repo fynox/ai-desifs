@@ -47,7 +47,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/profile', requireAuth, async (req, res) => {
-  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id FROM users WHERE id = ?').get(req.user.id);
+  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id, settings FROM users WHERE id = ?').get(req.user.id);
 
   // Synchro directe avec Stripe (filet de sécurité si le webhook n'est pas passé).
   // Désactivée si l'admin a forcé un plan manuellement (plan_override).
@@ -77,7 +77,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 });
 
 router.put('/profile', requireAuth, async (req, res) => {
-  const { current_password, new_password, api_key } = req.body;
+  const { current_password, new_password, api_key, settings } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   let changed = false;
 
@@ -94,6 +94,11 @@ router.put('/profile', requireAuth, async (req, res) => {
   if (api_key) {
     if (!api_key.startsWith('sk-ant-')) return res.status(400).json({ error: 'Clé API invalide.' });
     db.prepare('UPDATE users SET api_key = ? WHERE id = ?').run(api_key, user.id);
+    changed = true;
+  }
+
+  if (settings && typeof settings === 'object') {
+    db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(settings).slice(0, 2000), user.id);
     changed = true;
   }
 

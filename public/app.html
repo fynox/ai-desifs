@@ -410,9 +410,7 @@ textarea:focus { border-color: var(--accent); }
 
     <div class="sidebar-bottom">
       <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
-      <button class="btn-stock" onclick="openProfile()" style="margin-top:0">⚙ Mon profil</button>
-      <button class="btn-stock" onclick="startCheckout()" style="margin-top:8px">💎 Abonnements</button>
-      <button class="btn-stock" onclick="openBugReport()" style="margin-top:0;color:var(--muted);font-size:12px;">🐛 Signaler un bug</button>
+      <button class="btn-stock" onclick="openReglages()" style="margin-top:0">⚙ Réglages</button>
       <div class="user-row">
         <span class="user-email" id="user-email-display"></span>
         <button class="btn-logout" onclick="logout()">Quitter</button>
@@ -613,6 +611,31 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL RÉGLAGES -->
+<div class="modal-overlay" id="modal-reglages" onclick="if(event.target===this)closeReglages()">
+  <div class="modal" style="max-width:440px">
+    <h3>⚙ Réglages</h3>
+
+    <div style="border-bottom:1px solid var(--border);margin:18px 0 16px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Préférences</div>
+    <div class="form-group">
+      <label>Marge de raccord par défaut (cm)</label>
+      <input type="number" id="reglage-marge" min="0" max="10" step="0.5" style="width:100px;text-align:center;">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Chevauchement appliqué au plan de lés de chaque analyse (modifiable au cas par cas sous le plan).</div>
+    </div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="reglages-success">✓ Réglages enregistrés</div>
+
+    <div style="border-bottom:1px solid var(--border);margin:20px 0 16px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Compte</div>
+    <button class="btn-stock" onclick="closeReglages();openProfile()" style="width:100%;margin-top:0;">👤 Mon profil</button>
+    <button class="btn-stock" onclick="startCheckout()" style="width:100%;margin-top:8px;">💎 Abonnements</button>
+    <button class="btn-stock" onclick="closeReglages();openBugReport()" style="width:100%;margin-top:8px;color:var(--muted);">🐛 Signaler un bug</button>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeReglages()">Fermer</button>
+      <button class="btn-submit" onclick="saveReglages()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===================== API HELPER =====================
 const TRIAL_LIMIT = 5;
@@ -621,6 +644,7 @@ let currentUserEmail = null;
 let subscriptionStatus = 'trial';
 let userPlan = 'free';
 let userPlanPeriod = 'monthly';
+let userSettings = { marge_raccord: 1 };
 let trialUsed = 0;
 let inboundEmail = null;
 
@@ -763,6 +787,26 @@ function logout() {
 }
 
 // ===================== PROFIL =====================
+// ===================== RÉGLAGES =====================
+function openReglages() {
+  document.getElementById('reglage-marge').value = userSettings.marge_raccord ?? 1;
+  document.getElementById('reglages-success').style.display = 'none';
+  document.getElementById('modal-reglages').classList.add('open');
+}
+function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+async function saveReglages() {
+  let m = parseFloat(String(document.getElementById('reglage-marge').value).replace(',', '.'));
+  if (isNaN(m) || m < 0) m = 1;
+  if (m > 10) m = 10;
+  userSettings.marge_raccord = m;
+  try {
+    await api('PUT', '/auth/profile', { settings: userSettings });
+    document.getElementById('reglages-success').style.display = 'block';
+    setTimeout(closeReglages, 800);
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
 const PLAN_LABELS = { free:['Free','#8a8f98'], smart:['Smart','#4a9eff'], pro:['Pro','#b06af0'], ultra:['Ultra','#f0b43c'] };
 
 function renderProfilPlan() {
@@ -1370,7 +1414,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
   }
   // Visuel montage : plan de lés
   let montageHTML = '';
-  _lesRecouvrement = 1; // marge de raccord par défaut pour chaque analyse affichée
+  _lesRecouvrement = Number(userSettings.marge_raccord) >= 0 ? Number(userSettings.marge_raccord) : 1; // marge par défaut (réglable dans Réglages)
   const m = r.montage;
   if (m) {
     let lesHTML = '';
@@ -1569,6 +1613,7 @@ function stopPolling() {
         const profile = await res.json();
         userPlan = profile.plan || 'free';
         userPlanPeriod = profile.plan_period || 'monthly';
+        if (profile.settings) try { userSettings = { marge_raccord: 1, ...JSON.parse(profile.settings) }; } catch {}
         await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
         return;
       }

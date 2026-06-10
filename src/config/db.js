@@ -93,6 +93,7 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN plan_period TEXT DEFAULT \'monthly\'',
   'ALTER TABLE users ADD COLUMN plan_override INTEGER DEFAULT 0',
   'ALTER TABLE analyses ADD COLUMN devis_json TEXT',
+  'ALTER TABLE users ADD COLUMN settings TEXT DEFAULT \'{}\'',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
