@@ -53,6 +53,66 @@ router.delete('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Génère un mail de relance au client pour demander les infos manquantes
+router.post('/:id/relance', async (req, res) => {
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
+
+  let result = {};
+  try { result = JSON.parse(item.result_json || '{}'); } catch {}
+
+  // Extraire l'email du client depuis le contenu du mail ("De : ...")
+  const emailMatch = (item.mail_content || '').match(/De\s*:\s*[^<\n]*<?([\w.+-]+@[\w.-]+\.\w{2,})>?/i)
+    || (item.mail_content || '').match(/([\w.+-]+@[\w.-]+\.\w{2,})/);
+  const clientEmail = emailMatch ? emailMatch[1] : '';
+
+  const prompt = `Tu es un imprimeur professionnel (signalétique / adhésifs). Un client a envoyé cette demande :
+
+---
+${(item.mail_content || '').slice(0, 3000)}
+---
+
+Analyse réalisée en interne :
+Résumé : ${result.resume || 'N/A'}
+${result.attention ? `Point d'attention : ${result.attention}` : ''}
+
+Rédige un mail de réponse courtois et professionnel en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), tutoiement interdit, termine par une formule de politesse SANS signature nominative (le client signera lui-même).
+
+Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
+
+  let claudeRes;
+  try {
+    claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+  } catch {
+    return res.status(502).json({ error: 'Impossible de joindre l\'API Anthropic.' });
+  }
+
+  const data = await claudeRes.json();
+  if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || `Erreur Anthropic ${claudeRes.status}` });
+
+  const raw = data.content?.map(i => i.text || '').join('') || '';
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
+
+  let mail;
+  try { mail = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
+  if (!mail.objet || !mail.corps) return res.status(502).json({ error: 'Réponse incomplète — réessayez.' });
+
+  res.json({ to: clientEmail, objet: mail.objet, corps: mail.corps });
+});
+
 router.post('/analyse', async (req, res) => {
   const { mail_content, consignes = '', file_base64, file_type } = req.body;
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });

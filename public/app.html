@@ -537,6 +537,23 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL RELANCE CLIENT -->
+<div class="modal-overlay" id="modal-relance">
+  <div class="modal" style="max-width:560px">
+    <h3>✉ Mail au client</h3>
+    <div class="form-group"><label>Destinataire</label><input type="text" id="relance-to" placeholder="email@client.fr"></div>
+    <div class="form-group"><label>Objet</label><input type="text" id="relance-objet"></div>
+    <div class="form-group"><label>Message (modifiable)</label><textarea id="relance-corps" style="height:220px"></textarea></div>
+    <div class="auth-error" id="relance-error"></div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="relance-copied">✓ Copié dans le presse-papier</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRelance()">Fermer</button>
+      <button class="btn-cancel" onclick="copierRelance()">⧉ Copier</button>
+      <button class="btn-submit" onclick="ouvrirMessagerie()">Ouvrir ma messagerie →</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PROFIL -->
 <div class="modal-overlay" id="modal-profil">
   <div class="modal">
@@ -1019,7 +1036,7 @@ async function openHisto(id) {
   document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
   renderSidebarHisto();
   setTimeout(() => { const el = document.getElementById('histo-' + id); if (el) el.classList.add('selected'); }, 10);
-  renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null);
+  renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null, item.id);
 }
 
 function newAnalyse() {
@@ -1087,7 +1104,7 @@ async function analyzeRequest() {
     historique = historique.filter(h => !h._pending);
     historique.unshift(analyse);
     renderSidebarHisto();
-    renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type);
+    renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type, analyse.id);
     setTimeout(() => { const el = document.getElementById('histo-' + analyse.id); if (el) el.classList.add('selected'); }, 50);
   } catch (e) {
     historique = historique.filter(h => !h._pending);
@@ -1108,7 +1125,7 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
-function renderResult(r, previewB64, previewType) {
+function renderResult(r, previewB64, previewType, analyseId) {
   const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
@@ -1135,6 +1152,7 @@ function renderResult(r, previewB64, previewType) {
       </div></div>
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section"><button class="btn-submit" id="btn-relance" style="width:100%;font-size:12px;" onclick="genererRelance(${analyseId})">✉ Mail au client — demander les infos manquantes</button></div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -1485,6 +1503,44 @@ async function sendBugReport() {
     renderBugImagesPreview();
     setTimeout(closeBugReport, 2000);
   } catch(e) { document.getElementById('bug-error').textContent = e.message; }
+}
+
+// ===================== RELANCE CLIENT =====================
+async function genererRelance(id) {
+  const btn = document.getElementById('btn-relance');
+  if (btn) { btn.disabled = true; btn.textContent = '✉ Rédaction du mail en cours…'; }
+  try {
+    const mail = await api('POST', `/analyses/${id}/relance`);
+    document.getElementById('relance-to').value = mail.to || '';
+    document.getElementById('relance-objet').value = mail.objet || '';
+    document.getElementById('relance-corps').value = mail.corps || '';
+    document.getElementById('relance-error').textContent = '';
+    document.getElementById('relance-copied').style.display = 'none';
+    document.getElementById('modal-relance').classList.add('open');
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '✉ Mail au client — demander les infos manquantes'; }
+}
+
+function closeRelance() { document.getElementById('modal-relance').classList.remove('open'); }
+document.getElementById('modal-relance').addEventListener('click', e => { if (e.target === document.getElementById('modal-relance')) closeRelance(); });
+
+async function copierRelance() {
+  const objet = document.getElementById('relance-objet').value;
+  const corps = document.getElementById('relance-corps').value;
+  try {
+    await navigator.clipboard.writeText(`Objet : ${objet}\n\n${corps}`);
+    document.getElementById('relance-copied').style.display = 'block';
+    setTimeout(() => document.getElementById('relance-copied').style.display = 'none', 2500);
+  } catch { document.getElementById('relance-error').textContent = 'Copie impossible — sélectionne le texte manuellement.'; }
+}
+
+function ouvrirMessagerie() {
+  const to = document.getElementById('relance-to').value.trim();
+  const objet = encodeURIComponent(document.getElementById('relance-objet').value);
+  const corps = encodeURIComponent(document.getElementById('relance-corps').value);
+  window.location.href = `mailto:${to}?subject=${objet}&body=${corps}`;
 }
 </script>
 </body>
