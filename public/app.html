@@ -1248,13 +1248,24 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const RECOUVREMENT = _lesRecouvrement; // cm de chevauchement pour les raccords
   const totale = vert ? largeur : hauteur; // dimension à couvrir par les lés
   // Chaque lé avance de (laize - recouvrement), sauf si un seul suffit
-  let n, segs = [];
+  let n, segs = [], equilibre = false;
   if (totale <= laize) { n = 1; segs = [totale]; }
   else {
     const avance = laize - RECOUVREMENT;
     n = Math.ceil((totale - RECOUVREMENT) / avance);
-    for (let k = 0; k < n - 1; k++) segs.push(laize);
-    segs.push(Math.round((totale - (n - 1) * avance) * 10) / 10); // dernier lé = reste + recouvrement
+    const dernier = totale - (n - 1) * avance; // dernier lé = reste + recouvrement
+    if (dernier < laize / 2 && n >= 2) {
+      // Dernier lé trop fin → on garde les lés du milieu à pleine laize et on réduit
+      // les deux lés des bords à égalité pour équilibrer
+      equilibre = true;
+      const bord = Math.round((totale + (n - 1) * RECOUVREMENT - (n - 2) * laize) / 2 * 10) / 10;
+      segs.push(bord);
+      for (let k = 0; k < n - 2; k++) segs.push(laize);
+      segs.push(Math.round((totale + (n - 1) * RECOUVREMENT - (n - 2) * laize - bord) * 10) / 10);
+    } else {
+      for (let k = 0; k < n - 1; k++) segs.push(laize);
+      segs.push(Math.round(dernier * 10) / 10);
+    }
   }
   // Traits de raccord + étiquette largeur de chaque lé
   let overlays = '';
@@ -1267,7 +1278,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
       ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`
       : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`;
     if (k < n - 1) {
-      cursor += laize - RECOUVREMENT;
+      cursor += segs[k] - RECOUVREMENT;
       const pos = (cursor / totale * 100).toFixed(2) + '%';
       overlays += vert
         ? `<div style="position:absolute;left:${pos};top:0;bottom:0;width:0;border-left:2px dashed #f03030;"></div>`
@@ -1286,7 +1297,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     window._lesParams = { laize, vert, segs, totale, recouvrement: RECOUVREMENT, previewB64, previewType };
   }
   return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeur}/${hauteur};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
-  <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}` : ''}</div>
+  <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} (rouleau ${Math.round(laize * 10)} mm)${n > 1 ? ` · raccords avec ${RECOUVREMENT} cm de chevauchement : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}${equilibre ? ` <span style="color:var(--accent)">(lés des bords réduits pour équilibrer)</span>` : ''}` : ''}</div>
   ${n > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
     Marge de raccord :
     <input type="number" value="${RECOUVREMENT}" min="0" max="10" step="0.5" onchange="changerMarge(this.value)" style="width:64px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 8px;text-align:center;"> cm
@@ -1316,7 +1327,6 @@ async function exporterLes() {
     const img = new Image();
     await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = `data:${p.previewType};base64,${p.previewB64}`; });
     const pxTotal = p.vert ? img.naturalWidth : img.naturalHeight; // pixels couvrant la dimension découpée
-    const avance = p.laize - p.recouvrement;
     let start = 0; // position du lé en cm
     for (let k = 0; k < p.segs.length; k++) {
       const widthCm = Math.min(p.segs[k], p.totale - start);
@@ -1337,7 +1347,7 @@ async function exporterLes() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       await new Promise(r => setTimeout(r, 400)); // laisser le navigateur enchaîner les téléchargements
-      start += avance;
+      start += p.segs[k] - p.recouvrement;
     }
   } catch (e) {
     alert('Erreur pendant la découpe : ' + (e.message || e));
