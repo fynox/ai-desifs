@@ -43,6 +43,7 @@ router.post('/checkout', async (req, res) => {
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
       success_url: `${appUrl}/app?subscribed=1`,
       cancel_url: `${appUrl}/pricing?cancelled=1`,
     });
