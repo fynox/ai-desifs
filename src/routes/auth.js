@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
+const { planFromPriceId } = require('../utils/plans');
 
 const router = express.Router();
 
@@ -45,9 +46,33 @@ router.post('/login', async (req, res) => {
   res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
 
-router.get('/profile', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT email, subscription_status, trial_analyses_used, inbound_email FROM users WHERE id = ?').get(req.user.id);
-  res.json(user);
+router.get('/profile', requireAuth, async (req, res) => {
+  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, trial_analyses_used, inbound_email, stripe_customer_id FROM users WHERE id = ?').get(req.user.id);
+
+  // Synchro directe avec Stripe (filet de sécurité si le webhook n'est pas passé)
+  if (user.stripe_customer_id && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      const subs = await stripe.subscriptions.list({ customer: user.stripe_customer_id, status: 'active', limit: 1 });
+      if (subs.data.length) {
+        const sub = subs.data[0];
+        const [plan, period] = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+        if (user.subscription_status !== 'active' || user.plan !== plan || user.plan_period !== period) {
+          db.prepare('UPDATE users SET subscription_status=?, plan=?, plan_period=? WHERE id=?').run('active', plan, period, user.id);
+          user = { ...user, subscription_status: 'active', plan, plan_period: period };
+        }
+      } else if (user.subscription_status === 'active') {
+        // Plus d'abonnement actif côté Stripe → repasser en inactif/free
+        db.prepare('UPDATE users SET subscription_status=?, plan=? WHERE id=?').run('inactive', 'free', user.id);
+        user = { ...user, subscription_status: 'inactive', plan: 'free' };
+      }
+    } catch (e) {
+      console.error('Stripe sync profile error:', e.message);
+    }
+  }
+
+  const { id, stripe_customer_id, ...pub } = user;
+  res.json(pub);
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

@@ -601,6 +601,7 @@ textarea:focus { border-color: var(--accent); }
     <div id="profil-inbound-wrap"></div>
 
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Abonnement</div>
+    <div id="profil-plan-wrap" style="margin-bottom:12px;"></div>
     <button class="btn-stock" onclick="openPortail()" style="width:100%">⚙ Gérer mon abonnement Stripe</button>
 
     <div class="modal-actions">
@@ -616,6 +617,8 @@ const TRIAL_LIMIT = 5;
 let authToken = null;
 let currentUserEmail = null;
 let subscriptionStatus = 'trial';
+let userPlan = 'free';
+let userPlanPeriod = 'monthly';
 let trialUsed = 0;
 let inboundEmail = null;
 
@@ -758,8 +761,34 @@ function logout() {
 }
 
 // ===================== PROFIL =====================
+const PLAN_LABELS = { free:['Free','#8a8f98'], smart:['Smart','#4a9eff'], pro:['Pro','#b06af0'], ultra:['Ultra','#f0b43c'] };
+
+function renderProfilPlan() {
+  const wrap = document.getElementById('profil-plan-wrap');
+  if (!wrap) return;
+  const isActive = subscriptionStatus === 'active';
+  const plan = isActive ? (userPlan || 'pro') : 'free';
+  const [label, color] = PLAN_LABELS[plan] || PLAN_LABELS.free;
+  const periodTxt = isActive ? (userPlanPeriod === 'annual' ? ' · facturation annuelle' : ' · facturation mensuelle') : '';
+  const statusTxt = isActive ? 'Abonnement actif' : (subscriptionStatus === 'trial' ? 'Essai gratuit' : 'Aucun abonnement');
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;">
+      <span style="font-size:13px;font-weight:700;border:1.5px solid ${color};color:${color};border-radius:20px;padding:3px 14px;">${label}</span>
+      <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);">${statusTxt}${periodTxt}</span>
+    </div>
+    ${!isActive ? `<button class="btn-submit" onclick="window.location.href='/pricing'" style="width:100%;margin-top:10px;font-size:12px;">Voir les formules →</button>` : ''}`;
+}
+
 function openProfile() {
   document.getElementById('profil-email').textContent = currentUserEmail;
+  renderProfilPlan();
+  // Rafraîchir le plan depuis le serveur (synchro Stripe) au cas où il vient de changer
+  api('GET', '/auth/profile').then(p => {
+    if (p.subscription_status) subscriptionStatus = p.subscription_status;
+    userPlan = p.plan || userPlan;
+    userPlanPeriod = p.plan_period || userPlanPeriod;
+    renderProfilPlan();
+  }).catch(() => {});
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';
   document.getElementById('profil-success').style.display = 'none';
@@ -1460,6 +1489,8 @@ function stopPolling() {
       const res = await fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + savedToken } });
       if (res.ok) {
         const profile = await res.json();
+        userPlan = profile.plan || 'free';
+        userPlanPeriod = profile.plan_period || 'monthly';
         await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
         return;
       }
