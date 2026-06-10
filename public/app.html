@@ -286,7 +286,8 @@ textarea:focus { border-color: var(--accent); }
 .cat-tab-count { font-size: 11px; font-family: 'DM Mono', monospace; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 7px; color: var(--muted); white-space: nowrap; }
 .cat-tab.active .cat-tab-count { background: #1a2a05; border-color: var(--accent-dim); color: var(--accent); }
 
-.cat-panel { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; min-height: 180px; overflow: hidden; }
+.cat-panel { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; display: flex; flex-direction: column; }
+.panel-list { flex: 1; overflow-y: auto; max-height: calc(100vh - 220px); }
 .search-bar { position: relative; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .search-bar input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; padding: 8px 12px 8px 34px; outline: none; transition: border-color 0.15s; }
 .search-bar input:focus { border-color: var(--accent); }
@@ -1167,22 +1168,37 @@ document.addEventListener('mouseup', () => {
 // ===================== POLLING =====================
 let pollingInterval = null;
 
+let _pollActive = false;
+async function _doPoll() {
+  if (!_pollActive || !authToken) return;
+  try {
+    const fresh = await api('GET', '/analyses');
+    const hadPending = historique.some(h => h._pending && h.id !== '_pending');
+    const hasPending = fresh.some(h => h._pending);
+    const changed = fresh.length !== historique.length || hasPending || hadPending
+      || (fresh[0] && historique[0] && fresh[0].id !== historique[0].id);
+    if (changed) {
+      const manualPending = historique.find(h => h._pending && h.id === '_pending');
+      historique = fresh;
+      if (manualPending && !fresh.some(h => h._pending)) historique.unshift(manualPending);
+      renderSidebarHisto();
+    }
+    const delay = hasPending ? 2000 : 10000;
+    if (_pollActive) pollingInterval = setTimeout(_doPoll, delay);
+  } catch {
+    if (_pollActive) pollingInterval = setTimeout(_doPoll, 10000);
+  }
+}
+
 function startPolling() {
-  if (pollingInterval) return;
-  pollingInterval = setInterval(async () => {
-    if (!authToken) return;
-    try {
-      const fresh = await api('GET', '/analyses');
-      if (fresh.length !== historique.length || (fresh[0] && historique[0] && fresh[0].id !== historique[0].id)) {
-        historique = fresh;
-        renderSidebarHisto();
-      }
-    } catch {}
-  }, 10000);
+  if (_pollActive) return;
+  _pollActive = true;
+  pollingInterval = setTimeout(_doPoll, 10000);
 }
 
 function stopPolling() {
-  clearInterval(pollingInterval);
+  _pollActive = false;
+  clearTimeout(pollingInterval);
   pollingInterval = null;
 }
 

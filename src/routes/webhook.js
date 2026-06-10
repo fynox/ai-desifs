@@ -60,6 +60,8 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
     if (!stockDispo.length) return;
 
+    const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
+
     // Insérer une analyse "pending" visible immédiatement (optionnel — ne bloque pas si colonne absente)
     let pendingId = null;
     try {
@@ -98,8 +100,6 @@ ${stockDesc}
 
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null"}`;
-
-    const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
     // Pièces jointes : images directes + PDFs convertis en PNG
     const userContent = [{ type: 'text', text: mailContent }];

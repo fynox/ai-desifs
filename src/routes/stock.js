@@ -43,21 +43,28 @@ async function pdfToImages(buffer) {
 }
 
 const EXTRACT_PROMPT = `Analyse ces pages de catalogue d'adhésifs et extrais TOUS les produits adhésifs mentionnés.
-Pour chaque produit, retourne un objet JSON avec exactement ces champs :
-- cat: "imprimable" (vinyle imprimable/médias d'impression), "liner" (film de protection/contre-collage transparent), "dao" (vinyle couleur uni/découpe), "transfert" (papier transfert), "covering" (film covering voiture/wrapping), "vitre" (adhésif vitrine transparent, micro-perforé, film solaire ou occultant pour fenêtres), "panneau" (panneau rigide bois/alu/dibond/PVC)
-- nom: nom commercial exact du produit
-- finition: "Brillant", "Mat", "Satiné", "Transparent" ou "Autre"
-- adherence: "Permanente", "Repositionnable", "Extra-forte", "Standard" ou "Amovible"
-- env: "Intérieur", "Extérieur", ou "Intérieur/Extérieur"
-- duree: durée de vie ex "3 ans", "5-7 ans", "Court terme (< 1 an)", "Longue durée (7 ans+)"
-- resistances: tableau parmi ["UV", "Humidité", "Chaleur", "Froid", "Rayures", "Solvants"]
-- applications: tableau parmi ["Vitrine", "Véhicule", "Mur/Cloison", "Sol", "Fenêtre", "Signalétique"]
-- largeurs: tableau des largeurs de rouleau disponibles en cm (nombres uniquement, ex: [61,106,137]) ou []
-- couleurs: tableau des couleurs disponibles (ex: ["Blanc","Noir","Rouge"]) ou [] si imprimable/liner
-- note: information supplémentaire courte ou ""
 
-Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ni après, sans markdown :
-[{"cat":"...","nom":"...","finition":"...","adherence":"...","env":"...","duree":"...","resistances":[],"applications":[],"largeurs":[],"couleurs":[],"note":""}]`;
+RÈGLES STRICTES :
+1. "largeurs" = tableau JSON de NOMBRES entiers en cm. Ex: [61,106,137]. JAMAIS du texte dans ce champ. Si non spécifié: [].
+2. "couleurs" = tableau JSON de chaînes de couleurs. Ex: ["Blanc","Noir","Rouge","Bleu clair"]. JAMAIS du texte dans "note". Si imprimable/liner: [].
+3. "note" = UNE phrase max sur une caractéristique technique non couverte par les autres champs. "" si rien d'utile.
+4. Ne mets JAMAIS les couleurs ou largeurs dans "note".
+
+Champs pour chaque produit :
+- cat: "imprimable"|"liner"|"dao"|"transfert"|"covering"|"vitre"|"panneau"
+- nom: nom commercial exact
+- finition: "Brillant"|"Mat"|"Satiné"|"Transparent"|"Autre"
+- adherence: "Permanente"|"Repositionnable"|"Extra-forte"|"Standard"|"Amovible"
+- env: "Intérieur"|"Extérieur"|"Intérieur/Extérieur"
+- duree: ex "3 ans", "5-7 ans", "Non spécifiée"
+- resistances: sous-ensemble de ["UV","Humidité","Chaleur","Froid","Rayures","Solvants"]
+- applications: sous-ensemble de ["Vitrine","Véhicule","Mur/Cloison","Sol","Fenêtre","Signalétique"]
+- largeurs: [61,106,137] — NOMBRES, pas de texte
+- couleurs: ["Blanc","Noir","Rouge"] — chaînes, pas dans note
+- note: "" ou une phrase courte
+
+Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown :
+[{"cat":"dao","nom":"Exemple 631","finition":"Mat","adherence":"Permanente","env":"Extérieur","duree":"5-7 ans","resistances":["UV"],"applications":["Vitrine"],"largeurs":[61,106],"couleurs":["Blanc","Noir","Rouge"],"note":""}]`;
 
 async function extractBatch(pages, apiKey) {
   const userContent = [{ type: 'text', text: EXTRACT_PROMPT }];
@@ -67,7 +74,7 @@ async function extractBatch(pages, apiKey) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: userContent }] }),
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: userContent }] }),
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
