@@ -20,6 +20,7 @@ function parseItem(row) {
     applications: JSON.parse(row.applications || '[]'),
     largeurs: JSON.parse(row.largeurs || '[]'),
     couleurs: JSON.parse(row.couleurs || '[]'),
+    variantes: JSON.parse(row.variantes || '[]'),
     prix_m2: row.prix_m2 || null,
     dispo: Boolean(row.dispo),
   };
@@ -49,6 +50,7 @@ RÈGLES STRICTES :
 2. "couleurs" = tableau JSON de chaînes de couleurs. Ex: ["Blanc","Noir","Rouge","Bleu clair"]. JAMAIS du texte dans "note". Si imprimable/liner: [].
 3. "note" = UNE phrase max sur une caractéristique technique non couverte par les autres champs. "" si rien d'utile.
 4. Ne mets JAMAIS les couleurs ou largeurs dans "note".
+5. "variantes" = tableau JSON de paires EXACTES couleur+laize si le catalogue précise quelle couleur existe en quelle laize (ex: [{"couleur":"Rouge","largeur":152},{"couleur":"Bleu","largeur":126}]). Si le catalogue ne fait pas cette distinction (toutes les couleurs dans toutes les laizes), mets [].
 
 Champs pour chaque produit :
 - cat: "imprimable"|"liner"|"dao"|"transfert"|"covering"|"vitre"|"panneau"
@@ -61,6 +63,7 @@ Champs pour chaque produit :
 - applications: sous-ensemble de ["Vitrine","Véhicule","Mur/Cloison","Sol","Fenêtre","Signalétique"]
 - largeurs: [61,106,137] — NOMBRES, pas de texte
 - couleurs: ["Blanc","Noir","Rouge"] — chaînes, pas dans note
+- variantes: [{"couleur":"Rouge","largeur":152}] ou [] (voir règle 5)
 - note: "" ou une phrase courte
 
 Réponds UNIQUEMENT avec un tableau JSON valide, sans markdown :
@@ -99,11 +102,11 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], couleurs = [], prix_m2 = null, note = '', dispo = true } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], couleurs = [], variantes = [], prix_m2 = null, note = '', dispo = true } = req.body;
   if (!cat || !nom || !finition || !adherence || !env || !duree) return res.status(400).json({ error: 'Champs manquants.' });
   const result = db.prepare(
-    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,prix_m2,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), JSON.stringify(largeurs), JSON.stringify(couleurs), prix_m2, note, dispo ? 1 : 0);
+    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), JSON.stringify(largeurs), JSON.stringify(couleurs), JSON.stringify(variantes), prix_m2, note, dispo ? 1 : 0);
   const row = db.prepare('SELECT * FROM stock WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(parseItem(row));
 });
@@ -111,9 +114,9 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const item = db.prepare('SELECT * FROM stock WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Référence introuvable.' });
-  const { cat, nom, finition, adherence, env, duree, resistances, applications, largeurs, couleurs, prix_m2, note, dispo } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances, applications, largeurs, couleurs, variantes, prix_m2, note, dispo } = req.body;
   db.prepare(
-    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,largeurs=?,couleurs=?,prix_m2=?,note=?,dispo=? WHERE id=?'
+    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,largeurs=?,couleurs=?,variantes=?,prix_m2=?,note=?,dispo=? WHERE id=?'
   ).run(
     cat ?? item.cat, nom ?? item.nom, finition ?? item.finition,
     adherence ?? item.adherence, env ?? item.env, duree ?? item.duree,
@@ -121,6 +124,7 @@ router.put('/:id', (req, res) => {
     JSON.stringify(applications ?? JSON.parse(item.applications)),
     JSON.stringify(largeurs ?? JSON.parse(item.largeurs || '[]')),
     JSON.stringify(couleurs ?? JSON.parse(item.couleurs || '[]')),
+    JSON.stringify(variantes ?? JSON.parse(item.variantes || '[]')),
     prix_m2 !== undefined ? prix_m2 : item.prix_m2,
     note ?? item.note,
     dispo !== undefined ? (dispo ? 1 : 0) : item.dispo,
@@ -177,13 +181,20 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
     const added = [];
-    const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)');
+    const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)');
 
     for (const p of produits) {
       if (!CATS.includes(p.cat) || !p.nom) continue;
       // Largeurs : convertir en strings
       const largeurs = Array.isArray(p.largeurs) ? p.largeurs.map(String) : [];
       const couleurs = Array.isArray(p.couleurs) ? p.couleurs : [];
+      // Variantes : paires exactes du catalogue, sinon produit cartésien couleurs × largeurs
+      let variantes = Array.isArray(p.variantes) ? p.variantes.filter(v => v && (v.couleur || v.largeur)) : [];
+      if (!variantes.length) {
+        if (couleurs.length && largeurs.length) couleurs.forEach(c => largeurs.forEach(l => variantes.push({ couleur: c, largeur: parseFloat(l) })));
+        else if (couleurs.length) couleurs.forEach(c => variantes.push({ couleur: c, largeur: null }));
+        else if (largeurs.length) largeurs.forEach(l => variantes.push({ couleur: null, largeur: parseFloat(l) }));
+      }
       const result = stmt.run(
         req.user.id,
         p.cat, p.nom.slice(0, 100),
@@ -195,6 +206,7 @@ router.post('/import-catalogue', (req, res, next) => {
         JSON.stringify(Array.isArray(p.applications) ? p.applications : []),
         JSON.stringify(largeurs),
         JSON.stringify(couleurs),
+        JSON.stringify(variantes),
         (p.note || '').slice(0, 200)
       );
       added.push({ id: result.lastInsertRowid, ...p });

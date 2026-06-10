@@ -36,6 +36,7 @@ db.exec(`
     applications TEXT DEFAULT '[]',
     largeurs TEXT DEFAULT '[]',
     couleurs TEXT DEFAULT '[]',
+    variantes TEXT DEFAULT '[]',
     prix_m2 REAL,
     note TEXT DEFAULT '',
     dispo INTEGER DEFAULT 1,
@@ -75,6 +76,7 @@ const migrations = [
   'ALTER TABLE stock ADD COLUMN prix_m2 REAL',
   'ALTER TABLE analyses ADD COLUMN status TEXT DEFAULT \'done\'',
   'ALTER TABLE bug_reports ADD COLUMN images TEXT DEFAULT \'[]\'',
+  'ALTER TABLE stock ADD COLUMN variantes TEXT DEFAULT \'[]\'',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

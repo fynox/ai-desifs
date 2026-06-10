@@ -79,7 +79,11 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
         const res2 = JSON.parse(i.resistances || '[]');
         const app = JSON.parse(i.applications || '[]');
         const lar = JSON.parse(i.largeurs || '[]');
-        return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : ''}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
+        const vars = JSON.parse(i.variantes || '[]');
+        const varTxt = vars.length
+          ? ' | variantes disponibles (UNIQUEMENT ces combinaisons couleur/laize): ' + vars.map(v => `${v.couleur || 'standard'}${v.largeur ? ' en ' + v.largeur + ' cm' : ''}`).join(', ')
+          : (lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : '');
+        return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${varTxt}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
       }).join('\n');
     }).filter(Boolean).join('\n\n');
 

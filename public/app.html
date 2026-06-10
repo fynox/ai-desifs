@@ -497,24 +497,12 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group" id="fg-duree"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
     <div class="form-group" id="fg-resist"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
     <div class="form-group" id="fg-appli"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
-    <div class="form-group" id="fg-largeurs"><label>Largeurs disponibles (cm)</label><div class="checkbox-group" id="largeur-group"><label class="cb-item"><input type="checkbox" name="largeur" value="61"> 61 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="106"> 106 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="137"> 137 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="152"> 152 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="162"> 162 cm</label><label class="cb-item"><input type="checkbox" name="largeur" value="183"> 183 cm</label></div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="number" id="largeur-custom-input" placeholder="Autre (cm)" min="1" max="500" style="width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomLargeur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
-    <div class="form-group" id="fg-couleurs"><label>Couleurs disponibles</label><div class="checkbox-group" id="couleur-group">
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Blanc"><span class="color-dot" style="background:#fff;border:1px solid #555"></span>Blanc</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Noir"><span class="color-dot" style="background:#111"></span>Noir</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Gris"><span class="color-dot" style="background:#888"></span>Gris</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Rouge"><span class="color-dot" style="background:#e02020"></span>Rouge</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Bleu"><span class="color-dot" style="background:#2060e0"></span>Bleu</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Vert"><span class="color-dot" style="background:#20a040"></span>Vert</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Jaune"><span class="color-dot" style="background:#f0d000"></span>Jaune</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Orange"><span class="color-dot" style="background:#f07010"></span>Orange</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Violet"><span class="color-dot" style="background:#7030d0"></span>Violet</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Rose"><span class="color-dot" style="background:#e050a0"></span>Rose</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Marron"><span class="color-dot" style="background:#703010"></span>Marron</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Beige"><span class="color-dot" style="background:#d4b896"></span>Beige</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Argent"><span class="color-dot" style="background:#b0c0cc"></span>Argent</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Or"><span class="color-dot" style="background:#c8a000"></span>Or</label>
-      <label class="cb-item"><input type="checkbox" name="couleur" value="Transparent"><span class="color-dot" style="background:transparent;border:1px dashed #666"></span>Transparent</label>
-    </div><div style="display:flex;gap:8px;margin-top:8px;align-items:center;"><input type="text" id="couleur-custom-input" placeholder="Autre couleur" style="width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;"><button onclick="addCustomCouleur()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter</button></div></div>
+    <div class="form-group" id="fg-variantes"><label>Variantes (couleur + laize)</label>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Une ligne par combinaison réelle en stock. Laisse la couleur vide pour un imprimable/liner.</div>
+      <div id="variantes-rows"></div>
+      <button type="button" onclick="addVarianteRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter une variante</button>
+      <datalist id="couleurs-list"><option value="Blanc"><option value="Noir"><option value="Gris"><option value="Rouge"><option value="Bleu"><option value="Vert"><option value="Jaune"><option value="Orange"><option value="Violet"><option value="Rose"><option value="Marron"><option value="Beige"><option value="Argent"><option value="Or"><option value="Transparent"></datalist>
+    </div>
     <div class="form-group form-row"><div style="flex:1"><label id="label-prix">Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
@@ -859,10 +847,42 @@ function switchTab(cat) {
 }
 
 let editingId = null;
+// ===== Éditeur de variantes (couleur + laize) =====
+function addVarianteRow(couleur = '', largeur = '') {
+  const row = document.createElement('div');
+  row.className = 'variante-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-top:6px;align-items:center;';
+  row.innerHTML = `
+    <input type="text" list="couleurs-list" class="var-couleur" placeholder="Couleur (optionnel)" value="${String(couleur || '').replace(/"/g, '&quot;')}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
+    <input type="number" class="var-largeur" placeholder="Laize (cm)" value="${largeur || ''}" min="1" max="600" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
+    <button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;width:28px;height:28px;color:var(--danger);cursor:pointer;font-size:12px;flex-shrink:0;" title="Retirer">✕</button>`;
+  document.getElementById('variantes-rows').appendChild(row);
+}
+
+function getVariantes() {
+  const seen = new Set();
+  return [...document.querySelectorAll('#variantes-rows .variante-row')].map(r => ({
+    couleur: r.querySelector('.var-couleur').value.trim() || null,
+    largeur: parseFloat(r.querySelector('.var-largeur').value) || null,
+  })).filter(v => {
+    if (!v.couleur && !v.largeur) return false;
+    const key = `${(v.couleur || '').toLowerCase()}|${v.largeur || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function setVariantes(variantes) {
+  document.getElementById('variantes-rows').innerHTML = '';
+  (variantes || []).forEach(v => addVarianteRow(v.couleur || '', v.largeur || ''));
+  if (!(variantes || []).length) addVarianteRow();
+}
+
 // Masque les champs adhésif quand la catégorie est "encre"
 function toggleEncreFields() {
   const isEncre = document.getElementById('modal-cat').value === 'encre';
-  ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-largeurs','fg-couleurs'].forEach(id => {
+  ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'].forEach(id => {
     document.getElementById(id).style.display = isEncre ? 'none' : '';
   });
   document.getElementById('label-prix').textContent = isEncre ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
@@ -880,9 +900,8 @@ function openModal(cat) {
   document.querySelector('input[name="adherence"][value="Standard"]').checked = true;
   document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
   document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
-  resetCustomLargeurs();
-  resetCustomCouleurs();
-  document.querySelectorAll('input[name="resist"], input[name="appli"], input[name="largeur"], input[name="couleur"]').forEach(i => i.checked = false);
+  setVariantes([]);
+  document.querySelectorAll('input[name="resist"], input[name="appli"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
   toggleEncreFields();
@@ -905,25 +924,15 @@ function openEditModal(id) {
   const dur = document.querySelector(`input[name="duree"][value="${item.duree}"]`); if (dur) dur.checked = true;
   document.querySelectorAll('input[name="resist"]').forEach(i => i.checked = (item.resistances||[]).includes(i.value));
   document.querySelectorAll('input[name="appli"]').forEach(i => i.checked = (item.applications||[]).includes(i.value));
-  resetCustomLargeurs();
-  resetCustomCouleurs();
-  // Recréer les couleurs custom
-  (item.couleurs||[]).forEach(v => {
-    if (!COULEURS_STANDARD.includes(v)) addCustomCouleurVal(v);
-  });
-  document.querySelectorAll('input[name="couleur"]').forEach(i => i.checked = (item.couleurs||[]).includes(i.value));
-  // Recréer les largeurs custom (non standards) puis cocher toutes
-  (item.largeurs||[]).forEach(v => {
-    if (!LARGEURS_STANDARD.includes(v)) {
-      const group = document.getElementById('largeur-group');
-      const label = document.createElement('label');
-      label.className = 'cb-item cb-item-custom';
-      label.dataset.customVal = v;
-      label.innerHTML = `<input type="checkbox" name="largeur" value="${v}" checked> ${v} cm <span onclick="removeCustomLargeur('${v}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
-      group.appendChild(label);
-    }
-  });
-  document.querySelectorAll('input[name="largeur"]').forEach(i => i.checked = (item.largeurs||[]).includes(i.value));
+  // Variantes : depuis le champ variantes, sinon reconstruites depuis largeurs/couleurs (anciennes données)
+  let vars = item.variantes || [];
+  if (!vars.length) {
+    const ls = item.largeurs || [], cs = item.couleurs || [];
+    if (cs.length && ls.length) cs.forEach(c => ls.forEach(l => vars.push({ couleur: c, largeur: parseFloat(l) })));
+    else if (cs.length) cs.forEach(c => vars.push({ couleur: c, largeur: null }));
+    else if (ls.length) ls.forEach(l => vars.push({ couleur: null, largeur: parseFloat(l) }));
+  }
+  setVariantes(vars);
   document.getElementById('modal-prix').value = item.prix_m2 || '';
   toggleEncreFields();
   document.getElementById('modal').classList.add('open');
@@ -940,7 +949,7 @@ async function saveAdhesif() {
     cat: 'encre',
     nom,
     finition: '—', adherence: '—', env: '—', duree: '—',
-    resistances: [], applications: [], largeurs: [], couleurs: [],
+    resistances: [], applications: [], largeurs: [], couleurs: [], variantes: [],
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
   } : {
@@ -952,11 +961,15 @@ async function saveAdhesif() {
     duree: document.querySelector('input[name="duree"]:checked')?.value || 'Moyenne durée (1-3 ans)',
     resistances: [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value),
     applications: [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value),
-    largeurs: [...document.querySelectorAll('input[name="largeur"]:checked')].map(i => i.value),
-    couleurs: [...document.querySelectorAll('input[name="couleur"]:checked')].map(i => i.value),
+    variantes: getVariantes(),
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
   };
+  if (!isEncre) {
+    // Largeurs/couleurs dérivées des variantes (compat plan de lés et anciennes données)
+    body.largeurs = [...new Set(body.variantes.map(v => v.largeur).filter(Boolean).map(String))];
+    body.couleurs = [...new Set(body.variantes.map(v => v.couleur).filter(Boolean))];
+  }
   try {
     if (editingId) {
       const updated = await api('PUT', '/stock/' + editingId, body);
@@ -994,11 +1007,13 @@ function renderList(cat, items) {
   list.innerHTML = items.map(item => {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
-    const largHTML = (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>l+'cm').join(' · ')}</span>` : '';
-    const coulHTML = (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
+    const vars = item.variantes || [];
+    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + v.largeur + 'cm' : ''}`).join(' · ')}</span>` : '';
+    const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>l+'cm').join(' · ')}</span>` : '';
+    const coulHTML = !vars.length && (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge">${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
@@ -1258,7 +1273,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
     if (!laize && (r.adhesifs || []).length && typeof stock !== 'undefined') {
       for (const a of r.adhesifs) {
         const it = stock.find(s => s.nom === a.nom);
-        const ls = (it?.largeurs || []).map(Number).filter(Boolean);
+        const ls = [...(it?.largeurs || []).map(Number), ...(it?.variantes || []).map(v => Number(v.largeur))].filter(Boolean);
         if (ls.length) { laize = Math.max(...ls); break; }
       }
     }
