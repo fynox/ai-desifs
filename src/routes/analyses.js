@@ -220,6 +220,10 @@ router.post('/:id/upscale', async (req, res) => {
   if (!item.visuel_b64 || !item.visuel_type || !item.visuel_type.startsWith('image/')) {
     return res.status(400).json({ error: 'Aucun visuel image sur cette analyse.' });
   }
+  // Image déjà très lourde (probablement déjà upscalée) → inutile et trop gros pour le modèle
+  if (item.visuel_b64.length > 8_000_000) {
+    return res.status(400).json({ error: 'Le visuel est déjà en haute résolution — pas besoin de l\'améliorer à nouveau.' });
+  }
 
   try {
     // Real-ESRGAN sur Replicate (nightmareai/real-esrgan)
@@ -238,17 +242,20 @@ router.post('/:id/upscale', async (req, res) => {
     const pred = await createRes.json();
     if (!createRes.ok) return res.status(502).json({ error: pred?.detail || 'Erreur Replicate.' });
 
-    // Polling jusqu'à la fin (max ~90s)
-    let status = pred.status, outputUrl = null, getUrl = pred.urls?.get;
-    for (let i = 0; i < 45 && getUrl; i++) {
+    // Polling jusqu'à la fin (max ~3 min)
+    let status = pred.status, outputUrl = null, getUrl = pred.urls?.get, lastError = null;
+    for (let i = 0; i < 90 && getUrl; i++) {
       await new Promise(r => setTimeout(r, 2000));
       const poll = await fetch(getUrl, { headers: { 'Authorization': 'Bearer ' + replicateToken } });
       const p = await poll.json();
       status = p.status;
       if (status === 'succeeded') { outputUrl = Array.isArray(p.output) ? p.output[0] : p.output; break; }
-      if (status === 'failed' || status === 'canceled') break;
+      if (status === 'failed' || status === 'canceled') { lastError = p.error || null; break; }
     }
-    if (!outputUrl) return res.status(502).json({ error: 'L\'amélioration a échoué ou pris trop de temps — réessayez.' });
+    if (!outputUrl) {
+      console.error('Upscale Replicate non abouti:', status, lastError);
+      return res.status(502).json({ error: lastError ? `Replicate : ${String(lastError).slice(0, 200)}` : 'L\'amélioration a échoué ou pris trop de temps — réessayez.' });
+    }
 
     // Télécharger le résultat et remplacer le visuel
     const imgRes = await fetch(outputUrl);
