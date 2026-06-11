@@ -278,6 +278,14 @@ router.post('/:id/upscale', async (req, res) => {
   }
 });
 
+// Récupérer le visuel d'origine (pour la comparaison avant/après)
+router.get('/:id/visuel-orig', (req, res) => {
+  const item = db.prepare('SELECT visuel_orig_b64, visuel_orig_type FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  if (!item.visuel_orig_b64) return res.status(400).json({ error: 'Pas d\'image d\'origine sauvegardée.' });
+  res.json({ visuel_b64: item.visuel_orig_b64, visuel_type: item.visuel_orig_type });
+});
+
 // Restaurer le visuel d'origine (avant upscale)
 router.post('/:id/restore-visuel', (req, res) => {
   const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);

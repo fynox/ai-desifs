@@ -1682,11 +1682,22 @@ async function upscaleVisuel(id) {
   if (btn) { btn.disabled = true; btn.textContent = '✨ Amélioration en cours… (peut prendre 1 min)'; }
   try {
     const item = historique.find(a => a.id === id);
+    // Déjà amélioré → on rouvre simplement la comparaison avant/après (pas de nouvel upscale)
+    if (item && item.has_orig) {
+      const orig = await api('GET', `/analyses/${id}/visuel-orig`);
+      showAvantApres(`data:${orig.visuel_type};base64,${orig.visuel_b64}`, `data:${item.visuel_type};base64,${item.visuel_b64}`);
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
+      return;
+    }
     const srcAvant = item ? `data:${item.visuel_type};base64,${item.visuel_b64}` : null;
     const data = await api('POST', `/analyses/${id}/upscale`);
     if (data.visuel_b64) {
-      if (item) { item.visuel_b64 = data.visuel_b64; item.visuel_type = data.visuel_type; renderResult(item.result, item.visuel_b64, item.visuel_type, item.id); }
-      if (item) item.has_orig = true;
+      if (item) {
+        item.visuel_b64 = data.visuel_b64;
+        item.visuel_type = data.visuel_type;
+        item.has_orig = true;
+        renderResult(item.result, item.visuel_b64, item.visuel_type, item.id);
+      }
       const srcApres = `data:${data.visuel_type};base64,${data.visuel_b64}`;
       if (srcAvant) showAvantApres(srcAvant, srcApres);
     }
