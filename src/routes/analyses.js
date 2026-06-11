@@ -4,6 +4,7 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { logUsage, logCost } = require('../utils/usage');
 const { getSetting } = require('../utils/appSettings');
+const { getStorage, isStorageFull } = require('../utils/storage');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -31,23 +32,74 @@ router.use(requireAuth);
 router.get('/', (req, res) => {
   // Nettoyer les analyses "en cours" zombies (webhook qui a échoué sans supprimer le pending)
   db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(req.user.id);
-  const rows = db.prepare('SELECT * FROM analyses WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id);
+  // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
+  const rows = db.prepare(`
+    SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, devis_json, visuel_type,
+      (visuel_b64 IS NOT NULL) as has_visuel,
+      (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
+      (visuel_hd_b64 IS NOT NULL) as has_hd,
+      (COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0)) as taille_b64
+    FROM analyses WHERE user_id = ? ORDER BY created_at DESC
+  `).all(req.user.id);
   res.json(rows.map(r => {
     const isPending = r.status === 'pending';
     return {
       ...r,
       result: isPending ? null : JSON.parse(r.result_json),
       lu: Boolean(r.lu),
-      visuel_b64: r.visuel_b64 || null,
-      visuel_type: r.visuel_type || null,
+      visuel_b64: null, // chargé à la demande
+      has_visuel: Boolean(r.has_visuel),
       devis: r.devis_json ? JSON.parse(r.devis_json) : null,
-      // has_orig = la version active est la HD (on peut revenir à l'original)
-      has_orig: Boolean(r.visuel_orig_b64) && Boolean(r.visuel_hd_b64 ? (r.visuel_b64 || '').length === r.visuel_hd_b64.length : true),
-      // has_hd = une version HD existe en réserve (réamélioration instantanée et gratuite)
-      has_hd: Boolean(r.visuel_hd_b64),
+      has_orig: Boolean(r.has_orig),
+      has_hd: Boolean(r.has_hd),
+      taille_octets: Math.round(r.taille_b64 * 0.75),
       _pending: isPending,
     };
   }));
+});
+
+// Visuel d'une analyse (chargé à la demande pour ne pas alourdir l'historique)
+router.get('/:id/visuel', (req, res) => {
+  const item = db.prepare('SELECT visuel_b64, visuel_type FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  res.json({ visuel_b64: item.visuel_b64 || null, visuel_type: item.visuel_type || null });
+});
+
+// Espace de stockage occupé / quota du compte
+router.get('/storage', (req, res) => {
+  res.json(getStorage(req.user.id));
+});
+
+// Libérer de l'espace : mode = all | half_old | heaviest | hd_only
+router.post('/clear', (req, res) => {
+  const { mode } = req.body || {};
+  let deleted = 0;
+  if (mode === 'all') {
+    deleted = db.prepare('DELETE FROM analyses WHERE user_id = ?').run(req.user.id).changes;
+  } else if (mode === 'half_old') {
+    const total = db.prepare('SELECT COUNT(*) as c FROM analyses WHERE user_id = ?').get(req.user.id).c;
+    const n = Math.floor(total / 2);
+    if (n > 0) {
+      deleted = db.prepare(`DELETE FROM analyses WHERE id IN (
+        SELECT id FROM analyses WHERE user_id = ? ORDER BY created_at ASC LIMIT ?
+      )`).run(req.user.id, n).changes;
+    }
+  } else if (mode === 'heaviest') {
+    const total = db.prepare('SELECT COUNT(*) as c FROM analyses WHERE user_id = ?').get(req.user.id).c;
+    const n = Math.max(1, Math.ceil(total / 4)); // le quart le plus lourd
+    deleted = db.prepare(`DELETE FROM analyses WHERE id IN (
+      SELECT id FROM analyses WHERE user_id = ?
+      ORDER BY (COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0)) DESC
+      LIMIT ?
+    )`).run(req.user.id, n).changes;
+  } else if (mode === 'hd_only') {
+    // Supprime les versions originale + HD de réserve, garde les analyses et leur image active
+    deleted = db.prepare(`UPDATE analyses SET visuel_orig_b64=NULL, visuel_orig_type=NULL, visuel_hd_b64=NULL, visuel_hd_type=NULL
+      WHERE user_id = ? AND (visuel_orig_b64 IS NOT NULL OR visuel_hd_b64 IS NOT NULL)`).run(req.user.id).changes;
+  } else {
+    return res.status(400).json({ error: 'Mode de nettoyage invalide.' });
+  }
+  res.json({ ok: true, deleted, storage: getStorage(req.user.id) });
 });
 
 router.put('/:id/lu', (req, res) => {
@@ -233,6 +285,9 @@ router.post('/:id/upscale', async (req, res) => {
   if (item.visuel_b64.length > 8_000_000) {
     return res.status(400).json({ error: 'Le visuel est déjà en haute résolution — pas besoin de l\'améliorer à nouveau.' });
   }
+  if (isStorageFull(req.user.id)) {
+    return res.status(403).json({ error: 'storage_full' });
+  }
 
   try {
     // Real-ESRGAN sur Replicate (nightmareai/real-esrgan)
@@ -269,9 +324,15 @@ router.post('/:id/upscale', async (req, res) => {
     // Télécharger le résultat et remplacer le visuel
     const imgRes = await fetch(outputUrl);
     if (!imgRes.ok) return res.status(502).json({ error: 'Impossible de récupérer l\'image améliorée.' });
-    const buf = Buffer.from(await imgRes.arrayBuffer());
+    let buf = Buffer.from(await imgRes.arrayBuffer());
+    let newType = imgRes.headers.get('content-type') || 'image/png';
+    // Recompresser en JPEG : la HD passe de ~30 Mo (PNG) à ~3 Mo sans différence visible à l'impression
+    try {
+      const sharp = require('sharp');
+      buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
+      newType = 'image/jpeg';
+    } catch (e) { console.error('sharp indisponible, HD stockée sans recompression:', e.message); }
     const newB64 = buf.toString('base64');
-    const newType = imgRes.headers.get('content-type') || 'image/png';
 
     // Conserver l'image d'origine (une seule fois) et la version HD pour basculer sans repayer
     if (!item.visuel_orig_b64) {
@@ -319,6 +380,9 @@ router.post('/analyse', async (req, res) => {
   }
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
+  if (file_base64 && isStorageFull(req.user.id)) {
+    return res.status(403).json({ error: 'storage_full' });
+  }
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });

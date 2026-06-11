@@ -156,9 +156,12 @@ Réponds UNIQUEMENT en JSON valide :
     try { result = JSON.parse(jsonMatch[0]); } catch { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     if (!result.adhesifs || !result.specs) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
 
-    // Stocker la première image/page PDF comme aperçu visuel
+    // Stocker la première image/page PDF comme aperçu visuel (sauf si le quota de stockage est plein)
     let visuel_b64 = null, visuel_type = null;
-    if (imageFiles.length) {
+    const storageFull = (() => { try { return require('../utils/storage').isStorageFull(user.id); } catch { return false; } })();
+    if (storageFull) {
+      // Pas de stockage du visuel — l'analyse texte est quand même créée
+    } else if (imageFiles.length) {
       visuel_b64 = imageFiles[0].buffer.toString('base64'); visuel_type = imageFiles[0].mimetype;
     } else if (pdfFiles.length) {
       const pages = await pdfToImages(pdfFiles[0].buffer);

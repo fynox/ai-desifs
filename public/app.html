@@ -409,6 +409,16 @@ textarea:focus { border-color: var(--accent); }
     </div>
 
     <div class="sidebar-bottom">
+      <div id="storage-wrap" style="padding:0 2px 10px;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:4px;">
+          <span>Stockage visuels</span>
+          <span id="storage-txt">—</span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+          <div id="storage-bar" style="height:100%;width:0%;background:var(--accent);transition:width .3s;"></div>
+        </div>
+        <button onclick="openClear()" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:4px 0 0;text-decoration:underline;">🧹 Libérer de l'espace</button>
+      </div>
       <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
       <button class="btn-stock" onclick="openReglages()" style="margin-top:0">⚙ Réglages</button>
       <div class="user-row">
@@ -639,6 +649,37 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL LIBÉRER DE L'ESPACE -->
+<div class="modal-overlay" id="modal-clear" onclick="if(event.target===this)closeClear()">
+  <div class="modal" style="max-width:460px">
+    <h3>🧹 Libérer de l'espace</h3>
+    <div id="clear-storage-info" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin:8px 0 14px;"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;cursor:pointer;">
+        <input type="radio" name="clear-mode" value="hd_only" checked style="margin-top:2px;">
+        <span style="font-size:12px;"><b>Versions HD et originales</b><br><span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">Supprime les copies de réserve des upscales — garde toutes les analyses et leur image actuelle. Le moins destructif.</span></span>
+      </label>
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;cursor:pointer;">
+        <input type="radio" name="clear-mode" value="half_old" style="margin-top:2px;">
+        <span style="font-size:12px;"><b>La moitié la plus ancienne</b><br><span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">Supprime définitivement les 50% d'analyses les plus vieilles (avec leurs devis et visuels).</span></span>
+      </label>
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;cursor:pointer;">
+        <input type="radio" name="clear-mode" value="heaviest" style="margin-top:2px;">
+        <span style="font-size:12px;"><b>Les plus lourdes</b><br><span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">Supprime définitivement le quart des analyses qui occupent le plus d'espace.</span></span>
+      </label>
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--surface2);border:1px solid rgba(240,70,70,.4);border-radius:9px;cursor:pointer;">
+        <input type="radio" name="clear-mode" value="all" style="margin-top:2px;">
+        <span style="font-size:12px;color:var(--danger,#f05050);"><b>Tout l'historique</b><br><span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">Supprime définitivement TOUTES les analyses, devis et visuels.</span></span>
+      </label>
+    </div>
+    <div class="auth-error" id="clear-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeClear()">Annuler</button>
+      <button class="btn-submit" id="btn-do-clear" onclick="doClear()" style="background:var(--danger,#f05050);">Clear</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL RÉGLAGES -->
 <div class="modal-overlay" id="modal-reglages" onclick="if(event.target===this)closeReglages()">
   <div class="modal" style="max-width:440px">
@@ -779,6 +820,7 @@ async function startSession(token, email, status, used, iEmail) {
   document.getElementById('user-email-display').textContent = email;
   document.getElementById('app').classList.add('visible');
   await Promise.all([loadStock(), loadHistorique()]);
+  loadStorage();
   renderAll();
   renderTrialBanner();
   startPolling();
@@ -828,6 +870,58 @@ function logout() {
 }
 
 // ===================== PROFIL =====================
+// ===================== STOCKAGE =====================
+function fmtOctets(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + ' Go';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + ' Mo';
+  return Math.max(0, Math.round(n / 1000)) + ' Ko';
+}
+
+async function loadStorage() {
+  try {
+    const s = await api('GET', '/analyses/storage');
+    const wrap = document.getElementById('storage-wrap');
+    if (!wrap) return;
+    wrap.style.display = 'block';
+    const pct = Math.min(100, Math.round(s.used / s.quota * 100));
+    document.getElementById('storage-txt').textContent = `${fmtOctets(s.used)} / ${fmtOctets(s.quota)}`;
+    const bar = document.getElementById('storage-bar');
+    bar.style.width = pct + '%';
+    bar.style.background = pct >= 95 ? 'var(--danger,#f05050)' : pct >= 80 ? '#f0a030' : 'var(--accent)';
+    window._storageInfo = s;
+  } catch {}
+}
+
+function openClear() {
+  const s = window._storageInfo;
+  document.getElementById('clear-storage-info').textContent = s
+    ? `Espace occupé : ${fmtOctets(s.used)} sur ${fmtOctets(s.quota)} (${Math.round(s.used / s.quota * 100)}%) — choisis ce que tu veux supprimer :`
+    : 'Choisis ce que tu veux supprimer :';
+  document.getElementById('clear-error').textContent = '';
+  document.getElementById('modal-clear').classList.add('open');
+}
+function closeClear() { document.getElementById('modal-clear').classList.remove('open'); }
+
+async function doClear() {
+  const mode = document.querySelector('input[name="clear-mode"]:checked')?.value;
+  if (!mode) return;
+  const labels = { hd_only: 'les versions HD et originales', half_old: 'la moitié la plus ancienne de l\'historique', heaviest: 'les analyses les plus lourdes', all: 'TOUT l\'historique' };
+  if (!confirm(`Supprimer définitivement ${labels[mode]} ? Cette action est irréversible.`)) return;
+  const btn = document.getElementById('btn-do-clear');
+  btn.disabled = true; btn.textContent = 'Suppression…';
+  try {
+    const r = await api('POST', '/analyses/clear', { mode });
+    closeClear();
+    await loadHistorique();
+    loadStorage();
+    closeResult();
+    alert(`✓ ${r.deleted} élément${r.deleted > 1 ? 's' : ''} supprimé${r.deleted > 1 ? 's' : ''} — espace occupé : ${fmtOctets(r.storage.used)}`);
+  } catch (e) {
+    document.getElementById('clear-error').textContent = e.message;
+  }
+  btn.disabled = false; btn.textContent = 'Clear';
+}
+
 // ===================== RÉGLAGES =====================
 function openReglages() {
   document.getElementById('reglage-marge').value = userSettings.marge_raccord ?? 1;
@@ -1237,6 +1331,14 @@ async function openHisto(id) {
   document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
   renderSidebarHisto();
   setTimeout(() => { const el = document.getElementById('histo-' + id); if (el) el.classList.add('selected'); }, 10);
+  // Visuel chargé à la demande (l'historique arrive sans les images pour rester rapide)
+  if (item.has_visuel && !item.visuel_b64) {
+    try {
+      const v = await api('GET', `/analyses/${id}/visuel`);
+      item.visuel_b64 = v.visuel_b64;
+      item.visuel_type = v.visuel_type;
+    } catch {}
+  }
   renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null, item.id);
 }
 
@@ -1307,11 +1409,15 @@ async function analyzeRequest() {
     renderSidebarHisto();
     renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type, analyse.id);
     setTimeout(() => { const el = document.getElementById('histo-' + analyse.id); if (el) el.classList.add('selected'); }, 50);
+    loadStorage();
   } catch (e) {
     historique = historique.filter(h => !h._pending);
     renderSidebarHisto();
     if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {
       showUpgradeWall('trial_expired');
+    } else if (e.message.includes('storage_full')) {
+      document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">💾</div><p style="color:var(--danger);font-size:12px;">Espace de stockage plein — libérez de l'espace pour analyser avec un fichier joint.</p></div>`;
+      openClear();
     } else if (e.message.includes('stock')) {
       document.getElementById('stock-warning').style.display = 'block';
       document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">⚠️</div><p style="color:var(--danger);font-size:12px;">Aucun adhésif en stock disponible.</p></div>`;
@@ -1711,8 +1817,10 @@ async function upscaleVisuel(id) {
       const srcApres = `data:${data.visuel_type};base64,${data.visuel_b64}`;
       if (srcAvant) showAvantApres(srcAvant, srcApres);
     }
+    loadStorage();
   } catch (e) {
     if ((e.message || '').includes('dev')) alert('🛠 Fonction en cours de développement — disponible très bientôt !');
+    else if ((e.message || '').includes('storage_full')) { alert('💾 Espace de stockage plein — libère de l\'espace avec le bouton 🧹 dans la barre latérale.'); openClear(); }
     else alert('Erreur : ' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
