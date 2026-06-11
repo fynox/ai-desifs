@@ -200,9 +200,10 @@ router.post('/:id/devis', async (req, res) => {
 
   // Adhésifs recommandés en priorité, sinon tout le stock avec prix
   const nomsReco = (result.adhesifs || []).map(a => a.nom);
+  const normCm = v => { const n = Number(v); return n > 400 ? Math.round(n / 10) : n; };
   const stockLines = adhesifs.map(i => {
-    const largeurs = JSON.parse(i.largeurs || '[]');
-    return `• ${i.nom} (${i.cat})${nomsReco.includes(i.nom) ? ' [RECOMMANDÉ PAR L\'ANALYSE]' : ''} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m²' : 'NON RENSEIGNÉ'}${largeurs.length ? ' | laizes: ' + largeurs.join(', ') + ' cm' : ''}`;
+    const largeurs = [...JSON.parse(i.largeurs || '[]'), ...JSON.parse(i.variantes || '[]').map(v => v.largeur)].map(normCm).filter(Boolean);
+    return `• ${i.nom} (${i.cat})${nomsReco.includes(i.nom) ? ' [RECOMMANDÉ PAR L\'ANALYSE]' : ''} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m²' : 'NON RENSEIGNÉ'}${largeurs.length ? ' | laizes: ' + [...new Set(largeurs)].join(', ') + ' cm' : ''}`;
   }).join('\n');
   const encreLines = encres.length
     ? encres.map(i => `• ${i.nom} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m² imprimé' : 'NON RENSEIGNÉ'}${i.note ? ' | ' + i.note : ''}`).join('\n')
@@ -404,10 +405,12 @@ router.post('/analyse', async (req, res) => {
     return `--- ${CAT_LABELS[cat]} ---\n` + items.map(i => {
       const res = JSON.parse(i.resistances || '[]');
       const app = JSON.parse(i.applications || '[]');
-      const lar = JSON.parse(i.largeurs || '[]');
+      // Les laizes du stock peuvent être saisies en mm (ex: 1520) → on normalise en cm
+      const normCm = v => { const n = Number(v); return n > 400 ? Math.round(n / 10) : n; };
+      const lar = JSON.parse(i.largeurs || '[]').map(normCm).filter(Boolean);
       const vars = JSON.parse(i.variantes || '[]');
       const varTxt = vars.length
-        ? ' | variantes disponibles (UNIQUEMENT ces combinaisons couleur/laize): ' + vars.map(v => `${v.couleur || 'standard'}${v.largeur ? ' en ' + v.largeur + ' cm' : ''}`).join(', ')
+        ? ' | variantes disponibles (UNIQUEMENT ces combinaisons couleur/laize): ' + vars.map(v => `${v.couleur || 'standard'}${v.largeur ? ' en ' + normCm(v.largeur) + ' cm' : ''}`).join(', ')
         : (lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : '');
       return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${varTxt}${res.length ? ' | ' + res.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
     }).join('\n');
@@ -429,7 +432,7 @@ Ne confonds JAMAIS ces catégories.
 STOCK DISPONIBLE :
 ${stockDesc}
 
-MONTAGE : largeur_cm et hauteur_cm = dimensions EXPLICITEMENT données par le client dans le mail, converties en cm. Ne devine JAMAIS une dimension : si le client ne donne que la hauteur, mets largeur_cm à null (et inversement). laize_cm = la laize la plus adaptée parmi celles de l'adhésif recommandé dans le stock (null si non renseignées). nb_les et sens_les : null si une dimension manque. Ne parle JAMAIS de nombre de lés, de laize ou de raccords dans "preparation" ou "attention" : un plan de lés visuel est déjà affiché automatiquement à l'utilisateur.
+MONTAGE : largeur_cm et hauteur_cm = dimensions EXPLICITEMENT données par le client dans le mail, converties en cm. Ne devine JAMAIS une dimension : si le client ne donne que la hauteur, mets largeur_cm à null (et inversement). laize_cm = la laize la plus adaptée EN CENTIMÈTRES (ex: 152 pour un rouleau de 1520 mm, jamais de valeur en mm) parmi celles de l'adhésif recommandé dans le stock (null si non renseignées). nb_les et sens_les : null si une dimension manque. Ne parle JAMAIS de nombre de lés, de laize ou de raccords dans "preparation" ou "attention" : un plan de lés visuel est déjà affiché automatiquement à l'utilisateur.
 
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal"}}`;
