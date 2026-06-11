@@ -57,6 +57,10 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
     if (!user) return;
     if (user.subscription_status !== 'active') return;
+    // Adresse mail dédiée réservée aux plans Pro et Ultra + limite mensuelle d'analyses
+    const { hasMailInbound, checkLimit } = require('../utils/limits');
+    if (!hasMailInbound(user)) return;
+    if (checkLimit(user, 'analyses')) return;
     const apiKey = getSetting('ANTHROPIC_API_KEY');
     if (!apiKey) return;
 

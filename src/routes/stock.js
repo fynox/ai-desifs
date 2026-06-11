@@ -9,6 +9,7 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { logUsage } = require('../utils/usage');
 const { getSetting } = require('../utils/appSettings');
+const { checkLimit } = require('../utils/limits');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -160,6 +161,9 @@ router.post('/import-catalogue', (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni.' });
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(500).json({ error: 'Clé API Anthropic non configurée.' });
+  const impUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const impLim = checkLimit(impUser, 'import_catalogue');
+  if (impLim) return res.status(403).json(impLim);
 
   try {
     const images = await pdfToImages(req.file.buffer);

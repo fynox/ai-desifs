@@ -982,7 +982,7 @@ function openProfile() {
   document.getElementById('profil-success').style.display = 'none';
 
   const wrap = document.getElementById('profil-inbound-wrap');
-  if (subscriptionStatus === 'active' && inboundEmail) {
+  if (subscriptionStatus === 'active' && ['pro', 'ultra'].includes(userPlan) && inboundEmail) {
     wrap.innerHTML = `
       <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
       <div style="display:flex;align-items:center;gap:10px;">

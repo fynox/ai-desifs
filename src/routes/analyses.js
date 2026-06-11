@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { logUsage, logCost } = require('../utils/usage');
 const { getSetting } = require('../utils/appSettings');
 const { getStorage, isStorageFull } = require('../utils/storage');
+const { checkLimit } = require('../utils/limits');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -122,6 +123,8 @@ router.post('/:id/relance', async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
+  const lim = checkLimit(user, 'relance');
+  if (lim) return res.status(403).json(lim);
 
   let result = {};
   try { result = JSON.parse(item.result_json || '{}'); } catch {}
@@ -185,6 +188,8 @@ router.post('/:id/devis', async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
+  const lim = checkLimit(user, 'devis');
+  if (lim) return res.status(403).json(lim);
 
   let result = {};
   try { result = JSON.parse(item.result_json || '{}'); } catch {}
@@ -288,6 +293,9 @@ router.post('/:id/upscale', async (req, res) => {
   if (isStorageFull(req.user.id)) {
     return res.status(403).json({ error: 'storage_full' });
   }
+  const upUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const upLim = checkLimit(upUser, 'upscale');
+  if (upLim) return res.status(403).json(upLim);
 
   try {
     // Real-ESRGAN sur Replicate (nightmareai/real-esrgan)
@@ -383,6 +391,8 @@ router.post('/analyse', async (req, res) => {
   if (file_base64 && isStorageFull(req.user.id)) {
     return res.status(403).json({ error: 'storage_full' });
   }
+  const lim = checkLimit(user, 'analyses');
+  if (lim) return res.status(403).json(lim);
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
