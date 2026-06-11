@@ -57,7 +57,7 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
     if (!user) return;
     if (user.subscription_status !== 'active') return;
-    const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
+    const apiKey = getSetting('ANTHROPIC_API_KEY');
     if (!apiKey) return;
 
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
@@ -147,7 +147,7 @@ Réponds UNIQUEMENT en JSON valide :
 
     if (!claudeRes.ok) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     const data = await claudeRes.json();
-    logUsage(user.id, 'analyse_email', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
+    logUsage(user.id, 'analyse_email', 'claude-sonnet-4-6', data.usage);
     const raw = data.content?.map(i => i.text || '').join('') || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }

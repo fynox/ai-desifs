@@ -77,7 +77,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 });
 
 router.put('/profile', requireAuth, async (req, res) => {
-  const { current_password, new_password, api_key, settings } = req.body;
+  const { current_password, new_password, settings } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   let changed = false;
 
@@ -88,12 +88,6 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'Nouveau mot de passe trop court (8 min).' });
     const hash = await bcrypt.hash(new_password, 12);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
-    changed = true;
-  }
-
-  if (api_key) {
-    if (!api_key.startsWith('sk-ant-')) return res.status(400).json({ error: 'Clé API invalide.' });
-    db.prepare('UPDATE users SET api_key = ? WHERE id = ?').run(api_key, user.id);
     changed = true;
   }
 

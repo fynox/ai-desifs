@@ -64,7 +64,7 @@ router.post('/:id/relance', async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
+  const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   let result = {};
@@ -108,7 +108,7 @@ Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
 
   const data = await claudeRes.json();
   if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || `Erreur Anthropic ${claudeRes.status}` });
-  logUsage(req.user.id, 'relance', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
+  logUsage(req.user.id, 'relance', 'claude-sonnet-4-6', data.usage);
 
   const raw = data.content?.map(i => i.text || '').join('') || '';
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -127,7 +127,7 @@ router.post('/:id/devis', async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
+  const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   let result = {};
@@ -197,7 +197,7 @@ Réponds UNIQUEMENT en JSON valide :
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
 
-  logUsage(req.user.id, 'devis', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
+  logUsage(req.user.id, 'devis', 'claude-sonnet-4-6', data.usage);
 
   let devis;
   try { devis = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
@@ -278,7 +278,7 @@ router.post('/analyse', async (req, res) => {
   if (user.subscription_status === 'trial' && user.trial_analyses_used >= TRIAL_LIMIT) {
     return res.status(403).json({ error: 'trial_expired', used: user.trial_analyses_used, limit: TRIAL_LIMIT });
   }
-  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
+  const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
@@ -353,7 +353,7 @@ Réponds UNIQUEMENT en JSON valide :
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return res.status(502).json({ error: 'Réponse IA invalide — réessayez.' });
 
-  logUsage(req.user.id, 'analyse', 'claude-sonnet-4-6', data.usage, Boolean(user.api_key));
+  logUsage(req.user.id, 'analyse', 'claude-sonnet-4-6', data.usage);
 
   let result;
   try { result = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
