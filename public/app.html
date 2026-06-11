@@ -1686,9 +1686,11 @@ function closeAvap() { document.getElementById('modal-avap').classList.remove('o
 // Upscale IA du visuel via Replicate (Real-ESRGAN)
 async function upscaleVisuel(id) {
   const btn = document.getElementById('btn-upscale');
-  if (btn) { btn.disabled = true; btn.textContent = '✨ Amélioration en cours… (peut prendre 1 min)'; }
+  const _item = historique.find(a => a.id === id);
+  // HD déjà en réserve → réactivation instantanée et gratuite, pas de message d'attente
+  if (btn) { btn.disabled = true; btn.textContent = (_item && _item.has_hd && !_item.has_orig) ? '✨ Réactivation de la version HD…' : '✨ Amélioration en cours… (peut prendre 1 min)'; }
   try {
-    const item = historique.find(a => a.id === id);
+    const item = _item;
     // Déjà amélioré → on rouvre simplement la comparaison avant/après (pas de nouvel upscale)
     if (item && item.has_orig) {
       const orig = await api('GET', `/analyses/${id}/visuel-orig`);
@@ -1703,6 +1705,7 @@ async function upscaleVisuel(id) {
         item.visuel_b64 = data.visuel_b64;
         item.visuel_type = data.visuel_type;
         item.has_orig = true;
+        item.has_hd = true;
         renderResult(item.result, item.visuel_b64, item.visuel_type, item.id);
       }
       const srcApres = `data:${data.visuel_type};base64,${data.visuel_b64}`;

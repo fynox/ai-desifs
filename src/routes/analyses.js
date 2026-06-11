@@ -43,6 +43,8 @@ router.get('/', (req, res) => {
       devis: r.devis_json ? JSON.parse(r.devis_json) : null,
       // has_orig = la version active est la HD (on peut revenir à l'original)
       has_orig: Boolean(r.visuel_orig_b64) && Boolean(r.visuel_hd_b64 ? (r.visuel_b64 || '').length === r.visuel_hd_b64.length : true),
+      // has_hd = une version HD existe en réserve (réamélioration instantanée et gratuite)
+      has_hd: Boolean(r.visuel_hd_b64),
       _pending: isPending,
     };
   }));
