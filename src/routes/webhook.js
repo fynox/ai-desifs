@@ -128,6 +128,26 @@ Réponds UNIQUEMENT en JSON valide :
     const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
     const pdfFiles = files.filter(f => f.mimetype === 'application/pdf' || f.originalname?.endsWith('.pdf'));
 
+    // Fichiers joints via lien Google Drive : Gmail insère un LIEN, pas une pièce jointe.
+    // On télécharge le fichier nous-mêmes (fonctionne si le lien est partagé "tous les utilisateurs disposant du lien").
+    if (!imageFiles.length && !pdfFiles.length) {
+      const driveIds = [...new Set(
+        [...`${text} ${req.body.html || ''}`.matchAll(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=)([\w-]{20,})/g)].map(mm => mm[1])
+      )].slice(0, 3);
+      for (const id of driveIds) {
+        try {
+          const r = await fetch(`https://drive.google.com/uc?export=download&id=${id}`, { redirect: 'follow' });
+          if (!r.ok) continue;
+          const ct = (r.headers.get('content-type') || '').split(';')[0].trim();
+          const buf = Buffer.from(await r.arrayBuffer());
+          if (buf.length > 20 * 1024 * 1024) continue;
+          if (ct.startsWith('image/')) imageFiles.push({ mimetype: ct, buffer: buf });
+          else if (ct === 'application/pdf') pdfFiles.push({ mimetype: ct, buffer: buf, originalname: 'drive.pdf' });
+          // ct text/html = fichier privé (page de connexion Google) → ignoré
+        } catch (e) { console.error('Drive fetch error:', e.message); }
+      }
+    }
+
     for (const img of imageFiles.slice(0, 3)) {
       userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mimetype, data: img.buffer.toString('base64') } });
     }
