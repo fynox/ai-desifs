@@ -1445,11 +1445,8 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   // laizeOrig = laize du plan initial, pour pouvoir y revenir après une optimisation multi-laizes.
   const _prevCtx = window._lesCtx;
   window._lesCtx = { largeur, hauteur, laize, sensLes, previewB64, previewType, deduite, laizeOrig: _prevCtx && _prevCtx.laizeOrig ? _prevCtx.laizeOrig : laize };
-  let vert;
-  if (_lesSens) vert = _lesSens === 'vertical';
-  else if (sensLes === 'vertical') vert = true;
-  else if (sensLes === 'horizontal') vert = false;
-  else vert = Math.ceil(largeur / laize) <= Math.ceil(hauteur / laize);
+  // Lés TOUJOURS verticaux : la pose se fait de haut en bas, l'horizontal est trop complexe à poser
+  const vert = _lesSens ? _lesSens === 'vertical' : true;
   const RECOUVREMENT = _lesRecouvrement;       // cm de chevauchement entre lés
   const MARGE_IMP = _lesMargeImp;              // cm non imprimables par côté du rouleau
   const DEBORD = _lesDebord;                   // cm de débord de pose par côté (coupé au cutter)
@@ -1506,8 +1503,11 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     const inY = (DEBORD / hauteurE * 100).toFixed(2);
     overlays += `<div style="position:absolute;left:${inX}%;right:${inX}%;top:${inY}%;bottom:${inY}%;border:1.5px dashed #61d36d;pointer-events:none;"></div>`;
   }
+  // L'image du client = format FINI ; le débord de pose s'imprime AUTOUR (zone hachurée, coupée au cutter)
+  const pctW = (largeur / largeurE * 100).toFixed(3);
+  const pctH = (hauteur / hauteurE * 100).toFixed(3);
   const bg = previewB64 && previewType && previewType.startsWith('image/')
-    ? `background:url(data:${previewType};base64,${previewB64}) center/contain no-repeat;background-color:#161616;`
+    ? `background-image:url(data:${previewType};base64,${previewB64}),repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);background-repeat:no-repeat,repeat;background-position:center,0 0;background-size:${pctW}% ${pctH}%,auto;background-color:#161616;`
     : `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
   // Conteneur aux proportions du format imprimé (avec débord) — visuel entier, jamais rogné
   const maxH = 340;
@@ -1515,7 +1515,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${largeur}</span>` : largeur} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${hauteur}</span>` : hauteur} cm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#61d36d">+ ${DEBORD} cm de débord/côté</span>` : ''}`;
   const hasImg = previewB64 && previewType && previewType.startsWith('image/');
   if (hasImg && n > 1) {
-    window._lesParams = { vert, segs, totale, recouvrement: RECOUVREMENT, previewB64, previewType };
+    window._lesParams = { vert, segs, totale, recouvrement: RECOUVREMENT, debord: DEBORD, largeur, hauteur, previewB64, previewType };
   }
   const inputStyle = `style="width:58px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
   return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeurE}/${hauteurE};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
@@ -1628,19 +1628,33 @@ async function exporterLes() {
   try {
     const img = new Image();
     await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = `data:${p.previewType};base64,${p.previewB64}`; });
-    const pxTotal = p.vert ? img.naturalWidth : img.naturalHeight; // pixels couvrant la dimension découpée
-    let start = 0; // position du lé en cm
+    // L'image = format fini ; le débord est une marge blanche autour (coupée au cutter à la pose)
+    const pxX = img.naturalWidth / p.largeur;   // pixels par cm en largeur
+    const pxY = img.naturalHeight / p.hauteur;  // pixels par cm en hauteur
+    const d = p.debord || 0;
+    let start = 0; // position du lé en cm sur le format imprimé (débord inclus)
     for (let k = 0; k < p.segs.length; k++) {
       const widthCm = Math.min(p.segs[k], p.totale - start);
-      const x0 = Math.round(start / p.totale * pxTotal);
-      const x1 = Math.min(pxTotal, Math.round((start + widthCm) / p.totale * pxTotal));
       const canvas = document.createElement('canvas');
-      if (p.vert) {
-        canvas.width = x1 - x0; canvas.height = img.naturalHeight;
-        canvas.getContext('2d').drawImage(img, x0, 0, x1 - x0, img.naturalHeight, 0, 0, x1 - x0, img.naturalHeight);
-      } else {
-        canvas.width = img.naturalWidth; canvas.height = x1 - x0;
-        canvas.getContext('2d').drawImage(img, 0, x0, img.naturalWidth, x1 - x0, 0, 0, img.naturalWidth, x1 - x0);
+      const ctx2 = (() => {
+        if (p.vert) { canvas.width = Math.round(widthCm * pxX); canvas.height = Math.round((p.hauteur + 2 * d) * pxY); }
+        else { canvas.width = Math.round((p.largeur + 2 * d) * pxX); canvas.height = Math.round(widthCm * pxY); }
+        const c2 = canvas.getContext('2d');
+        c2.fillStyle = '#ffffff';
+        c2.fillRect(0, 0, canvas.width, canvas.height);
+        return c2;
+      })();
+      // Partie de l'image visible sur ce lé : l'image occupe [débord, débord+dimension] sur l'axe découpé
+      const ovStart = Math.max(start, d);
+      const ovEnd = Math.min(start + widthCm, d + (p.vert ? p.largeur : p.hauteur));
+      if (ovEnd > ovStart) {
+        if (p.vert) {
+          const srcX = (ovStart - d) * pxX, srcW = (ovEnd - ovStart) * pxX;
+          ctx2.drawImage(img, srcX, 0, srcW, img.naturalHeight, (ovStart - start) * pxX, d * pxY, srcW, img.naturalHeight);
+        } else {
+          const srcY = (ovStart - d) * pxY, srcH = (ovEnd - ovStart) * pxY;
+          ctx2.drawImage(img, 0, srcY, img.naturalWidth, srcH, d * pxX, (ovStart - start) * pxY, img.naturalWidth, srcH);
+        }
       }
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       const a = document.createElement('a');
@@ -1692,12 +1706,13 @@ function renderResult(r, previewB64, previewType, analyseId) {
     const largeur = parseFloat(m.largeur_cm) || 0;
     const hauteur = parseFloat(m.hauteur_cm) || 0;
     let laize = parseFloat(m.laize_cm) || 0;
+    if (laize > 400) laize = laize / 10; // l'IA a parfois répondu en mm au lieu de cm
     // Laizes disponibles de l'adhésif recommandé (pour l'optimiseur multi-laizes) + fallback laize
     let laizesDispo = [];
     if ((r.adhesifs || []).length && typeof stock !== 'undefined') {
       for (const a of r.adhesifs) {
         const it = stock.find(s => s.nom === a.nom);
-        const ls = [...(it?.largeurs || []).map(Number), ...(it?.variantes || []).map(v => Number(v.largeur))].filter(v => v > 0);
+        const ls = [...(it?.largeurs || []).map(Number), ...(it?.variantes || []).map(v => Number(v.largeur))].filter(v => v > 0).map(v => v > 400 ? v / 10 : v);
         laizesDispo.push(...ls);
       }
     }
