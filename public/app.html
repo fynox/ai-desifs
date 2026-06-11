@@ -1587,7 +1587,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
       ${montageHTML}
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button>${isImgGlobal ? `<button class="btn-submit" id="btn-upscale" style="flex:1;min-width:140px;font-size:12px;opacity:.65;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution <span style="font-size:9px;background:var(--accent-dim);color:#000;border-radius:10px;padding:1px 6px;vertical-align:middle;">bientôt</span></button>` : ''}</div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button>${isImgGlobal ? `<button class="btn-submit" id="btn-upscale" style="flex:1;min-width:140px;font-size:12px;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution</button>` : ''}</div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -1641,7 +1641,7 @@ async function upscaleVisuel(id) {
     if ((e.message || '').includes('dev')) alert('🛠 Fonction en cours de développement — disponible très bientôt !');
     else alert('Erreur : ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Améliorer la résolution <span style="font-size:9px;background:var(--accent-dim);color:#000;border-radius:10px;padding:1px 6px;vertical-align:middle;">bientôt</span>'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
   }
 }
 
