@@ -101,6 +101,8 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN settings TEXT DEFAULT \'{}\'',
   'ALTER TABLE analyses ADD COLUMN visuel_orig_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_orig_type TEXT',
+  'ALTER TABLE analyses ADD COLUMN visuel_hd_b64 TEXT',
+  'ALTER TABLE analyses ADD COLUMN visuel_hd_type TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

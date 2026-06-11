@@ -41,7 +41,8 @@ router.get('/', (req, res) => {
       visuel_b64: r.visuel_b64 || null,
       visuel_type: r.visuel_type || null,
       devis: r.devis_json ? JSON.parse(r.devis_json) : null,
-      has_orig: Boolean(r.visuel_orig_b64),
+      // has_orig = la version active est la HD (on peut revenir à l'original)
+      has_orig: Boolean(r.visuel_orig_b64) && Boolean(r.visuel_hd_b64 ? (r.visuel_b64 || '').length === r.visuel_hd_b64.length : true),
       _pending: isPending,
     };
   }));
@@ -221,6 +222,11 @@ router.post('/:id/upscale', async (req, res) => {
   if (!item.visuel_b64 || !item.visuel_type || !item.visuel_type.startsWith('image/')) {
     return res.status(400).json({ error: 'Aucun visuel image sur cette analyse.' });
   }
+  // Version HD déjà générée précédemment → on la réactive sans repayer Replicate
+  if (item.visuel_hd_b64) {
+    db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?').run(item.visuel_hd_b64, item.visuel_hd_type, item.id);
+    return res.json({ visuel_b64: item.visuel_hd_b64, visuel_type: item.visuel_hd_type, has_orig: true, cached: true });
+  }
   // Image déjà très lourde (probablement déjà upscalée) → inutile et trop gros pour le modèle
   if (item.visuel_b64.length > 8_000_000) {
     return res.status(400).json({ error: 'Le visuel est déjà en haute résolution — pas besoin de l\'améliorer à nouveau.' });
@@ -265,11 +271,11 @@ router.post('/:id/upscale', async (req, res) => {
     const newB64 = buf.toString('base64');
     const newType = imgRes.headers.get('content-type') || 'image/png';
 
-    // Conserver l'image d'origine (une seule fois) pour pouvoir la restaurer
+    // Conserver l'image d'origine (une seule fois) et la version HD pour basculer sans repayer
     if (!item.visuel_orig_b64) {
       db.prepare('UPDATE analyses SET visuel_orig_b64=?, visuel_orig_type=? WHERE id=?').run(item.visuel_b64, item.visuel_type, item.id);
     }
-    db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?').run(newB64, newType, item.id);
+    db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=?, visuel_hd_b64=?, visuel_hd_type=? WHERE id=?').run(newB64, newType, newB64, newType, item.id);
     logCost(req.user.id, 'upscale', 'real-esrgan', parseFloat(process.env.REPLICATE_COST_PER_UPSCALE || '0.01'));
     res.json({ visuel_b64: newB64, visuel_type: newType, has_orig: true });
   } catch (e) {
@@ -291,9 +297,10 @@ router.post('/:id/restore-visuel', (req, res) => {
   const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
   if (!item.visuel_orig_b64) return res.status(400).json({ error: 'Pas d\'image d\'origine sauvegardée.' });
-  db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=?, visuel_orig_b64=NULL, visuel_orig_type=NULL WHERE id=?')
+  // La version HD reste en base : on bascule simplement l'image active (réamélioration gratuite ensuite)
+  db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?')
     .run(item.visuel_orig_b64, item.visuel_orig_type, item.id);
-  res.json({ visuel_b64: item.visuel_orig_b64, visuel_type: item.visuel_orig_type });
+  res.json({ visuel_b64: item.visuel_orig_b64, visuel_type: item.visuel_orig_type, has_hd: Boolean(item.visuel_hd_b64) });
 });
 
 router.post('/analyse', async (req, res) => {
