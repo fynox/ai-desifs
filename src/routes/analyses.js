@@ -41,6 +41,7 @@ router.get('/', (req, res) => {
       visuel_b64: r.visuel_b64 || null,
       visuel_type: r.visuel_type || null,
       devis: r.devis_json ? JSON.parse(r.devis_json) : null,
+      has_orig: Boolean(r.visuel_orig_b64),
       _pending: isPending,
     };
   }));
@@ -264,13 +265,27 @@ router.post('/:id/upscale', async (req, res) => {
     const newB64 = buf.toString('base64');
     const newType = imgRes.headers.get('content-type') || 'image/png';
 
+    // Conserver l'image d'origine (une seule fois) pour pouvoir la restaurer
+    if (!item.visuel_orig_b64) {
+      db.prepare('UPDATE analyses SET visuel_orig_b64=?, visuel_orig_type=? WHERE id=?').run(item.visuel_b64, item.visuel_type, item.id);
+    }
     db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?').run(newB64, newType, item.id);
     logCost(req.user.id, 'upscale', 'real-esrgan', parseFloat(process.env.REPLICATE_COST_PER_UPSCALE || '0.01'));
-    res.json({ visuel_b64: newB64, visuel_type: newType });
+    res.json({ visuel_b64: newB64, visuel_type: newType, has_orig: true });
   } catch (e) {
     console.error('Upscale error:', e);
     res.status(502).json({ error: 'Erreur pendant l\'amélioration du visuel.' });
   }
+});
+
+// Restaurer le visuel d'origine (avant upscale)
+router.post('/:id/restore-visuel', (req, res) => {
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  if (!item.visuel_orig_b64) return res.status(400).json({ error: 'Pas d\'image d\'origine sauvegardée.' });
+  db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=?, visuel_orig_b64=NULL, visuel_orig_type=NULL WHERE id=?')
+    .run(item.visuel_orig_b64, item.visuel_orig_type, item.id);
+  res.json({ visuel_b64: item.visuel_orig_b64, visuel_type: item.visuel_orig_type });
 });
 
 router.post('/analyse', async (req, res) => {

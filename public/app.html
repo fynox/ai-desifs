@@ -1615,7 +1615,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
       ${montageHTML}
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button>${isImgGlobal ? `<button class="btn-submit" id="btn-upscale" style="flex:1;min-width:140px;font-size:12px;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution</button>` : ''}</div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button>${isImgGlobal ? `<button class="btn-submit" id="btn-upscale" style="flex:1;min-width:140px;font-size:12px;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution</button>` : ''}${isImgGlobal && (historique.find(a => a.id === analyseId) || {}).has_orig ? `<button class="btn-submit" id="btn-restore" style="flex:1;min-width:140px;font-size:12px;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}</div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -1686,6 +1686,7 @@ async function upscaleVisuel(id) {
     const data = await api('POST', `/analyses/${id}/upscale`);
     if (data.visuel_b64) {
       if (item) { item.visuel_b64 = data.visuel_b64; item.visuel_type = data.visuel_type; renderResult(item.result, item.visuel_b64, item.visuel_type, item.id); }
+      if (item) item.has_orig = true;
       const srcApres = `data:${data.visuel_type};base64,${data.visuel_b64}`;
       if (srcAvant) showAvantApres(srcAvant, srcApres);
     }
@@ -1694,6 +1695,25 @@ async function upscaleVisuel(id) {
     else alert('Erreur : ' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
+  }
+}
+
+// Restaure le visuel d'origine (avant upscale)
+async function restaurerVisuel(id) {
+  const btn = document.getElementById('btn-restore');
+  if (btn) { btn.disabled = true; btn.textContent = '↩ Restauration…'; }
+  try {
+    const data = await api('POST', `/analyses/${id}/restore-visuel`);
+    const item = historique.find(a => a.id === id);
+    if (item) {
+      item.visuel_b64 = data.visuel_b64;
+      item.visuel_type = data.visuel_type;
+      item.has_orig = false;
+      renderResult(item.result, item.visuel_b64, item.visuel_type, item.id);
+    }
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '↩ Image d\'origine'; }
   }
 }
 
