@@ -611,6 +611,34 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- ZOOM VISUEL plein écran -->
+<div class="modal-overlay" id="zoom-overlay" style="z-index:700;cursor:zoom-out;" onclick="closeZoom()">
+  <img id="zoom-img" style="max-width:94vw;max-height:94vh;border-radius:8px;image-rendering:auto;">
+</div>
+
+<!-- MODAL AVANT / APRÈS upscale -->
+<div class="modal-overlay" id="modal-avap" style="z-index:600;" onclick="if(event.target===this)closeAvap()">
+  <div class="modal" style="max-width:900px;width:94vw;">
+    <h3>✨ Résolution améliorée — avant / après</h3>
+    <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:260px;text-align:center;">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">AVANT</div>
+        <img id="avap-before" style="max-width:100%;max-height:340px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)">
+        <div id="avap-before-info" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;"></div>
+      </div>
+      <div style="flex:1;min-width:260px;text-align:center;">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);margin-bottom:6px;">APRÈS</div>
+        <img id="avap-after" style="max-width:100%;max-height:340px;object-fit:contain;border:1px solid var(--accent-dim);border-radius:8px;background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)">
+        <div id="avap-after-info" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);margin-top:6px;"></div>
+      </div>
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:10px;text-align:center;">Clique sur une image pour la voir en plein écran — la vraie différence se voit en zoomant.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAvap()">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL RÉGLAGES -->
 <div class="modal-overlay" id="modal-reglages" onclick="if(event.target===this)closeReglages()">
   <div class="modal" style="max-width:440px">
@@ -1515,7 +1543,7 @@ function renderResult(r, previewB64, previewType, analyseId) {
   const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
-      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;"><div id="dpi-check"></div></div>`;
+      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div></div>`;
     } else if (previewType === 'application/pdf') {
       previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
     }
@@ -1626,16 +1654,40 @@ function checkDPI(b64, type, largeurCm, hauteurCm) {
   img.src = `data:${type};base64,${b64}`;
 }
 
+// Zoom plein écran d'un visuel
+function zoomVisuel(src) {
+  document.getElementById('zoom-img').src = src;
+  document.getElementById('zoom-overlay').classList.add('open');
+}
+function closeZoom() { document.getElementById('zoom-overlay').classList.remove('open'); }
+
+// Fenêtre avant/après upscale avec les résolutions de chaque version
+function showAvantApres(srcAvant, srcApres) {
+  const setInfo = (src, el) => {
+    const img = new Image();
+    img.onload = () => { document.getElementById(el).textContent = `${img.naturalWidth} × ${img.naturalHeight} px (${(img.naturalWidth * img.naturalHeight / 1e6).toFixed(1)} Mpx)`; };
+    img.src = src;
+  };
+  document.getElementById('avap-before').src = srcAvant;
+  document.getElementById('avap-after').src = srcApres;
+  setInfo(srcAvant, 'avap-before-info');
+  setInfo(srcApres, 'avap-after-info');
+  document.getElementById('modal-avap').classList.add('open');
+}
+function closeAvap() { document.getElementById('modal-avap').classList.remove('open'); }
+
 // Upscale IA du visuel via Replicate (Real-ESRGAN)
 async function upscaleVisuel(id) {
   const btn = document.getElementById('btn-upscale');
   if (btn) { btn.disabled = true; btn.textContent = '✨ Amélioration en cours… (peut prendre 1 min)'; }
   try {
+    const item = historique.find(a => a.id === id);
+    const srcAvant = item ? `data:${item.visuel_type};base64,${item.visuel_b64}` : null;
     const data = await api('POST', `/analyses/${id}/upscale`);
     if (data.visuel_b64) {
-      alert('✓ Résolution améliorée ! Le visuel a été remplacé par la version haute définition.');
-      const item = historique.find(a => a.id === id);
       if (item) { item.visuel_b64 = data.visuel_b64; item.visuel_type = data.visuel_type; renderResult(item.result, item.visuel_b64, item.visuel_type, item.id); }
+      const srcApres = `data:${data.visuel_type};base64,${data.visuel_b64}`;
+      if (srcAvant) showAvantApres(srcAvant, srcApres);
     }
   } catch (e) {
     if ((e.message || '').includes('dev')) alert('🛠 Fonction en cours de développement — disponible très bientôt !');
