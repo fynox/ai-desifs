@@ -15,10 +15,11 @@ app.use(cors());
 
 // Rediriger l'URL technique Railway vers le domaine officiel (sauf webhooks Stripe/SendGrid,
 // qui peuvent être configurés sur l'URL Railway et ne suivent pas les redirections)
-const CANONICAL_HOST = process.env.CANONICAL_HOST || 'ai-dhesif.fr';
+// Activer en définissant CANONICAL_HOST dans Railway (ex: ai-dhesif.fr) UNE FOIS le domaine connecté à Railway.
+const CANONICAL_HOST = process.env.CANONICAL_HOST || null;
 app.use((req, res, next) => {
   const host = req.headers.host || '';
-  if (host.includes('railway.app') && !req.path.startsWith('/webhooks') && !req.path.startsWith('/api/webhook')) {
+  if (CANONICAL_HOST && host.includes('railway.app') && !req.path.startsWith('/webhooks') && !req.path.startsWith('/api/webhook')) {
     return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
   }
   next();
