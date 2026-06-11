@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { logUsage, logCost } = require('../utils/usage');
+const { getSetting } = require('../utils/appSettings');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -63,7 +64,7 @@ router.post('/:id/relance', async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   let result = {};
@@ -126,7 +127,7 @@ router.post('/:id/devis', async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   let result = {};
@@ -211,7 +212,7 @@ Réponds UNIQUEMENT en JSON valide :
 // Upscale IA du visuel via Replicate (Real-ESRGAN x4)
 // Nécessite REPLICATE_API_TOKEN dans les variables d'environnement Railway.
 router.post('/:id/upscale', async (req, res) => {
-  const replicateToken = process.env.REPLICATE_API_TOKEN;
+  const replicateToken = getSetting('REPLICATE_API_TOKEN');
   if (!replicateToken) return res.status(503).json({ error: 'dev' }); // fonction en cours de dev tant que le compte Replicate n'est pas créé
 
   const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
@@ -277,7 +278,7 @@ router.post('/analyse', async (req, res) => {
   if (user.subscription_status === 'trial' && user.trial_analyses_used >= TRIAL_LIMIT) {
     return res.status(403).json({ error: 'trial_expired', used: user.trial_analyses_used, limit: TRIAL_LIMIT });
   }
-  const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+  const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);

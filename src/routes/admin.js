@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { monthlyRevenueEur, PLAN_INFO } = require('../utils/plans');
+const { getSetting, setSetting } = require('../utils/appSettings');
 
 const USD_TO_EUR = 0.93; // taux fixe pour convertir les coûts API (facturés en USD) en €
 
@@ -206,6 +207,31 @@ router.get('/users/:id/usage', (req, res) => {
     GROUP BY mois, type ORDER BY mois DESC
   `).all(req.params.id);
   res.json(rows);
+});
+
+// Clés API globales (Claude / Replicate) — la valeur en base prime sur les variables Railway
+const API_KEY_NAMES = ['ANTHROPIC_API_KEY', 'REPLICATE_API_TOKEN'];
+
+router.get('/apikeys', (req, res) => {
+  const out = {};
+  for (const name of API_KEY_NAMES) {
+    const v = getSetting(name);
+    out[name] = v ? `••••${v.slice(-6)}` : null; // jamais la clé complète vers le front
+  }
+  res.json(out);
+});
+
+router.put('/apikeys', (req, res) => {
+  const updated = [];
+  for (const name of API_KEY_NAMES) {
+    const v = req.body[name];
+    if (typeof v === 'string' && v.trim() && !v.includes('•')) {
+      setSetting(name, v.trim());
+      updated.push(name);
+    }
+  }
+  if (!updated.length) return res.status(400).json({ error: 'Aucune clé fournie.' });
+  res.json({ ok: true, updated });
 });
 
 router.get('/bugs', (req, res) => {

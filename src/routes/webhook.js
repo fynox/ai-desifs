@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const db = require('../config/db');
 const { logUsage } = require('../utils/usage');
 const { planFromPriceId } = require('../utils/plans');
+const { getSetting } = require('../utils/appSettings');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -56,7 +57,7 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
     if (!user) return;
     if (user.subscription_status !== 'active') return;
-    const apiKey = user.api_key || process.env.ANTHROPIC_API_KEY;
+    const apiKey = user.api_key || getSetting('ANTHROPIC_API_KEY');
     if (!apiKey) return;
 
     const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);

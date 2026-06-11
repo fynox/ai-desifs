@@ -8,6 +8,7 @@ const path = require('path');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { logUsage } = require('../utils/usage');
+const { getSetting } = require('../utils/appSettings');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -157,7 +158,7 @@ router.post('/import-catalogue', (req, res, next) => {
   });
 }, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Aucun fichier fourni.' });
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(500).json({ error: 'Clé API Anthropic non configurée.' });
 
   try {
