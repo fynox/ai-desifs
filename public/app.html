@@ -1225,8 +1225,8 @@ function renderList(cat, items) {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
     const vars = item.variantes || [];
-    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + v.largeur + 'cm' : ''}`).join(' · ')}</span>` : '';
-    const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>l+'cm').join(' · ')}</span>` : '';
+    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + normCm(v.largeur) + 'cm' : ''}`).join(' · ')}</span>` : '';
+    const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>normCm(l)+'cm').join(' · ')}</span>` : '';
     const coulHTML = !vars.length && (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
@@ -1431,6 +1431,9 @@ async function analyzeRequest() {
 function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
+
+// Laizes parfois saisies en mm (ex: 1520) → normalisées en cm pour l'affichage et les calculs
+function normCm(v) { const n = Number(v); return n > 400 ? Math.round(n / 10) : n; }
 
 // Marges du plan de lés (cm) — modifiables sous le plan, valeurs par défaut dans Réglages
 let _lesRecouvrement = 1;  // chevauchement entre lés pour les raccords
