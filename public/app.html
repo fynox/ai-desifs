@@ -687,18 +687,18 @@ textarea:focus { border-color: var(--accent); }
 
     <div style="border-bottom:1px solid var(--border);margin:18px 0 16px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Préférences</div>
     <div class="form-group">
-      <label>Marge de raccord par défaut (cm)</label>
-      <input type="number" id="reglage-marge" min="0" max="10" step="0.5" style="width:100px;text-align:center;">
+      <label>Marge de raccord par défaut (mm)</label>
+      <input type="number" id="reglage-marge" min="0" max="100" step="5" style="width:100px;text-align:center;">
       <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Chevauchement entre les lés pour les raccords.</div>
     </div>
     <div class="form-group">
-      <label>Marge d'impression par défaut (cm/côté)</label>
-      <input type="number" id="reglage-marge-imp" min="0" max="5" step="0.25" style="width:100px;text-align:center;">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Bords du rouleau non imprimables — réduit la laize utile (ex : rouleau 1520 mm − 0,5 cm/côté = 1510 mm imprimables).</div>
+      <label>Marge d'impression par défaut (mm/côté)</label>
+      <input type="number" id="reglage-marge-imp" min="0" max="50" step="1" style="width:100px;text-align:center;">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Bords du rouleau non imprimables — réduit la laize utile (ex : rouleau 1520 mm − 5 mm/côté = 1510 mm imprimables).</div>
     </div>
     <div class="form-group">
-      <label>Débord de pose par défaut (cm/côté)</label>
-      <input type="number" id="reglage-debord" min="0" max="10" step="0.5" style="width:100px;text-align:center;">
+      <label>Débord de pose par défaut (mm/côté)</label>
+      <input type="number" id="reglage-debord" min="0" max="100" step="5" style="width:100px;text-align:center;">
       <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">L'image est imprimée plus grande que le format fini, l'excédent est coupé au cutter après la pose.</div>
     </div>
     <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-4px;">Toutes ces valeurs restent ajustables au cas par cas sous le plan de lés.</div>
@@ -724,7 +724,7 @@ let currentUserEmail = null;
 let subscriptionStatus = 'trial';
 let userPlan = 'free';
 let userPlanPeriod = 'monthly';
-let userSettings = { marge_raccord: 1, marge_impression: 0.5, debord_pose: 2 };
+let userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20 };
 let trialUsed = 0;
 let inboundEmail = null;
 
@@ -760,7 +760,7 @@ async function login() {
   btn.disabled = true; btn.textContent = 'Connexion...';
   try {
     const data = await api('POST', '/auth/login', { email, password });
-    if (data.settings) try { userSettings = { marge_raccord: 1, marge_impression: 0.5, debord_pose: 2, ...JSON.parse(data.settings) }; } catch {}
+    if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
@@ -779,7 +779,7 @@ async function signup() {
   btn.disabled = true; btn.textContent = 'Création...';
   try {
     const data = await api('POST', '/auth/signup', { email, password });
-    if (data.settings) try { userSettings = { marge_raccord: 1, marge_impression: 0.5, debord_pose: 2, ...JSON.parse(data.settings) }; } catch {}
+    if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
@@ -924,9 +924,9 @@ async function doClear() {
 
 // ===================== RÉGLAGES =====================
 function openReglages() {
-  document.getElementById('reglage-marge').value = userSettings.marge_raccord ?? 1;
-  document.getElementById('reglage-marge-imp').value = userSettings.marge_impression ?? 0.5;
-  document.getElementById('reglage-debord').value = userSettings.debord_pose ?? 2;
+  document.getElementById('reglage-marge').value = userSettings.marge_raccord_mm ?? 10;
+  document.getElementById('reglage-marge-imp').value = userSettings.marge_impression_mm ?? 5;
+  document.getElementById('reglage-debord').value = userSettings.debord_pose_mm ?? 20;
   document.getElementById('reglages-success').style.display = 'none';
   document.getElementById('modal-reglages').classList.add('open');
 }
@@ -939,9 +939,9 @@ async function saveReglages() {
     if (v > max) v = max;
     return v;
   };
-  userSettings.marge_raccord = lire('reglage-marge', 1, 10);
-  userSettings.marge_impression = lire('reglage-marge-imp', 0.5, 5);
-  userSettings.debord_pose = lire('reglage-debord', 2, 10);
+  userSettings.marge_raccord_mm = lire('reglage-marge', 10, 100);
+  userSettings.marge_impression_mm = lire('reglage-marge-imp', 5, 50);
+  userSettings.debord_pose_mm = lire('reglage-debord', 20, 100);
   try {
     await api('PUT', '/auth/profile', { settings: userSettings });
     document.getElementById('reglages-success').style.display = 'block';
@@ -1071,7 +1071,7 @@ function addVarianteRow(couleur = '', largeur = '') {
   row.style.cssText = 'display:flex;gap:8px;margin-top:6px;align-items:center;';
   row.innerHTML = `
     <input type="text" list="couleurs-list" class="var-couleur" placeholder="Couleur (optionnel)" value="${String(couleur || '').replace(/"/g, '&quot;')}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
-    <input type="number" class="var-largeur" placeholder="Laize (cm)" value="${largeur || ''}" min="1" max="600" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
+    <input type="number" class="var-largeur" placeholder="Laize (mm)" value="${largeur || ''}" min="1" max="6000" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
     <button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;width:28px;height:28px;color:var(--danger);cursor:pointer;font-size:12px;flex-shrink:0;" title="Retirer">✕</button>`;
   document.getElementById('variantes-rows').appendChild(row);
 }
@@ -1225,8 +1225,8 @@ function renderList(cat, items) {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
     const vars = item.variantes || [];
-    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + normCm(v.largeur) + 'cm' : ''}`).join(' · ')}</span>` : '';
-    const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>normCm(l)+'cm').join(' · ')}</span>` : '';
+    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + normMm(v.largeur) + 'mm' : ''}`).join(' · ')}</span>` : '';
+    const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>normMm(l)+'mm').join(' · ')}</span>` : '';
     const coulHTML = !vars.length && (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
@@ -1432,15 +1432,15 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
-// Laizes parfois saisies en mm (ex: 1520) → normalisées en cm pour l'affichage et les calculs
-function normCm(v) { const n = Number(v); return n > 400 ? Math.round(n / 10) : n; }
+// Laize saisie tantôt en mm (1520) tantôt en cm (152) → toujours normalisée en MILLIMÈTRES
+function normMm(v) { const n = Number(v); return n > 0 && n < 400 ? Math.round(n * 10) : Math.round(n); }
 
-// Marges du plan de lés (cm) — modifiables sous le plan, valeurs par défaut dans Réglages
-let _lesRecouvrement = 1;  // chevauchement entre lés pour les raccords
-let _lesMargeImp = 0.5;    // bord non imprimable du rouleau, par côté
-let _lesDebord = 2;        // débord de pose (image agrandie, coupée au cutter), par côté
-let _lesSens = null;       // sens forcé par l'optimiseur ('vertical'|'horizontal'|null = auto)
-let _lesMode = null;       // null = standard (équilibrage auto des bords) | 'egalise' = tous les lés à largeur égale
+// Marges du plan de lés (en MILLIMÈTRES) — modifiables sous le plan, valeurs par défaut dans Réglages
+let _lesRecouvrement = 10;  // chevauchement entre lés pour les raccords (mm)
+let _lesMargeImp = 5;       // bord non imprimable du rouleau, par côté (mm)
+let _lesDebord = 20;        // débord de pose (image agrandie, coupée au cutter), par côté (mm)
+let _lesSens = null;        // sens forcé par l'optimiseur ('vertical'|'horizontal'|null = auto)
+let _lesMode = null;        // null = standard (équilibrage auto des bords) | 'egalise' = tous les lés à largeur égale
 
 // Construit le visuel du plan de lés (deduite = 'largeur'|'hauteur' si dimension calculée depuis le ratio du fichier)
 function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
@@ -1450,36 +1450,36 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   window._lesCtx = { largeur, hauteur, laize, sensLes, previewB64, previewType, deduite, laizeOrig: _prevCtx && _prevCtx.laizeOrig ? _prevCtx.laizeOrig : laize };
   // Lés TOUJOURS verticaux : la pose se fait de haut en bas, l'horizontal est trop complexe à poser
   const vert = _lesSens ? _lesSens === 'vertical' : true;
-  const RECOUVREMENT = _lesRecouvrement;       // cm de chevauchement entre lés
-  const MARGE_IMP = _lesMargeImp;              // cm non imprimables par côté du rouleau
-  const DEBORD = _lesDebord;                   // cm de débord de pose par côté (coupé au cutter)
-  const laizeU = Math.max(1, laize - 2 * MARGE_IMP); // laize réellement imprimable
+  const RECOUVREMENT = _lesRecouvrement;       // mm de chevauchement entre lés
+  const MARGE_IMP = _lesMargeImp;              // mm non imprimables par côté du rouleau
+  const DEBORD = _lesDebord;                   // mm de débord de pose par côté (coupé au cutter)
+  const laizeU = Math.max(1, laize - 2 * MARGE_IMP); // laize réellement imprimable (mm)
   // Dimensions avec débord : l'image est imprimée légèrement plus grande que le format fini
   const largeurE = largeur + 2 * DEBORD;
   const hauteurE = hauteur + 2 * DEBORD;
-  const totale = vert ? largeurE : hauteurE;   // dimension à couvrir par les lés
+  const totale = vert ? largeurE : hauteurE;   // dimension à couvrir par les lés (mm)
   // Chaque lé avance de (laize utile - recouvrement), sauf si un seul suffit
   let n, segs = [], equilibre = false;
-  if (totale <= laizeU) { n = 1; segs = [Math.round(totale * 10) / 10]; }
+  if (totale <= laizeU) { n = 1; segs = [Math.round(totale)]; }
   else {
     const avance = laizeU - RECOUVREMENT;
     n = Math.ceil((totale - RECOUVREMENT) / avance);
     const dernier = totale - (n - 1) * avance; // dernier lé = reste + recouvrement
     if (_lesMode === 'egalise' && n >= 2) {
       // Mode égalisé : tous les lés à largeur (quasi) égale
-      const e = (totale + (n - 1) * RECOUVREMENT) / n;
-      for (let k = 0; k < n - 1; k++) segs.push(Math.round(e * 10) / 10);
-      segs.push(Math.round((totale + (n - 1) * RECOUVREMENT - (n - 1) * Math.round(e * 10) / 10) * 10) / 10);
+      const e = Math.round((totale + (n - 1) * RECOUVREMENT) / n);
+      for (let k = 0; k < n - 1; k++) segs.push(e);
+      segs.push(Math.round(totale + (n - 1) * RECOUVREMENT - (n - 1) * e));
     } else if (dernier < laizeU / 2 && n >= 2) {
       // Dernier lé trop fin → lés du milieu à pleine laize utile, les deux bords réduits à égalité
       equilibre = true;
-      const bord = Math.round((totale + (n - 1) * RECOUVREMENT - (n - 2) * laizeU) / 2 * 10) / 10;
+      const bord = Math.round((totale + (n - 1) * RECOUVREMENT - (n - 2) * laizeU) / 2);
       segs.push(bord);
       for (let k = 0; k < n - 2; k++) segs.push(laizeU);
-      segs.push(Math.round((totale + (n - 1) * RECOUVREMENT - (n - 2) * laizeU - bord) * 10) / 10);
+      segs.push(Math.round(totale + (n - 1) * RECOUVREMENT - (n - 2) * laizeU - bord));
     } else {
       for (let k = 0; k < n - 1; k++) segs.push(laizeU);
-      segs.push(Math.round(dernier * 10) / 10);
+      segs.push(Math.round(dernier));
     }
   }
   // Traits de raccord + étiquette largeur de chaque lé (positions sur l'image = format avec débord)
@@ -1490,8 +1490,8 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     const width = segs[k];
     const centre = ((start + Math.min(width, totale - start) / 2) / totale * 100).toFixed(2);
     overlays += vert
-      ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`
-      : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width * 10)} mm</div>`;
+      ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width)} mm</div>`
+      : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width)} mm</div>`;
     if (k < n - 1) {
       cursor += segs[k] - RECOUVREMENT;
       const pos = (cursor / totale * 100).toFixed(2) + '%';
@@ -1515,19 +1515,19 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   // Conteneur aux proportions du format imprimé (avec débord) — visuel entier, jamais rogné
   const maxH = 340;
   const wPx = Math.round(maxH * largeurE / hauteurE);
-  const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${largeur}</span>` : largeur} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${hauteur}</span>` : hauteur} cm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#61d36d">+ ${DEBORD} cm de débord/côté</span>` : ''}`;
+  const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${Math.round(largeur)}</span>` : Math.round(largeur)} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${Math.round(hauteur)}</span>` : Math.round(hauteur)} mm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#61d36d">+ ${DEBORD} mm de débord/côté</span>` : ''}`;
   const hasImg = previewB64 && previewType && previewType.startsWith('image/');
   if (hasImg && n > 1) {
     window._lesParams = { vert, segs, totale, recouvrement: RECOUVREMENT, debord: DEBORD, largeur, hauteur, previewB64, previewType };
   }
   const inputStyle = `style="width:58px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
   return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeurE}/${hauteurE};margin:0 auto;border:2px solid var(--text);border-radius:4px;${bg}">${overlays}</div>
-  <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} · laize utile ${Math.round(laizeU * 10)} mm (rouleau ${Math.round(laize * 10)} mm${MARGE_IMP > 0 ? ` − ${MARGE_IMP} cm de marge d'impression/côté` : ''})${n > 1 ? ` · raccords ${RECOUVREMENT} cm : ${segs.map(s => Math.round(s * 10) + ' mm').join(' + ')}${equilibre ? ` <span style="color:var(--accent)">(lés des bords réduits pour équilibrer)</span>` : ''}${_lesMode === 'egalise' && n > 1 ? ` <span style="color:var(--accent)">(lés égalisés)</span>` : ''}` : ''}</div>
+  <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} · laize utile ${Math.round(laizeU)} mm (rouleau ${Math.round(laize)} mm${MARGE_IMP > 0 ? ` − ${MARGE_IMP} mm de marge d'impression/côté` : ''})${n > 1 ? ` · raccords ${RECOUVREMENT} mm : ${segs.map(s => Math.round(s) + ' mm').join(' + ')}${equilibre ? ` <span style="color:var(--accent)">(lés des bords réduits pour équilibrer)</span>` : ''}${_lesMode === 'egalise' && n > 1 ? ` <span style="color:var(--accent)">(lés égalisés)</span>` : ''}` : ''}</div>
   <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
-    <span>Raccord <input type="number" value="${RECOUVREMENT}" min="0" max="10" step="0.5" onchange="changerMarge(this.value)" ${inputStyle}> cm</span>
-    <span title="Bords du rouleau non imprimables, découpés après impression">Marge impression <input type="number" value="${MARGE_IMP}" min="0" max="5" step="0.25" onchange="changerMargeImp(this.value)" ${inputStyle}> cm/côté</span>
-    <span title="L'image est imprimée plus grande que le format fini, l'excédent est coupé au cutter après la pose">Débord pose <input type="number" value="${DEBORD}" min="0" max="10" step="0.5" onchange="changerDebord(this.value)" ${inputStyle}> cm/côté</span>
-    <button class="btn-stock" onclick="optimiserLes()" style="font-size:11px;padding:5px 12px;margin:0;" title="Teste toutes les laizes disponibles de l'adhésif recommandé (et les raccords 1-3 cm) pour jeter le moins de matière possible — lés verticaux uniquement">💡 Optimiser la matière</button>
+    <span>Raccord <input type="number" value="${RECOUVREMENT}" min="0" max="100" step="5" onchange="changerMarge(this.value)" ${inputStyle}> mm</span>
+    <span title="Bords du rouleau non imprimables, découpés après impression">Marge impression <input type="number" value="${MARGE_IMP}" min="0" max="50" step="1" onchange="changerMargeImp(this.value)" ${inputStyle}> mm/côté</span>
+    <span title="L'image est imprimée plus grande que le format fini, l'excédent est coupé au cutter après la pose">Débord pose <input type="number" value="${DEBORD}" min="0" max="100" step="5" onchange="changerDebord(this.value)" ${inputStyle}> mm/côté</span>
+    <button class="btn-stock" onclick="optimiserLes()" style="font-size:11px;padding:5px 12px;margin:0;" title="Teste toutes les laizes disponibles de l'adhésif recommandé (et les raccords 10-30 mm) pour jeter le moins de matière possible — lés verticaux uniquement">💡 Optimiser la matière</button>
     ${n > 1 ? `<button class="btn-stock" onclick="egaliserLes()" style="font-size:11px;padding:5px 12px;margin:0;" title="Tous les lés à largeur égale au lieu de deux bords plus petits">≡ Égaliser les lés</button>` : ''}
     <button class="btn-stock" onclick="resetMarges()" style="font-size:11px;padding:5px 12px;margin:0;color:var(--muted);" title="Revenir aux valeurs par défaut des réglages (annule l'optimisation et l'égalisation)">↺ Par défaut</button>
   </div>
@@ -1545,23 +1545,23 @@ function _rebuildLes() {
 function changerMarge(v) {
   let m = parseFloat(String(v).replace(',', '.'));
   if (isNaN(m) || m < 0) m = 0;
-  if (m > 10) m = 10;
+  if (m > 100) m = 100;
   const c = window._lesCtx;
-  if (c && m >= c.laize - 2 * _lesMargeImp) m = Math.max(0, c.laize - 2 * _lesMargeImp - 1);
+  if (c && m >= c.laize - 2 * _lesMargeImp) m = Math.max(0, c.laize - 2 * _lesMargeImp - 10);
   _lesRecouvrement = m;
   _rebuildLes();
 }
 function changerMargeImp(v) {
   let m = parseFloat(String(v).replace(',', '.'));
   if (isNaN(m) || m < 0) m = 0;
-  if (m > 5) m = 5;
+  if (m > 50) m = 50;
   _lesMargeImp = m;
   _rebuildLes();
 }
 function changerDebord(v) {
   let m = parseFloat(String(v).replace(',', '.'));
   if (isNaN(m) || m < 0) m = 0;
-  if (m > 10) m = 10;
+  if (m > 100) m = 100;
   _lesDebord = m;
   _rebuildLes();
 }
@@ -1574,9 +1574,9 @@ function egaliserLes() {
 
 // Retour aux valeurs par défaut des réglages — annule optimisation (y compris laize), égalisation et sens forcé
 function resetMarges() {
-  _lesRecouvrement = Number(userSettings.marge_raccord) >= 0 ? Number(userSettings.marge_raccord) : 1;
-  _lesMargeImp = Number(userSettings.marge_impression) >= 0 ? Number(userSettings.marge_impression) : 0.5;
-  _lesDebord = Number(userSettings.debord_pose) >= 0 ? Number(userSettings.debord_pose) : 2;
+  _lesRecouvrement = Number(userSettings.marge_raccord_mm) >= 0 ? Number(userSettings.marge_raccord_mm) : 10;
+  _lesMargeImp = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
+  _lesDebord = Number(userSettings.debord_pose_mm) >= 0 ? Number(userSettings.debord_pose_mm) : 20;
   _lesSens = null;
   _lesMode = null;
   if (window._lesCtx && window._lesCtx.laizeOrig) window._lesCtx.laize = window._lesCtx.laizeOrig;
@@ -1596,15 +1596,15 @@ function optimiserLes() {
   const utile = totale * longueur; // surface réellement couverte par le visuel (+ débord)
   let best = null;
   for (const L of laizes) {
-    const laizeU = L - 2 * _lesMargeImp; // laize imprimable
+    const laizeU = L - 2 * _lesMargeImp; // laize imprimable (mm)
     if (laizeU <= 1) continue;
-    for (let r = 1; r <= 3.001; r += 0.5) {
+    for (let r = 10; r <= 30.001; r += 5) { // raccord 10 à 30 mm
       if (r >= laizeU) break;
       const n = totale <= laizeU ? 1 : Math.ceil((totale - r) / (laizeU - r));
-      const matiere = n * L * longueur; // cm² de rouleau consommés (laize pleine × longueur de chaque lé)
+      const matiere = n * L * longueur; // mm² de rouleau consommés (laize pleine × longueur de chaque lé)
       // À matière égale : raccord le plus généreux (pose plus sûre), puis le moins de lés
-      if (!best || matiere < best.matiere - 0.01 ||
-          (Math.abs(matiere - best.matiere) <= 0.01 && (r > best.r || (r === best.r && n < best.n)))) {
+      if (!best || matiere < best.matiere - 1 ||
+          (Math.abs(matiere - best.matiere) <= 1 && (r > best.r || (r === best.r && n < best.n)))) {
         best = { L, r, n, matiere };
       }
     }
@@ -1617,8 +1617,8 @@ function optimiserLes() {
   const note = document.getElementById('les-optim-note');
   if (note) {
     const chutes = best.matiere - utile;
-    const laizeTxt = best.L !== c.laizeOrig ? `laize ${Math.round(best.L * 10)} mm (au lieu de ${Math.round(c.laizeOrig * 10)} mm)` : `laize ${Math.round(best.L * 10)} mm`;
-    note.textContent = `💡 Optimisé : ${laizeTxt} — ${best.n} lé${best.n > 1 ? 's' : ''} verticaux, raccord ${best.r} cm — ${(best.matiere / 10000).toFixed(2)} m² consommés dont ~${(Math.max(0, chutes) / 10000).toFixed(2)} m² de chutes`;
+    const laizeTxt = best.L !== c.laizeOrig ? `laize ${Math.round(best.L)} mm (au lieu de ${Math.round(c.laizeOrig)} mm)` : `laize ${Math.round(best.L)} mm`;
+    note.textContent = `💡 Optimisé : ${laizeTxt} — ${best.n} lé${best.n > 1 ? 's' : ''} verticaux, raccord ${best.r} mm — ${(best.matiere / 1e6).toFixed(2)} m² consommés dont ~${(Math.max(0, chutes) / 1e6).toFixed(2)} m² de chutes`;
   }
 }
 
@@ -1632,16 +1632,16 @@ async function exporterLes() {
     const img = new Image();
     await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = `data:${p.previewType};base64,${p.previewB64}`; });
     // L'image = format fini ; le débord est une marge blanche autour (coupée au cutter à la pose)
-    const pxX = img.naturalWidth / p.largeur;   // pixels par cm en largeur
-    const pxY = img.naturalHeight / p.hauteur;  // pixels par cm en hauteur
+    const pxX = img.naturalWidth / p.largeur;   // pixels par mm en largeur
+    const pxY = img.naturalHeight / p.hauteur;  // pixels par mm en hauteur
     const d = p.debord || 0;
-    let start = 0; // position du lé en cm sur le format imprimé (débord inclus)
+    let start = 0; // position du lé en mm sur le format imprimé (débord inclus)
     for (let k = 0; k < p.segs.length; k++) {
-      const widthCm = Math.min(p.segs[k], p.totale - start);
+      const widthMm = Math.min(p.segs[k], p.totale - start);
       const canvas = document.createElement('canvas');
       const ctx2 = (() => {
-        if (p.vert) { canvas.width = Math.round(widthCm * pxX); canvas.height = Math.round((p.hauteur + 2 * d) * pxY); }
-        else { canvas.width = Math.round((p.largeur + 2 * d) * pxX); canvas.height = Math.round(widthCm * pxY); }
+        if (p.vert) { canvas.width = Math.round(widthMm * pxX); canvas.height = Math.round((p.hauteur + 2 * d) * pxY); }
+        else { canvas.width = Math.round((p.largeur + 2 * d) * pxX); canvas.height = Math.round(widthMm * pxY); }
         const c2 = canvas.getContext('2d');
         c2.fillStyle = '#ffffff';
         c2.fillRect(0, 0, canvas.width, canvas.height);
@@ -1649,7 +1649,7 @@ async function exporterLes() {
       })();
       // Partie de l'image visible sur ce lé : l'image occupe [débord, débord+dimension] sur l'axe découpé
       const ovStart = Math.max(start, d);
-      const ovEnd = Math.min(start + widthCm, d + (p.vert ? p.largeur : p.hauteur));
+      const ovEnd = Math.min(start + widthMm, d + (p.vert ? p.largeur : p.hauteur));
       if (ovEnd > ovStart) {
         if (p.vert) {
           const srcX = (ovStart - d) * pxX, srcW = (ovEnd - ovStart) * pxX;
@@ -1662,7 +1662,7 @@ async function exporterLes() {
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthCm * 10)}mm.png`;
+      a.download = `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthMm)}mm.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       await new Promise(r => setTimeout(r, 400)); // laisser le navigateur enchaîner les téléchargements
@@ -1697,25 +1697,25 @@ function renderResult(r, previewB64, previewType, analyseId) {
   // Visuel montage : plan de lés
   let montageHTML = '';
   // Marges par défaut du compte (réglables dans Réglages, ajustables sous le plan)
-  _lesRecouvrement = Number(userSettings.marge_raccord) >= 0 ? Number(userSettings.marge_raccord) : 1;
-  _lesMargeImp = Number(userSettings.marge_impression) >= 0 ? Number(userSettings.marge_impression) : 0.5;
-  _lesDebord = Number(userSettings.debord_pose) >= 0 ? Number(userSettings.debord_pose) : 2;
+  _lesRecouvrement = Number(userSettings.marge_raccord_mm) >= 0 ? Number(userSettings.marge_raccord_mm) : 10;
+  _lesMargeImp = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
+  _lesDebord = Number(userSettings.debord_pose_mm) >= 0 ? Number(userSettings.debord_pose_mm) : 20;
   _lesSens = null;
   _lesMode = null;
   window._lesCtx = null; // nouveau plan = nouveau contexte (laizeOrig réinitialisée)
   const m = r.montage;
   if (m) {
     let lesHTML = '';
-    const largeur = parseFloat(m.largeur_cm) || 0;
-    const hauteur = parseFloat(m.hauteur_cm) || 0;
-    let laize = parseFloat(m.laize_cm) || 0;
-    if (laize > 400) laize = laize / 10; // l'IA a parfois répondu en mm au lieu de cm
+    // Tout en MILLIMÈTRES. Dimensions client = cm renvoyés par l'IA → ×10. Laize = normalisée en mm.
+    const largeur = (parseFloat(m.largeur_cm) || 0) * 10;
+    const hauteur = (parseFloat(m.hauteur_cm) || 0) * 10;
+    let laize = m.laize_cm ? normMm(parseFloat(m.laize_cm)) : 0;
     // Laizes disponibles de l'adhésif recommandé (pour l'optimiseur multi-laizes) + fallback laize
     let laizesDispo = [];
     if ((r.adhesifs || []).length && typeof stock !== 'undefined') {
       for (const a of r.adhesifs) {
         const it = stock.find(s => s.nom === a.nom);
-        const ls = [...(it?.largeurs || []).map(Number), ...(it?.variantes || []).map(v => Number(v.largeur))].filter(v => v > 0).map(v => v > 400 ? v / 10 : v);
+        const ls = [...(it?.largeurs || []).map(Number), ...(it?.variantes || []).map(v => Number(v.largeur))].filter(v => v > 0).map(normMm);
         laizesDispo.push(...ls);
       }
     }
@@ -1731,8 +1731,8 @@ function renderResult(r, previewB64, previewType, analyseId) {
       const img = new Image();
       img.onload = () => {
         const ratio = img.naturalWidth / img.naturalHeight;
-        const L = largeur || Math.round(hauteur * ratio * 10) / 10;
-        const H = hauteur || Math.round(largeur / ratio * 10) / 10;
+        const L = largeur || Math.round(hauteur * ratio);
+        const H = hauteur || Math.round(largeur / ratio);
         const el = document.getElementById('les-async');
         if (el) el.outerHTML = buildLesHTML(L, H, laize, m.sens_les, previewB64, previewType, largeur ? 'hauteur' : 'largeur');
       };
@@ -1966,7 +1966,7 @@ function stopPolling() {
         const profile = await res.json();
         userPlan = profile.plan || 'free';
         userPlanPeriod = profile.plan_period || 'monthly';
-        if (profile.settings) try { userSettings = { marge_raccord: 1, marge_impression: 0.5, debord_pose: 2, ...JSON.parse(profile.settings) }; } catch {}
+        if (profile.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(profile.settings) }; } catch {}
         await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
         return;
       }
@@ -2108,7 +2108,7 @@ function addCustomLargeur() {
   const label = document.createElement('label');
   label.className = 'cb-item cb-item-custom';
   label.dataset.customVal = strVal;
-  label.innerHTML = `<input type="checkbox" name="largeur" value="${strVal}" checked> ${strVal} cm <span onclick="removeCustomLargeur('${strVal}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
+  label.innerHTML = `<input type="checkbox" name="largeur" value="${strVal}" checked> ${strVal} mm <span onclick="removeCustomLargeur('${strVal}')" style="margin-left:4px;color:var(--danger);cursor:pointer;font-size:11px;" title="Retirer">✕</span>`;
   group.appendChild(label);
   input.value = '';
 }
