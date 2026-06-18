@@ -398,7 +398,7 @@ router.post('/analyse', async (req, res) => {
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
 
-  const CAT_LABELS = { imprimable:'Imprimable', liner:'Liner', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
+  const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
   const stockDesc = Object.keys(CAT_LABELS).map(cat => {
     const items = stockDispo.filter(i => i.cat === cat);
     if (!items.length) return '';
@@ -420,7 +420,7 @@ router.post('/analyse', async (req, res) => {
 
 DÉFINITIONS IMPORTANTES — respecte-les strictement :
 - "Imprimable" : adhésif vinyl blanc ou transparent destiné à être imprimé directement (impression numérique, décoration, signalétique).
-- "Liner" : film transparent servant UNIQUEMENT à protéger/contreplaquer un visuel déjà imprimé. Ne s'imprime PAS. Recommande-le UNIQUEMENT si le client demande explicitement une protection/lamination.
+- "Plastification" : film/rouleau adhésif transparent appliqué PAR-DESSUS une impression terminée pour la protéger (laminage : anti-UV, anti-rayures, anti-humidité). Ne s'imprime PAS. Recommande-le quand le visuel imprimé a besoin d'être protégé (extérieur, sol, passage, manipulation).
 - "Couleur DAO" : vinyl uni coloré non imprimable, pour découpe et lettrage.
 - "Transfert" : papier ou film transfert pour flocage, sérigraphie ou thermocollant.
 - "Covering" : film covering/wrapping pour véhicules, repositionnable, haute résistance.

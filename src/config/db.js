@@ -26,7 +26,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS stock (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    cat TEXT NOT NULL CHECK(cat IN ('imprimable','liner','dao','transfert','covering','vitre','panneau','encre')),
+    cat TEXT NOT NULL CHECK(cat IN ('imprimable','plastification','dao','transfert','covering','vitre','panneau','encre')),
     nom TEXT NOT NULL,
     finition TEXT NOT NULL,
     adherence TEXT NOT NULL,
@@ -146,6 +146,44 @@ try {
   }
 } catch (e) {
   console.error('Migration stock error:', e.message);
+}
+
+// Migration : renommer la catégorie 'liner' en 'plastification' (clé + données)
+try {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();
+  if (row && row.sql && !row.sql.includes("'plastification'")) {
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE stock_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        cat TEXT NOT NULL CHECK(cat IN ('imprimable','plastification','dao','transfert','covering','vitre','panneau','encre')),
+        nom TEXT NOT NULL,
+        finition TEXT NOT NULL,
+        adherence TEXT NOT NULL,
+        env TEXT NOT NULL,
+        duree TEXT NOT NULL,
+        resistances TEXT DEFAULT '[]',
+        applications TEXT DEFAULT '[]',
+        largeurs TEXT DEFAULT '[]',
+        couleurs TEXT DEFAULT '[]',
+        variantes TEXT DEFAULT '[]',
+        prix_m2 REAL,
+        note TEXT DEFAULT '',
+        dispo INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO stock_new SELECT id,user_id,
+        CASE WHEN cat='liner' THEN 'plastification' ELSE cat END,
+        nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo,created_at FROM stock;
+      DROP TABLE stock;
+      ALTER TABLE stock_new RENAME TO stock;
+    `);
+    db.pragma('foreign_keys = ON');
+    console.log('Migration stock: liner → plastification');
+  }
+} catch (e) {
+  console.error('Migration plastification error:', e.message);
 }
 
 module.exports = db;

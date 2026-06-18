@@ -18,7 +18,7 @@
   --muted: #7a7d70;
   --danger: #f06060;
   --cat-print: #4af0c8;
-  --cat-liner: #f0c84a;
+  --cat-plastification: #f0c84a;
   --cat-dao: #c84af0;
   --cat-transfert: #f06a4a;
   --cat-encre: #b06af0;
@@ -474,7 +474,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="stock-panel-body">
       <div class="cat-tabs-bar">
         <button class="cat-tab active" id="tab-imprimable" onclick="switchTab('imprimable')"><span class="cat-tab-dot" style="background:var(--cat-print)"></span>Imprimable<span class="cat-tab-count" id="count-imprimable">0</span></button>
-        <button class="cat-tab" id="tab-liner" onclick="switchTab('liner')"><span class="cat-tab-dot" style="background:var(--cat-liner)"></span>Liner<span class="cat-tab-count" id="count-liner">0</span></button>
+        <button class="cat-tab" id="tab-plastification" onclick="switchTab('plastification')"><span class="cat-tab-dot" style="background:var(--cat-plastification)"></span>Plastification<span class="cat-tab-count" id="count-plastification">0</span></button>
         <button class="cat-tab" id="tab-dao" onclick="switchTab('dao')"><span class="cat-tab-dot" style="background:var(--cat-dao)"></span>Couleur DAO<span class="cat-tab-count" id="count-dao">0</span></button>
         <button class="cat-tab" id="tab-transfert" onclick="switchTab('transfert')"><span class="cat-tab-dot" style="background:var(--cat-transfert)"></span>Transfert<span class="cat-tab-count" id="count-transfert">0</span></button>
         <button class="cat-tab" id="tab-covering" onclick="switchTab('covering')"><span class="cat-tab-dot" style="background:var(--cat-covering)"></span>Covering<span class="cat-tab-count" id="count-covering">0</span></button>
@@ -483,7 +483,7 @@ textarea:focus { border-color: var(--accent); }
         <button class="cat-tab" id="tab-encre" onclick="switchTab('encre')"><span class="cat-tab-dot" style="background:var(--cat-encre)"></span>Encre<span class="cat-tab-count" id="count-encre">0</span></button>
       </div>
       <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-liner" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('liner',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-liner"><div class="empty-cat">Aucune référence</div></div></div>
+      <div class="cat-panel" id="panel-plastification" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('plastification',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-plastification"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-dao" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('dao',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-dao"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-transfert" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('transfert',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-transfert"><div class="empty-cat">Aucune référence</div></div></div>
       <div class="cat-panel" id="panel-covering" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('covering',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-covering"><div class="empty-cat">Aucune référence</div></div></div>
@@ -498,7 +498,7 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">Nouvelle référence</h3>
-    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="liner">Liner</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option><option value="encre">Encre d'impression</option></select></div>
+    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="plastification">Plastification</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option><option value="encre">Encre d'impression</option></select></div>
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
     <div class="form-group" id="fg-finition"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
     <div class="form-group" id="fg-adherence"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
@@ -507,7 +507,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group" id="fg-resist"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
     <div class="form-group" id="fg-appli"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
     <div class="form-group" id="fg-variantes"><label>Variantes (couleur + laize)</label>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Une ligne par combinaison réelle en stock. Laisse la couleur vide pour un imprimable/liner.</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Une ligne par combinaison réelle en stock. Laisse la couleur vide pour un imprimable/plastification.</div>
       <div id="variantes-rows"></div>
       <button type="button" onclick="addVarianteRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter une variante</button>
       <datalist id="couleurs-list"><option value="Blanc"><option value="Noir"><option value="Gris"><option value="Rouge"><option value="Bleu"><option value="Vert"><option value="Jaune"><option value="Orange"><option value="Violet"><option value="Rose"><option value="Marron"><option value="Beige"><option value="Argent"><option value="Or"><option value="Transparent"></datalist>
@@ -1053,7 +1053,7 @@ function closeStock() { document.getElementById('stock-overlay').classList.remov
 function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
 
 let currentTab = 'imprimable';
-const ALL_CATS = ['imprimable','liner','dao','transfert','covering','vitre','panneau','encre'];
+const ALL_CATS = ['imprimable','plastification','dao','transfert','covering','vitre','panneau','encre'];
 function switchTab(cat) {
   currentTab = cat;
   ALL_CATS.forEach(c => {

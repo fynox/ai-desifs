@@ -50,13 +50,13 @@ const EXTRACT_PROMPT = `Analyse ces pages de catalogue d'adhésifs et extrais TO
 
 RÈGLES STRICTES :
 1. "largeurs" = tableau JSON de NOMBRES entiers en cm. Ex: [61,106,137]. JAMAIS du texte dans ce champ. Si non spécifié: [].
-2. "couleurs" = tableau JSON de chaînes de couleurs. Ex: ["Blanc","Noir","Rouge","Bleu clair"]. JAMAIS du texte dans "note". Si imprimable/liner: [].
+2. "couleurs" = tableau JSON de chaînes de couleurs. Ex: ["Blanc","Noir","Rouge","Bleu clair"]. JAMAIS du texte dans "note". Si imprimable/plastification: [].
 3. "note" = UNE phrase max sur une caractéristique technique non couverte par les autres champs. "" si rien d'utile.
 4. Ne mets JAMAIS les couleurs ou largeurs dans "note".
 5. "variantes" = tableau JSON de paires EXACTES couleur+laize si le catalogue précise quelle couleur existe en quelle laize (ex: [{"couleur":"Rouge","largeur":152},{"couleur":"Bleu","largeur":126}]). Si le catalogue ne fait pas cette distinction (toutes les couleurs dans toutes les laizes), mets [].
 
 Champs pour chaque produit :
-- cat: "imprimable"|"liner"|"dao"|"transfert"|"covering"|"vitre"|"panneau"
+- cat: "imprimable"|"plastification"|"dao"|"transfert"|"covering"|"vitre"|"panneau"
 - nom: nom commercial exact
 - finition: "Brillant"|"Mat"|"Satiné"|"Transparent"|"Autre"
 - adherence: "Permanente"|"Repositionnable"|"Extra-forte"|"Standard"|"Amovible"
@@ -186,7 +186,7 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const produits = allProduits;
 
-    const CATS = ['imprimable', 'liner', 'dao', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
+    const CATS = ['imprimable', 'plastification', 'dao', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
     const added = [];
     const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)');
 
