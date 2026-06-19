@@ -152,12 +152,13 @@ Réponds UNIQUEMENT en JSON valide :
       }
     }
 
-    // Tous les visuels (chaque fichier image + chaque page de PDF) — jusqu'à 6
+    // Tous les visuels (chaque fichier image + chaque page de PDF) — jusqu'à 6, normalisés (max 8000 px pour Claude)
+    const { normVisual } = require('../utils/image');
     const visuels = [];
-    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype });
+    for (const img of imageFiles) visuels.push(await normVisual(img.buffer, img.mimetype));
     for (const pdf of pdfFiles) {
       const pages = await pdfToImages(pdf.buffer);
-      for (const p of pages) visuels.push({ b64: p.data, type: 'image/png' });
+      for (const p of pages) visuels.push(await normVisual(Buffer.from(p.data, 'base64'), 'image/png'));
     }
     const allVisuels = visuels.slice(0, 6);
 

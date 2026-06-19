@@ -447,8 +447,12 @@ Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal"}}`;
 
   const userContent = [{ type: 'text', text: `Mail client :\n${mail_content}${consignes ? `\n\nConsignes : ${consignes}` : ''}` }];
+  // Visuel normalisé (max 8000 px pour l'API Claude)
+  let normVis = null;
   if (file_base64 && file_type && file_type.startsWith('image/')) {
-    userContent.push({ type: 'image', source: { type: 'base64', media_type: file_type, data: file_base64 } });
+    const { normVisual } = require('../utils/image');
+    normVis = await normVisual(Buffer.from(file_base64, 'base64'), file_type);
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: normVis.type, data: normVis.b64 } });
   }
 
   let claudeRes;
@@ -488,11 +492,11 @@ Réponds UNIQUEMENT en JSON valide :
     db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
   }
 
-  // Stocker le visuel
+  // Stocker le visuel (version normalisée pour les images)
   let visuel_b64 = null, visuel_type = null;
   if (file_base64 && file_type) {
     if (file_type.startsWith('image/')) {
-      visuel_b64 = file_base64; visuel_type = file_type;
+      visuel_b64 = normVis ? normVis.b64 : file_base64; visuel_type = normVis ? normVis.type : file_type;
     } else if (file_type === 'application/pdf') {
       const buf = Buffer.from(file_base64, 'base64');
       visuel_b64 = await pdfFirstPage(buf); visuel_type = visuel_b64 ? 'image/png' : null;
