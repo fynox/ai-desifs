@@ -1560,6 +1560,45 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}</div>`;
 }
 
+// Génère le plan de lés à partir des dimensions saisies manuellement
+function afficherLesManuel() {
+  const c = window._lesManuelCtx;
+  if (!c) return;
+  let L = parseFloat(document.getElementById('les-man-l').value) || 0;
+  let H = parseFloat(document.getElementById('les-man-h').value) || 0;
+  let laize = c.laize;
+  const laizeEl = document.getElementById('les-man-laize');
+  if (laizeEl) laize = normMm(parseFloat(laizeEl.value) || 0);
+  if (!laize) { alert('Renseigne la laize du rouleau (mm).'); return; }
+  if (!L && !H) { alert('Renseigne au moins une dimension (mm).'); return; }
+  if (L && H) {
+    _injectLesManuel(buildLesHTML(L, H, laize, c.sensLes, c.previewB64, c.previewType, false));
+  } else if (c.isImg) {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.naturalWidth / img.naturalHeight;
+      const lw = L || Math.round(H * ratio);
+      const hh = H || Math.round(L / ratio);
+      _injectLesManuel(buildLesHTML(lw, hh, laize, c.sensLes, c.previewB64, c.previewType, L ? 'hauteur' : 'largeur'));
+    };
+    img.onerror = () => alert('Impossible de lire les proportions du fichier — renseigne les deux dimensions.');
+    img.src = `data:${c.previewType};base64,${c.previewB64}`;
+  } else {
+    alert('Renseigne les deux dimensions (pas de fichier pour déduire l\'autre).');
+  }
+}
+function _injectLesManuel(html) {
+  // Remplace le formulaire de saisie manuelle (dans la section Plan de lés) par le plan généré
+  const sections = document.querySelectorAll('#output-panel .result-section');
+  for (const s of sections) {
+    if (s.querySelector('#les-man-l') || s.querySelector('#les-wrap')) {
+      const label = s.querySelector('.rs-label');
+      s.innerHTML = (label ? label.outerHTML : '<div class="rs-label">Plan de lés / impression</div>') + html;
+      return;
+    }
+  }
+}
+
 function _rebuildLes() {
   const c = window._lesCtx;
   const el = document.getElementById('les-wrap');
@@ -1714,11 +1753,16 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
-      // Galerie si plusieurs fichiers joints au mail (le 1er sert au plan de lés / upscale / DPI)
-      const galleryHTML = (Array.isArray(visuels) && visuels.length > 1)
-        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${visuels.map((v, i) => `<img src="data:${v.type};base64,${v.b64}" style="width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid ${i === 0 ? 'var(--accent)' : 'var(--border)'};cursor:zoom-in;background:#111;" title="${i === 0 ? 'Visuel principal' : 'Fichier ' + (i + 1)} — cliquer pour agrandir" onclick="zoomVisuel(this.src)">`).join('')}</div><div style="font-size:10px;color:var(--muted);margin-top:4px;">${visuels.length} fichiers joints — le plan de lés concerne le visuel principal (encadré).</div>`
-        : '';
-      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${galleryHTML}${visuelBtns}</div>`;
+      if (Array.isArray(visuels) && visuels.length > 1) {
+        // Plusieurs fichiers : tous à taille égale, pas de doublon agrandi (le 1er = visuel du plan de lés)
+        const grid = visuels.map((v, i) => `<div style="flex:1;min-width:120px;max-width:200px;text-align:center;">
+            <img src="data:${v.type};base64,${v.b64}" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid ${i === 0 ? 'var(--accent)' : 'var(--border)'};background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">
+            <div style="font-size:10px;color:${i === 0 ? 'var(--accent)' : 'var(--muted)'};margin-top:4px;">Lé ${i + 1}${i === 0 ? ' (plan de lés)' : ''}</div>
+          </div>`).join('');
+        previewHTML = `<div class="result-section"><div class="rs-label">Aperçu des ${visuels.length} fichiers</div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${visuelBtns}</div>`;
+      } else {
+        previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${visuelBtns}</div>`;
+      }
     } else if (previewType === 'application/pdf') {
       previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
     }
@@ -1771,11 +1815,19 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       };
       img.src = `data:${previewType};base64,${previewB64}`;
     } else {
-      const manques = [];
-      if (!largeur && !hauteur) manques.push('dimensions du visuel non précisées par le client');
-      else if (!isImg) manques.push('une seule dimension connue et pas de fichier visuel pour déduire l\'autre');
-      if (!laize) manques.push('aucune largeur de rouleau (laize) renseignée sur l\'adhésif dans le stock');
-      lesHTML = `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;">⚠ Plan de lés indisponible : ${manques.join(' · ')}.</div>`;
+      // Dimensions manquantes (ex: client dit "échelle 1" sans chiffres) → saisie manuelle par l'imprimeur
+      window._lesManuelCtx = { laize, previewB64, previewType, sensLes: m.sens_les, isImg };
+      const inp = `background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:5px 8px;width:90px;text-align:center;`;
+      lesHTML = `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:12px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;">
+        <div style="margin-bottom:8px;">📐 Dimensions non chiffrées par le client — saisis la taille finale réelle (échelle 1) pour générer le plan de lés :</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          Largeur <input type="number" id="les-man-l" min="1" placeholder="mm" style="${inp}"> mm
+          × Hauteur <input type="number" id="les-man-h" min="1" placeholder="mm" style="${inp}"> mm
+          ${!laize ? `Laize <input type="number" id="les-man-laize" min="1" placeholder="mm" style="${inp}"> mm` : ''}
+          <button class="btn-stock" onclick="afficherLesManuel()" style="font-size:11px;padding:6px 14px;margin:0;">Afficher le plan</button>
+        </div>
+        ${isImg ? `<div style="font-size:10px;margin-top:6px;color:var(--muted);">Astuce : remplis une seule dimension, l'autre sera déduite des proportions du fichier.</div>` : ''}
+      </div>`;
     }
     montageHTML = `<div class="result-section"><div class="rs-label">Plan de lés / impression</div>${lesHTML}</div>`;
   }
