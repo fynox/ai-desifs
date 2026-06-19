@@ -103,6 +103,8 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN visuel_orig_type TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_hd_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN visuel_hd_type TEXT',
+  'ALTER TABLE analyses ADD COLUMN visuels_json TEXT',
+  'ALTER TABLE analyses ADD COLUMN error_msg TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

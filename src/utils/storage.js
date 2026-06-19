@@ -13,7 +13,7 @@ const STORAGE_QUOTAS = {
 function getStorage(userId) {
   const row = db.prepare(`
     SELECT COALESCE(SUM(
-      COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0)
+      COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0) + COALESCE(LENGTH(visuels_json),0)
     ),0) as b64len
     FROM analyses WHERE user_id = ?
   `).get(userId);

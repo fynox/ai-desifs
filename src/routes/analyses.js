@@ -35,35 +35,44 @@ router.get('/', (req, res) => {
   db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(req.user.id);
   // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
   const rows = db.prepare(`
-    SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, devis_json, visuel_type,
+    SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       (visuel_b64 IS NOT NULL) as has_visuel,
       (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
       (visuel_hd_b64 IS NOT NULL) as has_hd,
-      (COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0)) as taille_b64
+      visuels_json,
+      (COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0) + COALESCE(LENGTH(visuels_json),0)) as taille_b64
     FROM analyses WHERE user_id = ? ORDER BY created_at DESC
   `).all(req.user.id);
   res.json(rows.map(r => {
     const isPending = r.status === 'pending';
+    const isFailed = r.status === 'failed';
+    let nbVisuels = 1;
+    if (r.visuels_json) { try { nbVisuels = JSON.parse(r.visuels_json).length; } catch {} }
     return {
       ...r,
-      result: isPending ? null : JSON.parse(r.result_json),
+      visuels_json: undefined,
+      result: (isPending || isFailed) ? null : JSON.parse(r.result_json),
       lu: Boolean(r.lu),
       visuel_b64: null, // chargé à la demande
       has_visuel: Boolean(r.has_visuel),
+      nb_visuels: nbVisuels,
       devis: r.devis_json ? JSON.parse(r.devis_json) : null,
       has_orig: Boolean(r.has_orig),
       has_hd: Boolean(r.has_hd),
       taille_octets: Math.round(r.taille_b64 * 0.75),
       _pending: isPending,
+      _failed: isFailed,
     };
   }));
 });
 
-// Visuel d'une analyse (chargé à la demande pour ne pas alourdir l'historique)
+// Visuel(s) d'une analyse (chargé à la demande pour ne pas alourdir l'historique)
 router.get('/:id/visuel', (req, res) => {
-  const item = db.prepare('SELECT visuel_b64, visuel_type FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  const item = db.prepare('SELECT visuel_b64, visuel_type, visuels_json FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
-  res.json({ visuel_b64: item.visuel_b64 || null, visuel_type: item.visuel_type || null });
+  let visuels = null;
+  if (item.visuels_json) { try { visuels = JSON.parse(item.visuels_json); } catch {} }
+  res.json({ visuel_b64: item.visuel_b64 || null, visuel_type: item.visuel_type || null, visuels });
 });
 
 // Espace de stockage occupé / quota du compte

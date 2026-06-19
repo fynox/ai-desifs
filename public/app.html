@@ -1305,13 +1305,25 @@ function renderSidebarHisto() {
           </div>
         </div>`;
       }
-      const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
       const date = new Date(h.created_at).toLocaleString('fr-FR');
+      if (h._failed) {
+        return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
+          <div class="histo-item-row">
+            <div style="width:7px;flex-shrink:0;color:var(--danger);font-size:9px;">⚠</div>
+            <div class="histo-item-text">
+              <div class="histo-item-title" style="color:var(--danger)">Analyse échouée</div>
+              <div class="histo-item-sub">${date}</div>
+            </div>
+          </div>
+          <button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>
+        </div>`;
+      }
+      const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
-            <div class="histo-item-title">${titre}</div>
+            <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:9px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
             <div class="histo-item-sub">${date}</div>
           </div>
         </div>
@@ -1331,15 +1343,28 @@ async function openHisto(id) {
   document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
   renderSidebarHisto();
   setTimeout(() => { const el = document.getElementById('histo-' + id); if (el) el.classList.add('selected'); }, 10);
-  // Visuel chargé à la demande (l'historique arrive sans les images pour rester rapide)
+  // Analyse échouée → afficher l'erreur (avec le mail, pour réessayer)
+  if (item._failed) {
+    const panel = document.getElementById('output-panel');
+    panel.innerHTML = `<div class="result-block">
+      <div class="result-top"><h2>Analyse échouée</h2><span class="result-badge" style="background:var(--danger);color:#fff;">✕ Échec</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      <div class="result-section"><div class="alert-result">⚠ ${item.error_msg || 'L\'analyse n\'a pas abouti.'}</div></div>
+      <div class="result-section"><div class="rs-label">Mail reçu</div><div class="rs-text" style="white-space:pre-wrap;">${(item.mail_content||'').replace(/</g,'&lt;')}</div></div>
+      <div class="result-section"><div style="font-size:11px;color:var(--muted);">Renvoyez le mail au robot pour relancer l'analyse, ou supprimez cette ligne.</div></div>
+    </div>`;
+    panel.classList.add('open'); panel.scrollTop = 0;
+    return;
+  }
+  // Visuel(s) chargé(s) à la demande (l'historique arrive sans les images pour rester rapide)
   if (item.has_visuel && !item.visuel_b64) {
     try {
       const v = await api('GET', `/analyses/${id}/visuel`);
       item.visuel_b64 = v.visuel_b64;
       item.visuel_type = v.visuel_type;
+      item.visuels = v.visuels || null;
     } catch {}
   }
-  renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null, item.id);
+  renderResult(item.result, item.visuel_b64 || null, item.visuel_type || null, item.id, item.visuels);
 }
 
 function newAnalyse() {
@@ -1674,7 +1699,7 @@ async function exporterLes() {
   if (btn) { btn.disabled = false; btn.textContent = `⬇ Exporter les ${p.segs.length} lés (images séparées)`; }
 }
 
-function renderResult(r, previewB64, previewType, analyseId) {
+function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const adhesifsHTML = r.adhesifs.map(a => `<div class="adhesif-result-card" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')"><div class="adhesif-result-name">${a.nom} ${a.priorite==='principal'?'✦':''}</div><div class="adhesif-result-raison">${a.raison}</div><div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div></div>`).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
@@ -1689,7 +1714,11 @@ function renderResult(r, previewB64, previewType, analyseId) {
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
-      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${visuelBtns}</div>`;
+      // Galerie si plusieurs fichiers joints au mail (le 1er sert au plan de lés / upscale / DPI)
+      const galleryHTML = (Array.isArray(visuels) && visuels.length > 1)
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${visuels.map((v, i) => `<img src="data:${v.type};base64,${v.b64}" style="width:84px;height:84px;object-fit:cover;border-radius:6px;border:1px solid ${i === 0 ? 'var(--accent)' : 'var(--border)'};cursor:zoom-in;background:#111;" title="${i === 0 ? 'Visuel principal' : 'Fichier ' + (i + 1)} — cliquer pour agrandir" onclick="zoomVisuel(this.src)">`).join('')}</div><div style="font-size:10px;color:var(--muted);margin-top:4px;">${visuels.length} fichiers joints — le plan de lés concerne le visuel principal (encadré).</div>`
+        : '';
+      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${galleryHTML}${visuelBtns}</div>`;
     } else if (previewType === 'application/pdf') {
       previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
     }

@@ -35,6 +35,7 @@ async function pdfToImages(buffer) {
 router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
   res.sendStatus(200); // répondre vite à SendGrid
 
+  let pendingId = null;
   try {
     const to = req.body.to || '';
     const from = req.body.from || '';
@@ -77,7 +78,6 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     if (dup) return;
 
     // Insérer une analyse "pending" visible immédiatement (optionnel — ne bloque pas si colonne absente)
-    let pendingId = null;
     try {
       const pendingRow = db.prepare(
         'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, status) VALUES (?,?,?,?,?,?)'
@@ -124,18 +124,21 @@ MONTAGE : largeur_cm et hauteur_cm = dimensions EXPLICITEMENT données par le cl
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal"}}`;
 
+    // Échec visible : on garde l'analyse avec un message d'erreur au lieu de la supprimer
+    const failItem = (msg) => {
+      if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run(msg, pendingId);
+    };
+
     // Pièces jointes : images directes + PDFs convertis en PNG
-    const userContent = [{ type: 'text', text: mailContent }];
     const files = req.files || [];
     const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
     const pdfFiles = files.filter(f => f.mimetype === 'application/pdf' || f.originalname?.endsWith('.pdf'));
 
     // Fichiers joints via lien Google Drive : Gmail insère un LIEN, pas une pièce jointe.
-    // On télécharge le fichier nous-mêmes (fonctionne si le lien est partagé "tous les utilisateurs disposant du lien").
     if (!imageFiles.length && !pdfFiles.length) {
       const driveIds = [...new Set(
         [...`${text} ${req.body.html || ''}`.matchAll(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=)([\w-]{20,})/g)].map(mm => mm[1])
-      )].slice(0, 3);
+      )].slice(0, 6);
       for (const id of driveIds) {
         try {
           const r = await fetch(`https://drive.google.com/uc?export=download&id=${id}`, { redirect: 'follow' });
@@ -145,68 +148,67 @@ Réponds UNIQUEMENT en JSON valide :
           if (buf.length > 20 * 1024 * 1024) continue;
           if (ct.startsWith('image/')) imageFiles.push({ mimetype: ct, buffer: buf });
           else if (ct === 'application/pdf') pdfFiles.push({ mimetype: ct, buffer: buf, originalname: 'drive.pdf' });
-          // ct text/html = fichier privé (page de connexion Google) → ignoré
         } catch (e) { console.error('Drive fetch error:', e.message); }
       }
     }
 
-    for (const img of imageFiles.slice(0, 3)) {
-      userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mimetype, data: img.buffer.toString('base64') } });
-    }
-    for (const pdf of pdfFiles.slice(0, 2)) {
+    // Tous les visuels (chaque fichier image + chaque page de PDF) — jusqu'à 6
+    const visuels = [];
+    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype });
+    for (const pdf of pdfFiles) {
       const pages = await pdfToImages(pdf.buffer);
-      for (const p of pages.slice(0, 3)) {
-        userContent.push({ type: 'image', source: { type: 'base64', media_type: p.mimetype, data: p.data } });
-      }
+      for (const p of pages) visuels.push({ b64: p.data, type: 'image/png' });
+    }
+    const allVisuels = visuels.slice(0, 6);
+
+    const userContent = [{ type: 'text', text: allVisuels.length > 1
+      ? `${mailContent}\n\n[${allVisuels.length} fichiers/visuels joints à cette demande — analyse-les tous. S'il s'agit de plusieurs visuels distincts à imprimer, liste-les dans le résumé.]`
+      : mailContent }];
+    for (const v of allVisuels) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: v.type, data: v.b64 } });
     }
 
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    });
+    let claudeRes;
+    try {
+      claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt, messages: [{ role: 'user', content: userContent }] }),
+      });
+    } catch (e) { failItem('Impossible de joindre l\'API Anthropic.'); return; }
 
-    if (!claudeRes.ok) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
     const data = await claudeRes.json();
+    if (!claudeRes.ok) { failItem(data?.error?.message || `Erreur Anthropic ${claudeRes.status}`); return; }
     logUsage(user.id, 'analyse_email', 'claude-sonnet-4-6', data.usage);
     const raw = data.content?.map(i => i.text || '').join('') || '';
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    if (!jsonMatch) { failItem('Réponse IA illisible — réessayez.'); return; }
 
     let result;
-    try { result = JSON.parse(jsonMatch[0]); } catch { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
-    if (!result.adhesifs || !result.specs) { if (pendingId) db.prepare('DELETE FROM analyses WHERE id=?').run(pendingId); return; }
+    try { result = JSON.parse(jsonMatch[0]); } catch { failItem('JSON invalide dans la réponse IA (réponse tronquée ?).'); return; }
+    if (!result.adhesifs || !result.specs) { failItem('Structure de réponse incomplète.'); return; }
 
-    // Stocker la première image/page PDF comme aperçu visuel (sauf si le quota de stockage est plein)
-    let visuel_b64 = null, visuel_type = null;
+    // Stocker tous les visuels (sauf si le quota de stockage est plein)
+    let visuel_b64 = null, visuel_type = null, visuelsToStore = [];
     const storageFull = (() => { try { return require('../utils/storage').isStorageFull(user.id); } catch { return false; } })();
-    if (storageFull) {
-      // Pas de stockage du visuel — l'analyse texte est quand même créée
-    } else if (imageFiles.length) {
-      visuel_b64 = imageFiles[0].buffer.toString('base64'); visuel_type = imageFiles[0].mimetype;
-    } else if (pdfFiles.length) {
-      const pages = await pdfToImages(pdfFiles[0].buffer);
-      if (pages.length) { visuel_b64 = pages[0].data; visuel_type = 'image/png'; }
+    if (!storageFull && allVisuels.length) {
+      visuel_b64 = allVisuels[0].b64; visuel_type = allVisuels[0].type;
+      visuelsToStore = allVisuels;
     }
+    const visuelsJson = visuelsToStore.length > 1 ? JSON.stringify(visuelsToStore) : null;
 
     if (pendingId) {
-      // Mettre à jour l'analyse pending avec le vrai résultat
       db.prepare(
-        'UPDATE analyses SET result_json=?, status=?, visuel_b64=?, visuel_type=?, mail_content=? WHERE id=?'
-      ).run(JSON.stringify(result), 'done', visuel_b64, visuel_type, mailContent, pendingId);
+        "UPDATE analyses SET result_json=?, status='done', error_msg=NULL, visuel_b64=?, visuel_type=?, visuels_json=?, mail_content=? WHERE id=?"
+      ).run(JSON.stringify(result), visuel_b64, visuel_type, visuelsJson, mailContent, pendingId);
     } else {
-      // Fallback : INSERT direct sans pending
       db.prepare(
-        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type);
+        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type, visuels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson);
     }
   } catch (e) {
     console.error('Webhook inbound error:', e);
+    try { if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run('Erreur interne pendant l\'analyse.', pendingId); } catch {}
   }
 });
 
