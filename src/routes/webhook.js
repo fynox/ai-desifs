@@ -144,28 +144,44 @@ Réponds UNIQUEMENT en JSON valide :
           const r = await fetch(`https://drive.google.com/uc?export=download&id=${id}`, { redirect: 'follow' });
           if (!r.ok) continue;
           const ct = (r.headers.get('content-type') || '').split(';')[0].trim();
+          const cd = r.headers.get('content-disposition') || '';
+          const nameM = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)/i);
+          const name = nameM ? decodeURIComponent(nameM[1]) : '';
           const buf = Buffer.from(await r.arrayBuffer());
           if (buf.length > 20 * 1024 * 1024) continue;
-          if (ct.startsWith('image/')) imageFiles.push({ mimetype: ct, buffer: buf });
-          else if (ct === 'application/pdf') pdfFiles.push({ mimetype: ct, buffer: buf, originalname: 'drive.pdf' });
+          if (ct.startsWith('image/')) imageFiles.push({ mimetype: ct, buffer: buf, originalname: name });
+          else if (ct === 'application/pdf') pdfFiles.push({ mimetype: ct, buffer: buf, originalname: name || 'drive.pdf' });
         } catch (e) { console.error('Drive fetch error:', e.message); }
       }
     }
 
-    // Tous les visuels ORIGINAUX (pleine qualité, conservés pour l'export) — jusqu'à 6
+    // Extrait des dimensions depuis un nom de fichier (ex: "...1170x2400mm.pdf" → {w:1170,h:2400} en mm)
+    const parseDims = (nm) => {
+      if (!nm) return {};
+      const m = nm.match(/(\d{2,5})\s*[xX×]\s*(\d{2,5})/);
+      if (!m) return {};
+      const mm = v => (v > 0 && v < 400 ? v * 10 : v); // cm → mm si petit
+      return { w: mm(+m[1]), h: mm(+m[2]), name: nm };
+    };
+
+    // Tous les visuels ORIGINAUX (pleine qualité, conservés pour l'export) — jusqu'à 6 — avec nom + dims
     const { shrinkForApi } = require('../utils/image');
     const visuels = [];
-    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype });
+    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype, ...parseDims(img.originalname) });
     for (const pdf of pdfFiles) {
       const pages = await pdfToImages(pdf.buffer);
-      for (const p of pages) visuels.push({ b64: p.data, type: 'image/png' });
+      const dims = parseDims(pdf.originalname);
+      pages.forEach((p, idx) => visuels.push({ b64: p.data, type: 'image/png', ...(idx === 0 ? dims : {}) }));
     }
     const allVisuels = visuels.slice(0, 6);
 
+    // Récap fichiers (noms + tailles) pour informer l'IA
+    const filesList = allVisuels.filter(v => v.name).map((v, i) => `Fichier ${i + 1}: ${v.name}${v.w && v.h ? ` (${v.w}×${v.h} mm)` : ''}`).join('\n');
+
     // Pour l'IA : copie réduite si > 8000 px (l'original stocké reste intact)
     const userContent = [{ type: 'text', text: allVisuels.length > 1
-      ? `${mailContent}\n\n[${allVisuels.length} fichiers/visuels joints à cette demande — analyse-les tous. S'il s'agit de plusieurs visuels distincts à imprimer, liste-les dans le résumé.]`
-      : mailContent }];
+      ? `${mailContent}\n\n[${allVisuels.length} fichiers joints à cette demande — analyse-les tous. Ce sont des visuels distincts à imprimer (souvent de TAILLES DIFFÉRENTES — voir les noms de fichiers).${filesList ? '\nFichiers :\n' + filesList : ''}\nListe-les dans le résumé avec leur taille si connue.]`
+      : `${mailContent}${filesList ? '\n\n[Fichier joint : ' + filesList + ']' : ''}` }];
     for (const v of allVisuels) {
       const s = await shrinkForApi(Buffer.from(v.b64, 'base64'), v.type);
       userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
