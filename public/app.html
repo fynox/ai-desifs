@@ -1799,6 +1799,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   _lesMode = null;
   window._lesCtx = null; // nouveau plan = nouveau contexte (laizeOrig réinitialisée)
   const m = r.montage;
+  // Débord décidé par l'IA (0 si "pas de bords tournants" / "échelle 1" / repères de découpe présents)
+  if (m && typeof m.debord_mm === 'number') _lesDebord = m.debord_mm;
   if (m) {
     let lesHTML = '';
     // Tout en MILLIMÈTRES. Dimensions client = cm renvoyés par l'IA → ×10. Laize = normalisée en mm.
