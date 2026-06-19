@@ -123,6 +123,22 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .histo-pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse-dot 1.2s ease-in-out infinite; }
 
+/* Animation de chargement IA */
+.ia-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:54px 20px; text-align:center; }
+.ia-loader-orb { position:relative; width:120px; height:120px; margin-bottom:26px; }
+.ia-loader-ring { position:absolute; inset:0; border-radius:50%; border:2px solid transparent; border-top-color:var(--accent); animation:ia-spin 1.4s linear infinite; }
+.ia-loader-ring:nth-child(2) { inset:14px; border-top-color:var(--accent-dim); animation-duration:2s; animation-direction:reverse; }
+.ia-loader-ring:nth-child(3) { inset:28px; border-top-color:var(--accent); opacity:.5; animation-duration:1s; }
+.ia-loader-core { position:absolute; inset:40px; border-radius:50%; background:var(--accent); color:#111; display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:800; font-size:18px; animation:ia-breathe 1.8s ease-in-out infinite; }
+@keyframes ia-spin { to { transform:rotate(360deg); } }
+@keyframes ia-breathe { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(.88);opacity:.8} }
+.ia-loader-title { font-family:'Syne',sans-serif; font-weight:700; font-size:18px; color:var(--text); margin-bottom:8px; }
+.ia-loader-sub { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); min-height:18px; transition:opacity .3s; }
+.ia-loader-steps { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:22px; }
+.ia-step { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:4px 12px; animation:ia-step-pulse 2.4s ease-in-out infinite; }
+.ia-step:nth-child(2){animation-delay:.3s} .ia-step:nth-child(3){animation-delay:.6s} .ia-step:nth-child(4){animation-delay:.9s}
+@keyframes ia-step-pulse { 0%,100%{border-color:var(--border);color:var(--muted)} 50%{border-color:var(--accent-dim);color:var(--accent)} }
+
 .sidebar-bottom { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
 .btn-stock {
   width: 100%; background: transparent; border: 1px solid var(--border);
@@ -1304,7 +1320,8 @@ function renderSidebarHisto() {
     html += historique.map(h => {
       if (h._pending) {
         const src = h.source === 'email' ? '📧 Mail' : '✍️ Manuel';
-        return `<div class="histo-item histo-pending" id="histo-${h.id||'_pending'}" style="position:relative;cursor:default;">
+        const clickable = h.id && h.id !== '_pending';
+        return `<div class="histo-item histo-pending" id="histo-${h.id||'_pending'}" style="position:relative;cursor:${clickable ? 'pointer' : 'default'};" ${clickable ? `onclick="openPendingLoader(${h.id})"` : ''}>
           <div class="histo-item-row">
             <div class="histo-pending-dot"></div>
             <div class="histo-item-text">
@@ -1343,7 +1360,43 @@ function renderSidebarHisto() {
   container.innerHTML = html;
 }
 
+// Animation de chargement IA affichée quand on clique sur une analyse en cours
+function showAnalyseLoader(label) {
+  const panel = document.getElementById('output-panel');
+  if (!panel) return;
+  panel.classList.add('open');
+  panel.scrollTop = 0;
+  panel.innerHTML = `<div class="result-block"><div class="ia-loader">
+    <div class="ia-loader-orb"><div class="ia-loader-ring"></div><div class="ia-loader-ring"></div><div class="ia-loader-ring"></div><div class="ia-loader-core">IA</div></div>
+    <div class="ia-loader-title">Analyse en cours…</div>
+    <div class="ia-loader-sub" id="ia-loader-sub">${label || 'L\\'IA lit la demande et le visuel'}</div>
+    <div class="ia-loader-steps">
+      <span class="ia-step">📩 Lecture</span><span class="ia-step">🖼 Visuel</span><span class="ia-step">🎯 Adhésif</span><span class="ia-step">📐 Plan de lés</span>
+    </div>
+  </div></div>`;
+  // Petits messages qui défilent
+  const subs = ['L\'IA lit la demande et le visuel', 'Identification du support adapté…', 'Vérification du stock disponible…', 'Calcul du montage et des lés…', 'Rédaction de la recommandation…'];
+  let si = 0;
+  clearInterval(window._iaLoaderTimer);
+  window._iaLoaderTimer = setInterval(() => {
+    si = (si + 1) % subs.length;
+    const el = document.getElementById('ia-loader-sub');
+    if (el) el.textContent = subs[si]; else clearInterval(window._iaLoaderTimer);
+  }, 2200);
+}
+
+// Clic sur une analyse "en cours" → animation de chargement, puis affichage auto du résultat
+function openPendingLoader(id) {
+  document.querySelectorAll('.histo-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('histo-' + id);
+  if (el) el.classList.add('selected');
+  window._viewingPendingId = id;
+  showAnalyseLoader();
+}
+
 async function openHisto(id) {
+  window._viewingPendingId = null;
+  clearInterval(window._iaLoaderTimer);
   const item = historique.find(h => h.id === id);
   if (!item) return;
   if (!item.lu) {
@@ -2055,6 +2108,11 @@ async function _doPoll() {
       historique = fresh;
       if (manualPending && !fresh.some(h => h._pending)) historique.unshift(manualPending);
       renderSidebarHisto();
+      // L'utilisateur regarde une analyse en cours et elle vient de se terminer → affichage auto
+      if (window._viewingPendingId) {
+        const done = fresh.find(h => h.id === window._viewingPendingId && !h._pending);
+        if (done) { const id = window._viewingPendingId; window._viewingPendingId = null; clearInterval(window._iaLoaderTimer); openHisto(id); }
+      }
     }
     const delay = hasPending ? 2000 : 10000;
     if (_pollActive) pollingInterval = setTimeout(_doPoll, delay);
