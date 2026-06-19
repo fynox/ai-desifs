@@ -152,21 +152,23 @@ Réponds UNIQUEMENT en JSON valide :
       }
     }
 
-    // Tous les visuels (chaque fichier image + chaque page de PDF) — jusqu'à 6, normalisés (max 8000 px pour Claude)
-    const { normVisual } = require('../utils/image');
+    // Tous les visuels ORIGINAUX (pleine qualité, conservés pour l'export) — jusqu'à 6
+    const { shrinkForApi } = require('../utils/image');
     const visuels = [];
-    for (const img of imageFiles) visuels.push(await normVisual(img.buffer, img.mimetype));
+    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype });
     for (const pdf of pdfFiles) {
       const pages = await pdfToImages(pdf.buffer);
-      for (const p of pages) visuels.push(await normVisual(Buffer.from(p.data, 'base64'), 'image/png'));
+      for (const p of pages) visuels.push({ b64: p.data, type: 'image/png' });
     }
     const allVisuels = visuels.slice(0, 6);
 
+    // Pour l'IA : copie réduite si > 8000 px (l'original stocké reste intact)
     const userContent = [{ type: 'text', text: allVisuels.length > 1
       ? `${mailContent}\n\n[${allVisuels.length} fichiers/visuels joints à cette demande — analyse-les tous. S'il s'agit de plusieurs visuels distincts à imprimer, liste-les dans le résumé.]`
       : mailContent }];
     for (const v of allVisuels) {
-      userContent.push({ type: 'image', source: { type: 'base64', media_type: v.type, data: v.b64 } });
+      const s = await shrinkForApi(Buffer.from(v.b64, 'base64'), v.type);
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
     }
 
     let claudeRes;

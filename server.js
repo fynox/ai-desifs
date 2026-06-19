@@ -28,8 +28,8 @@ app.use((req, res, next) => {
 // Stripe webhook needs raw body — must be before json middleware
 app.use('/webhooks/stripe', require('./src/routes/webhook'));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Rate limiting
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
