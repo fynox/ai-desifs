@@ -500,6 +500,7 @@ textarea:focus { border-color: var(--accent); }
     <h3 id="modal-title">Nouvelle référence</h3>
     <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="plastification">Plastification</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option><option value="encre">Encre d'impression</option></select></div>
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
+    <div id="plastif-hint" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;">🛡 La plastification se pose PAR-DESSUS un visuel imprimé pour le protéger. La finition (brillant/mat/satiné) change le rendu final. Renseigne sa durabilité/résistances (UV…) — elles servent à décider quand la recommander.</div>
     <div class="form-group" id="fg-finition"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
     <div class="form-group" id="fg-adherence"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
     <div class="form-group" id="fg-env"><label>Environnement</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="env" value="Intérieur"> Intérieur</label><label class="cb-item"><input type="radio" name="env" value="Extérieur" checked> Extérieur</label><label class="cb-item"><input type="radio" name="env" value="Intérieur et extérieur"> Intérieur & extérieur</label></div></div>
@@ -1098,12 +1099,20 @@ function setVariantes(variantes) {
 
 // Masque les champs adhésif quand la catégorie est "encre"
 function toggleEncreFields() {
-  const isEncre = document.getElementById('modal-cat').value === 'encre';
+  const cat = document.getElementById('modal-cat').value;
+  const isEncre = cat === 'encre';
+  const isPlastif = cat === 'plastification';
   ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'].forEach(id => {
     document.getElementById(id).style.display = isEncre ? 'none' : '';
   });
+  // Plastification : pose SUR un visuel imprimé (pas sur mur/sol) → on masque "applications".
+  // La finition (brillant/mat/satiné) reste essentielle car elle change le rendu du visuel protégé.
+  if (!isEncre) document.getElementById('fg-appli').style.display = isPlastif ? 'none' : '';
   document.getElementById('label-prix').textContent = isEncre ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
-  document.getElementById('modal-nom').placeholder = isEncre ? 'Ex: Encre éco-solvant CMJN' : 'Ex: ORAJET 3551 Blanc Mat';
+  document.getElementById('modal-nom').placeholder = isEncre ? 'Ex: Encre éco-solvant CMJN'
+    : isPlastif ? 'Ex: Film de lamination brillant 80µ' : 'Ex: ORAJET 3551 Blanc Mat';
+  const hint = document.getElementById('plastif-hint');
+  if (hint) hint.style.display = isPlastif ? 'block' : 'none';
 }
 document.getElementById('modal-cat').addEventListener('change', toggleEncreFields);
 

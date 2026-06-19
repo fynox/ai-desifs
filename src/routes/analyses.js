@@ -429,7 +429,7 @@ router.post('/analyse', async (req, res) => {
 
 DÉFINITIONS IMPORTANTES — respecte-les strictement :
 - "Imprimable" : adhésif vinyl blanc ou transparent destiné à être imprimé directement (impression numérique, décoration, signalétique).
-- "Plastification" : film/rouleau adhésif transparent appliqué PAR-DESSUS une impression terminée pour la protéger (laminage : anti-UV, anti-rayures, anti-humidité). Ne s'imprime PAS. Recommande-le quand le visuel imprimé a besoin d'être protégé (extérieur, sol, passage, manipulation).
+- "Plastification" : film transparent de lamination applique PAR-DESSUS un visuel deja imprime pour le proteger. Ne s'imprime PAS et ne se pose PAS seul (jamais sur mur/sol/vitre directement). C'est un AJOUT OPTIONNEL, pas systematique : recommande-le EN PLUS de l'adhesif imprimable UNIQUEMENT si le visuel a besoin de protection (exterieur, sol, fort passage, manipulation, anti-UV, longue duree). Precise qu'il ajoute une epaisseur et modifie le rendu (effet brillant, mat ou satine selon le film choisi). Si la protection n'est pas necessaire, ne le recommande pas.
 - "Couleur DAO" : vinyl uni coloré non imprimable, pour découpe et lettrage.
 - "Transfert" : papier ou film transfert pour flocage, sérigraphie ou thermocollant.
 - "Covering" : film covering/wrapping pour véhicules, repositionnable, haute résistance.
