@@ -1298,6 +1298,7 @@ async function deleteHisto(e, id) {
     await api('DELETE', '/analyses/' + id);
     historique = historique.filter(h => h.id !== id);
     renderSidebarHisto();
+    loadStorage();
   } catch(err) { alert(err.message); }
 }
 
