@@ -124,7 +124,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .histo-pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: pulse-dot 1.2s ease-in-out infinite; }
 
 /* Animation de chargement IA */
-.ia-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:54px 20px; text-align:center; }
+.ia-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:72vh; padding:20px; text-align:center; }
 .ia-loader-orb { position:relative; width:120px; height:120px; margin-bottom:26px; }
 .ia-loader-ring { position:absolute; inset:0; border-radius:50%; border:2px solid transparent; border-top-color:var(--accent); animation:ia-spin 1.4s linear infinite; }
 .ia-loader-ring:nth-child(2) { inset:14px; border-top-color:var(--accent-dim); animation-duration:2s; animation-direction:reverse; }
