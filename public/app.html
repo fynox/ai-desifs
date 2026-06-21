@@ -1113,22 +1113,29 @@ function setVariantes(variantes) {
   if (!(variantes || []).length) addVarianteRow();
 }
 
-// Masque les champs adhésif quand la catégorie est "encre"
+// Chaque catégorie a ses propres champs pertinents (on masque ceux qui n'ont pas de sens)
+const CAT_CONFIG = {
+  imprimable:     { hide: [],                                  nom: 'Ex: ORAJET 3551 Blanc Mat',         varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
+  plastification: { hide: ['fg-appli'],                        nom: 'Ex: Film de lamination brillant 80µ', varLabel: 'Laizes disponibles (largeur de rouleau, mm)', hint: true },
+  dao:            { hide: [],                                  nom: 'Ex: ORACAL 651 Rouge brillant',      varLabel: 'Variantes (couleur + laize, mm)' },
+  transfert:      { hide: ['fg-adherence'],                    nom: 'Ex: Flex thermocollant Noir',        varLabel: 'Variantes (couleur + laize, mm)' },
+  covering:       { hide: [],                                  nom: 'Ex: 3M 2080 Covering brillant',      varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
+  vitre:          { hide: ['fg-adherence'],                    nom: 'Ex: Film dépoli / micro-perforé',    varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
+  panneau:        { hide: ['fg-adherence', 'fg-resist'],       nom: 'Ex: Dibond 3 mm blanc',              varLabel: 'Formats de plaque disponibles (mm)' },
+  encre:          { hide: ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'], nom: 'Ex: Encre éco-solvant CMJN' },
+};
+const ALL_FG = ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'];
+
 function toggleEncreFields() {
   const cat = document.getElementById('modal-cat').value;
-  const isEncre = cat === 'encre';
-  const isPlastif = cat === 'plastification';
-  ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'].forEach(id => {
-    document.getElementById(id).style.display = isEncre ? 'none' : '';
-  });
-  // Plastification : pose SUR un visuel imprimé (pas sur mur/sol) → on masque "applications".
-  // La finition (brillant/mat/satiné) reste essentielle car elle change le rendu du visuel protégé.
-  if (!isEncre) document.getElementById('fg-appli').style.display = isPlastif ? 'none' : '';
-  document.getElementById('label-prix').textContent = isEncre ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
-  document.getElementById('modal-nom').placeholder = isEncre ? 'Ex: Encre éco-solvant CMJN'
-    : isPlastif ? 'Ex: Film de lamination brillant 80µ' : 'Ex: ORAJET 3551 Blanc Mat';
+  const cfg = CAT_CONFIG[cat] || CAT_CONFIG.imprimable;
+  ALL_FG.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = cfg.hide.includes(id) ? 'none' : ''; });
+  document.getElementById('label-prix').textContent = cat === 'encre' ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
+  document.getElementById('modal-nom').placeholder = cfg.nom || 'Ex: référence';
+  const varLabel = document.querySelector('#fg-variantes > label');
+  if (varLabel && cfg.varLabel) varLabel.textContent = cfg.varLabel;
   const hint = document.getElementById('plastif-hint');
-  if (hint) hint.style.display = isPlastif ? 'block' : 'none';
+  if (hint) hint.style.display = cfg.hint ? 'block' : 'none';
 }
 document.getElementById('modal-cat').addEventListener('change', toggleEncreFields);
 
