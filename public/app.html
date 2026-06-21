@@ -1279,9 +1279,13 @@ function renderCat(cat) {
   renderList(cat, items);
 }
 
+const _filterTimers = {};
 function filterCat(cat, query) {
-  const q = query.toLowerCase().trim();
-  renderList(cat, stock.filter(i => i.cat === cat && (!q || i.nom.toLowerCase().includes(q))));
+  clearTimeout(_filterTimers[cat]);
+  _filterTimers[cat] = setTimeout(() => {
+    const q = query.toLowerCase().trim();
+    renderList(cat, stock.filter(i => i.cat === cat && (!q || i.nom.toLowerCase().includes(q))));
+  }, 120);
 }
 
 function updateStats() {
