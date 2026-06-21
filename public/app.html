@@ -1412,6 +1412,8 @@ async function openHisto(id) {
   clearInterval(window._iaLoaderTimer);
   const item = historique.find(h => h.id === id);
   if (!item) return;
+  // Libère la mémoire des visuels des autres analyses (les originaux pleine qualité sont lourds) → évite l'accumulation
+  historique.forEach(h => { if (h.id !== id) { h.visuel_b64 = null; h.visuels = null; } });
   if (!item.lu) {
     try { await api('PUT', '/analyses/' + id + '/lu'); item.lu = true; } catch {}
   }
