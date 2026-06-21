@@ -1254,7 +1254,8 @@ function renderList(cat, items) {
   const list = document.getElementById('list-' + cat); if (!list) return;
   if (!items.length) { list.innerHTML = '<div class="empty-cat">Aucune référence</div>'; return; }
   list.innerHTML = items.map(item => {
-    const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(Boolean);
+    const clean = t => t && t !== '—' && t !== 'Non spécifiée' && t !== 'Non spécifié';
+    const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(clean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
     const vars = item.variantes || [];
     const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + normMm(v.largeur) + 'mm' : ''}`).join(' · ')}</span>` : '';
@@ -1263,7 +1264,7 @@ function renderList(cat, items) {
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
       <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
-      <div class="finition-badge">${item.finition}</div>
+      <div class="finition-badge" ${clean(item.finition) ? '' : 'style="display:none"'}>${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
       <button class="btn-del" onclick="deleteAdhesif(${item.id})">✕</button>
