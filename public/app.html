@@ -1546,6 +1546,72 @@ let _lesMode = null;        // null = standard (équilibrage auto des bords) | '
 let _lesCrop = true;        // true = recadre l'image au format demandé (cover, jamais d'étirement) | false = image entière (imprimée telle quelle, coupée à la pose)
 let _lesCropPos = 'center'; // partie de l'image conservée au recadrage : center | top | bottom | left | right
 const CROP_POS = { center:'50% 50%', top:'50% 0%', bottom:'50% 100%', left:'0% 50%', right:'100% 50%' };
+// Imposition multi-copies (tuile répétée)
+let _nestQte = 1;       // nombre d'exemplaires demandés
+let _nestEspace = 5;    // espacement entre visuels (mm)
+let _nestLeLen = 1000;  // longueur cible d'un lé/tuile (mm)
+
+// Dispatcher : imposition multi-copies si quantité > 1, sinon plan de lés classique
+function buildMontageHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
+  if (_nestQte > 1) return buildNestingHTML(largeur, hauteur, laize, previewB64, previewType, deduite);
+  return buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite);
+}
+
+// Imposition multi-copies : tuile (across × down) répétée sur N lés identiques
+function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite) {
+  window._lesCtx = { largeur: copyW, hauteur: copyH, laize, sensLes: null, previewB64, previewType, deduite, laizeOrig: (window._lesCtx && window._lesCtx.laizeOrig) || laize };
+  const margeImp = _lesMargeImp;            // bord non imprimable du rouleau (mm)
+  const S = _nestEspace;                    // espacement entre visuels (mm)
+  const laizeU = Math.max(1, laize - 2 * margeImp);
+  const across = Math.max(1, Math.floor((laizeU + S) / (copyW + S)));
+  const down = Math.max(1, Math.floor((_nestLeLen + S) / (copyH + S)));
+  const perLe = across * down;
+  const N = Math.max(1, Math.round(_nestQte));
+  const spareTarget = N >= 50 ? Math.ceil(N * 0.02) : 0;   // ~2% de rab sur gros volume
+  const nbLes = Math.ceil((N + spareTarget) / perLe);
+  const totalImprime = nbLes * perLe;
+  const rab = totalImprime - N;
+  // Dimensions réelles d'un lé (tuile)
+  const usedW = across * copyW + (across - 1) * S;
+  const leLen = down * copyH + (down - 1) * S;
+  const hasImg = previewB64 && previewType && previewType.startsWith('image/');
+  // Aperçu d'UN lé : grille across × down (on plafonne le nombre de vignettes affichées pour la perf)
+  const offX = (laize - usedW) / 2;
+  const maxCells = 80;
+  let cells = '';
+  let shown = 0;
+  for (let row = 0; row < down && shown < maxCells; row++) {
+    for (let col = 0; col < across && shown < maxCells; col++) {
+      const leftPct = ((offX + col * (copyW + S)) / laize * 100).toFixed(3);
+      const topPct = (row * (copyH + S) / leLen * 100).toFixed(3);
+      const wPct = (copyW / laize * 100).toFixed(3);
+      const hPct = (copyH / leLen * 100).toFixed(3);
+      cells += hasImg
+        ? `<img src="data:${previewType};base64,${previewB64}" style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${CROP_POS[_lesCropPos] || '50% 50%'};border:1px solid rgba(255,255,255,.25);${_lesCrop ? '' : 'background:#fff;'}">`
+        : `<div style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;background:#2a2a2a;border:1px solid var(--border);"></div>`;
+      shown++;
+    }
+  }
+  const maxH = 340;
+  const wPx = Math.round(maxH * laize / leLen);
+  const inputStyle = `style="width:64px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
+  const matiereM2 = (nbLes * laize * leLen / 1e6).toFixed(2);
+  return `<div id="les-wrap">
+    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid var(--text);border-radius:4px;background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);overflow:hidden;">${cells}${shown < perLe ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu partiel — ${perLe} visuels par lé</div>` : ''}</div>
+    <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;text-align:center;line-height:1.7;">
+      Visuel ${Math.round(copyW)} × ${Math.round(copyH)} mm · <b style="color:var(--text)">${across} × ${down} = ${perLe} visuels / lé</b> (laize utile ${Math.round(laizeU)} mm, lé de ${Math.round(leLen)} mm)<br>
+      <b style="color:var(--accent)">${nbLes} lé${nbLes > 1 ? 's' : ''} identiques à imprimer</b> → ${totalImprime} visuels pour ${N} demandé${N > 1 ? 's' : ''}${rab > 0 ? ` (${rab} en rab)` : ''} · ~${matiereM2} m² de rouleau
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
+      <span>Quantité <input type="number" value="${N}" min="1" step="1" onchange="changerQte(this.value)" ${inputStyle}></span>
+      <span title="Espace imprimé entre chaque visuel pour ne pas les coller">Espacement <input type="number" value="${S}" min="0" max="100" step="1" onchange="changerEspace(this.value)" ${inputStyle}> mm</span>
+      <span title="Longueur d'un lé : plus c'est long, plus il y a de visuels par lé">Longueur lé <input type="number" value="${_nestLeLen}" min="100" step="50" onchange="changerLeLen(this.value)" ${inputStyle}> mm</span>
+      ${hasImg ? `<button class="btn-stock" onclick="toggleCrop()" style="font-size:11px;padding:5px 12px;margin:0;">${_lesCrop ? '🔳 Recadrée' : '🖼 Entière'}</button>` : ''}
+      ${hasImg && _lesCrop ? `<select onchange="changerCropPos(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:4px 6px;"><option value="center" ${_lesCropPos==='center'?'selected':''}>Centré</option><option value="top" ${_lesCropPos==='top'?'selected':''}>Haut</option><option value="bottom" ${_lesCropPos==='bottom'?'selected':''}>Bas</option><option value="left" ${_lesCropPos==='left'?'selected':''}>Gauche</option><option value="right" ${_lesCropPos==='right'?'selected':''}>Droite</option></select>` : ''}
+    </div>
+    <div style="text-align:center;margin-top:6px;"><button class="btn-stock" onclick="changerQte(1)" style="font-size:10px;padding:4px 12px;margin:0;color:var(--muted);" title="Repasser en plan de lés simple (1 seul visuel)">↩ Plan de lés simple</button></div>
+  </div>`;
+}
 
 // Construit le visuel du plan de lés (deduite = 'largeur'|'hauteur' si dimension calculée depuis le ratio du fichier)
 function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
@@ -1663,14 +1729,14 @@ function afficherLesManuel() {
   if (!laize) { alert('Renseigne la laize du rouleau (mm).'); return; }
   if (!L && !H) { alert('Renseigne au moins une dimension (mm).'); return; }
   if (L && H) {
-    _injectLesManuel(buildLesHTML(L, H, laize, c.sensLes, c.previewB64, c.previewType, false));
+    _injectLesManuel(buildMontageHTML(L, H, laize, c.sensLes, c.previewB64, c.previewType, false));
   } else if (c.isImg) {
     const img = new Image();
     img.onload = () => {
       const ratio = img.naturalWidth / img.naturalHeight;
       const lw = L || Math.round(H * ratio);
       const hh = H || Math.round(L / ratio);
-      _injectLesManuel(buildLesHTML(lw, hh, laize, c.sensLes, c.previewB64, c.previewType, L ? 'hauteur' : 'largeur'));
+      _injectLesManuel(buildMontageHTML(lw, hh, laize, c.sensLes, c.previewB64, c.previewType, L ? 'hauteur' : 'largeur'));
     };
     img.onerror = () => alert('Impossible de lire les proportions du fichier — renseigne les deux dimensions.');
     img.src = `data:${c.previewType};base64,${c.previewB64}`;
@@ -1692,7 +1758,7 @@ function planPourFichier(i) {
   if (!laize) { alert('Aucune laize de rouleau renseignée dans le stock pour l\'adhésif recommandé — ajoute-la dans le stock.'); return; }
   _lesSens = null; _lesMode = null;
   if (v.w && v.h) {
-    host.innerHTML = buildLesHTML(v.w, v.h, laize, window._planSensLes, v.b64, v.type, false);
+    host.innerHTML = buildMontageHTML(v.w, v.h, laize, window._planSensLes, v.b64, v.type, false);
   } else {
     // Pas de taille dans le nom → saisie manuelle pour ce fichier
     window._lesManuelCtx = { laize, previewB64: v.b64, previewType: v.type, sensLes: window._planSensLes, isImg: (v.type || '').startsWith('image/') };
@@ -1712,7 +1778,7 @@ function planPourFichier(i) {
 function _rebuildLes() {
   const c = window._lesCtx;
   const el = document.getElementById('les-wrap');
-  if (el && c) el.outerHTML = buildLesHTML(c.largeur, c.hauteur, c.laize, c.sensLes, c.previewB64, c.previewType, c.deduite);
+  if (el && c) el.outerHTML = buildMontageHTML(c.largeur, c.hauteur, c.laize, c.sensLes, c.previewB64, c.previewType, c.deduite);
 }
 
 // Changements de marges → recalcul instantané du plan de lés et de l'export
@@ -1753,6 +1819,22 @@ function toggleCrop() {
 }
 function changerCropPos(v) {
   _lesCropPos = v;
+  _rebuildLes();
+}
+function changerQte(v) {
+  _nestQte = Math.max(1, Math.round(parseFloat(v) || 1));
+  _rebuildLes();
+}
+function changerEspace(v) {
+  let s = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(s) || s < 0) s = 0; if (s > 100) s = 100;
+  _nestEspace = s;
+  _rebuildLes();
+}
+function changerLeLen(v) {
+  let l = parseFloat(v) || 1000;
+  if (l < 100) l = 100;
+  _nestLeLen = l;
   _rebuildLes();
 }
 
@@ -1912,6 +1994,10 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   _lesCropPos = 'center';
   window._lesCtx = null; // nouveau plan = nouveau contexte (laizeOrig réinitialisée)
   const m = r.montage;
+  // Imposition multi-copies : quantité lue depuis l'IA (réinitialisée à chaque analyse)
+  _nestQte = (m && Number(m.quantite) > 1) ? Math.round(Number(m.quantite)) : 1;
+  _nestEspace = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
+  _nestLeLen = 1000;
   // Débord décidé par l'IA (0 si "pas de bords tournants" / "échelle 1" / repères de découpe présents)
   if (m && typeof m.debord_mm === 'number') _lesDebord = m.debord_mm;
   if (m) {
@@ -1939,9 +2025,9 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     // Multi-fichiers : on démarre sur le plan du 1er fichier avec SA taille (nom de fichier), sinon logique normale
     const firstV = (Array.isArray(visuels) && visuels.length > 1) ? visuels[0] : null;
     if (firstV && firstV.w && firstV.h && laize) {
-      lesHTML = buildLesHTML(firstV.w, firstV.h, laize, m.sens_les, firstV.b64, firstV.type, false);
+      lesHTML = buildMontageHTML(firstV.w, firstV.h, laize, m.sens_les, firstV.b64, firstV.type, false);
     } else if (largeur && hauteur && laize) {
-      lesHTML = buildLesHTML(largeur, hauteur, laize, m.sens_les, previewB64, previewType, false);
+      lesHTML = buildMontageHTML(largeur, hauteur, laize, m.sens_les, previewB64, previewType, false);
     } else if ((largeur || hauteur) && laize && isImg) {
       // Une seule dimension connue : on déduit l'autre du ratio du fichier visuel (asynchrone)
       lesHTML = `<div id="les-async" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);padding:10px;">Calcul du plan de lés d'après le ratio du visuel…</div>`;
@@ -1951,7 +2037,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         const L = largeur || Math.round(hauteur * ratio);
         const H = hauteur || Math.round(largeur / ratio);
         const el = document.getElementById('les-async');
-        if (el) el.outerHTML = buildLesHTML(L, H, laize, m.sens_les, previewB64, previewType, largeur ? 'hauteur' : 'largeur');
+        if (el) el.outerHTML = buildMontageHTML(L, H, laize, m.sens_les, previewB64, previewType, largeur ? 'hauteur' : 'largeur');
       };
       img.onerror = () => {
         const el = document.getElementById('les-async');
