@@ -1544,6 +1544,8 @@ let _lesDebord = 20;        // débord de pose (image agrandie, coupée au cutte
 let _lesSens = null;        // sens forcé par l'optimiseur ('vertical'|'horizontal'|null = auto)
 let _lesMode = null;        // null = standard (équilibrage auto des bords) | 'egalise' = tous les lés à largeur égale
 let _lesCrop = true;        // true = recadre l'image au format demandé (cover, jamais d'étirement) | false = image entière (imprimée telle quelle, coupée à la pose)
+let _lesCropPos = 'center'; // partie de l'image conservée au recadrage : center | top | bottom | left | right
+const CROP_POS = { center:'50% 50%', top:'50% 0%', bottom:'50% 100%', left:'0% 50%', right:'100% 50%' };
 
 // Construit le visuel du plan de lés (deduite = 'largeur'|'hauteur' si dimension calculée depuis le ratio du fichier)
 function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
@@ -1611,7 +1613,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const hasImg2 = previewB64 && previewType && previewType.startsWith('image/');
   // L'image occupe la zone format-fini. object-fit:cover = recadrée sans JAMAIS étirer ; contain = image entière
   const imgLayer = hasImg2
-    ? `<img src="data:${previewType};base64,${previewB64}" style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:center;pointer-events:none;${_lesCrop ? '' : 'background:#fff;'}" alt="">`
+    ? `<img src="data:${previewType};base64,${previewB64}" style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${CROP_POS[_lesCropPos] || '50% 50%'};pointer-events:none;${_lesCrop ? '' : 'background:#fff;'}" alt="">`
     : '';
   // Trait de coupe du format fini (le débord au-delà est coupé au cutter après pose)
   if (DEBORD > 0) {
@@ -1637,6 +1639,13 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     ${n > 1 ? `<button class="btn-stock" onclick="egaliserLes()" style="font-size:11px;padding:5px 12px;margin:0;" title="Tous les lés à largeur égale au lieu de deux bords plus petits">≡ Égaliser les lés</button>` : ''}
     <button class="btn-stock" onclick="resetMarges()" style="font-size:11px;padding:5px 12px;margin:0;color:var(--muted);" title="Revenir aux valeurs par défaut des réglages (annule l'optimisation et l'égalisation)">↺ Par défaut</button>
     ${hasImg2 ? `<button class="btn-stock" onclick="toggleCrop()" style="font-size:11px;padding:5px 12px;margin:0;" title="${_lesCrop ? "Image recadree au format demande (jamais etiree) — cliquer pour imprimer l image entiere a la place" : "Image entiere imprimee (coupee a la pose) — cliquer pour la recadrer au format"}">${_lesCrop ? '🔳 Recadrée au format' : '🖼 Image entière'}</button>` : ''}
+    ${hasImg2 && _lesCrop ? `<span title="Quelle partie de l'image garder au recadrage">Cadrage <select onchange="changerCropPos(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:4px 6px;">
+      <option value="center" ${_lesCropPos==='center'?'selected':''}>Centré</option>
+      <option value="top" ${_lesCropPos==='top'?'selected':''}>Haut</option>
+      <option value="bottom" ${_lesCropPos==='bottom'?'selected':''}>Bas</option>
+      <option value="left" ${_lesCropPos==='left'?'selected':''}>Gauche</option>
+      <option value="right" ${_lesCropPos==='right'?'selected':''}>Droite</option>
+    </select></span>` : ''}
   </div>
   <div id="les-optim-note" style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);text-align:center;margin-top:6px;"></div>
   ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}</div>`;
@@ -1740,6 +1749,10 @@ function egaliserLes() {
 // Bascule recadrage (cover, jamais d'étirement) ↔ image entière (contain, coupée à la pose)
 function toggleCrop() {
   _lesCrop = !_lesCrop;
+  _rebuildLes();
+}
+function changerCropPos(v) {
+  _lesCropPos = v;
   _rebuildLes();
 }
 
@@ -1896,6 +1909,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   _lesSens = null;
   _lesMode = null;
   _lesCrop = true; // recadrage au format par défaut (jamais d'étirement)
+  _lesCropPos = 'center';
   window._lesCtx = null; // nouveau plan = nouveau contexte (laizeOrig réinitialisée)
   const m = r.montage;
   // Débord décidé par l'IA (0 si "pas de bords tournants" / "échelle 1" / repères de découpe présents)
