@@ -1589,22 +1589,33 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
   const nbLes = Math.ceil(totalRows / downMax);                           // nb de lés
   const rab = across * totalRows - N;                                     // seulement le reste de la dernière rangée
   const rowsLe1 = Math.min(totalRows, downMax);                           // rangées du 1er lé (aperçu)
-  // Espacement : réparti (égalisé) pour remplir le lé, ou fixe
-  const Sx = (_nestEgalise && across > 1) ? (laizeU - across * copyW) / (across - 1) : S;
-  const Sy = (_nestEgalise && rowsLe1 > 1) ? (_nestLeLen - rowsLe1 * copyH) / (rowsLe1 - 1) : S;
-  const usedW = across * copyW + (across - 1) * Sx;
-  const leLen = _nestEgalise ? Math.max(_nestLeLen, rowsLe1 * copyH) : (rowsLe1 * copyH + (rowsLe1 - 1) * Sy);
-  const offX = (laize - usedW) / 2;
+  const visThisLe = (nbLes === 1) ? N : across * downMax;                 // visuels sur le lé affiché
+  // Nombre de visuels par rangée. Égalisé = réparti uniformément (aucune rangée quasi vide) ; sinon rempli à fond puis reste.
+  const rowCounts = [];
+  if (_nestEgalise) {
+    const base = Math.floor(visThisLe / rowsLe1), extra = visThisLe % rowsLe1;
+    for (let r = 0; r < rowsLe1; r++) rowCounts.push(base + (r < extra ? 1 : 0));
+  } else {
+    let rem = visThisLe;
+    for (let r = 0; r < rowsLe1; r++) { const c = Math.min(across, rem); rowCounts.push(c); rem -= c; }
+  }
+  // Longueur du lé + espacement vertical
+  const leLen = _nestEgalise ? Math.max(_nestLeLen, rowsLe1 * copyH) : (rowsLe1 * copyH + (rowsLe1 - 1) * S);
+  const Sy = (_nestEgalise && rowsLe1 > 1) ? (leLen - rowsLe1 * copyH) / (rowsLe1 - 1) : S;
   const hasImg = previewB64 && previewType && previewType.startsWith('image/');
-  // Aperçu du 1er lé. La dernière rangée du DERNIER lé peut être partielle (N exact).
-  const isLastLe = nbLes === 1;
-  const maxCells = 120;
-  let cells = '', shown = 0, placed = 0;
+  const maxCells = 130;
+  let cells = '', shown = 0;
   for (let row = 0; row < rowsLe1 && shown < maxCells; row++) {
-    const colsThisRow = (isLastLe && row === rowsLe1 - 1) ? (N - row * across) : across;
-    for (let col = 0; col < colsThisRow && shown < maxCells; col++) {
+    const cnt = rowCounts[row];
+    if (cnt <= 0) continue;
+    // Espacement horizontal : égalisé = répartit sur toute la laize utile ; sinon fixe, rangée centrée
+    const Sx = (_nestEgalise && cnt > 1) ? (laizeU - cnt * copyW) / (cnt - 1) : S;
+    const usedW = cnt * copyW + (cnt - 1) * Sx;
+    const offX = (laize - usedW) / 2;
+    const topPx = row * (copyH + Sy);
+    for (let col = 0; col < cnt && shown < maxCells; col++) {
       const leftPct = ((offX + col * (copyW + Sx)) / laize * 100).toFixed(3);
-      const topPct = (row * (copyH + Sy) / leLen * 100).toFixed(3);
+      const topPct = (topPx / leLen * 100).toFixed(3);
       const wPct = (copyW / laize * 100).toFixed(3);
       const hPct = (copyH / leLen * 100).toFixed(3);
       cells += hasImg
@@ -1612,7 +1623,6 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
         : `<div style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;background:#2a2a2a;border:1px solid var(--border);"></div>`;
       shown++;
     }
-    placed += colsThisRow;
   }
   const perLeFull = across * downMax;
   const maxH = 340;
