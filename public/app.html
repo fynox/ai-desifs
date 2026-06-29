@@ -1544,12 +1544,31 @@ let _lesDebord = 20;        // débord de pose (image agrandie, coupée au cutte
 let _lesSens = null;        // sens forcé par l'optimiseur ('vertical'|'horizontal'|null = auto)
 let _lesMode = null;        // null = standard (équilibrage auto des bords) | 'egalise' = tous les lés à largeur égale
 let _lesCrop = true;        // true = recadre l'image au format demandé (cover, jamais d'étirement) | false = image entière (imprimée telle quelle, coupée à la pose)
-let _lesCropPos = 'center'; // partie de l'image conservée au recadrage : center | top | bottom | left | right
-const CROP_POS = { center:'50% 50%', top:'50% 0%', bottom:'50% 100%', left:'0% 50%', right:'100% 50%' };
-// Imposition multi-copies (tuile répétée)
+let _lesCropX = 50, _lesCropY = 50; // position du recadrage (object-position %), déplaçable à la souris
+// Imposition multi-copies
 let _nestQte = 1;       // nombre d'exemplaires demandés
 let _nestEspace = 5;    // espacement entre visuels (mm)
-let _nestLeLen = 1000;  // longueur cible d'un lé/tuile (mm)
+let _nestLeLen = 1000;  // longueur cible d'un lé (mm)
+let _nestEgalise = false; // répartit l'espacement pour remplir le lé (pas de zone vide)
+
+// Recadrage déplaçable : glisser l'image pour choisir la partie conservée
+function startCropDrag(e) {
+  if (!_lesCrop) return;
+  e.preventDefault();
+  const img = e.currentTarget;
+  const rect = img.getBoundingClientRect();
+  const pt = ev => ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+  const s = pt(e), startX = _lesCropX, startY = _lesCropY;
+  const move = ev => {
+    const c = pt(ev);
+    _lesCropX = Math.max(0, Math.min(100, startX - (c.clientX - s.clientX) / rect.width * 100));
+    _lesCropY = Math.max(0, Math.min(100, startY - (c.clientY - s.clientY) / rect.height * 100));
+    // applique en direct à toutes les vignettes (single + tuile)
+    document.querySelectorAll('#les-wrap img').forEach(im => { im.style.objectPosition = _lesCropX + '% ' + _lesCropY + '%'; });
+  };
+  const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+  document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+}
 
 // Dispatcher : imposition multi-copies si quantité > 1, sinon plan de lés classique
 function buildMontageHTML(largeur, hauteur, laize, sensLes, previewB64, previewType, deduite) {
@@ -1563,51 +1582,59 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
   const margeImp = _lesMargeImp;            // bord non imprimable du rouleau (mm)
   const S = _nestEspace;                    // espacement entre visuels (mm)
   const laizeU = Math.max(1, laize - 2 * margeImp);
-  const across = Math.max(1, Math.floor((laizeU + S) / (copyW + S)));
-  const down = Math.max(1, Math.floor((_nestLeLen + S) / (copyH + S)));
-  const perLe = across * down;
   const N = Math.max(1, Math.round(_nestQte));
-  const spareTarget = N >= 50 ? Math.ceil(N * 0.02) : 0;   // ~2% de rab sur gros volume
-  const nbLes = Math.ceil((N + spareTarget) / perLe);
-  const totalImprime = nbLes * perLe;
-  const rab = totalImprime - N;
-  // Dimensions réelles d'un lé (tuile)
-  const usedW = across * copyW + (across - 1) * S;
-  const leLen = down * copyH + (down - 1) * S;
-  const hasImg = previewB64 && previewType && previewType.startsWith('image/');
-  // Aperçu d'UN lé : grille across × down (on plafonne le nombre de vignettes affichées pour la perf)
+  const across = Math.max(1, Math.floor((laizeU + S) / (copyW + S)));     // visuels par rangée
+  const downMax = Math.max(1, Math.floor((_nestLeLen + S) / (copyH + S))); // rangées max par lé
+  const totalRows = Math.ceil(N / across);                                // rangées nécessaires (N exact)
+  const nbLes = Math.ceil(totalRows / downMax);                           // nb de lés
+  const rab = across * totalRows - N;                                     // seulement le reste de la dernière rangée
+  const rowsLe1 = Math.min(totalRows, downMax);                           // rangées du 1er lé (aperçu)
+  // Espacement : réparti (égalisé) pour remplir le lé, ou fixe
+  const Sx = (_nestEgalise && across > 1) ? (laizeU - across * copyW) / (across - 1) : S;
+  const Sy = (_nestEgalise && rowsLe1 > 1) ? (_nestLeLen - rowsLe1 * copyH) / (rowsLe1 - 1) : S;
+  const usedW = across * copyW + (across - 1) * Sx;
+  const leLen = _nestEgalise ? Math.max(_nestLeLen, rowsLe1 * copyH) : (rowsLe1 * copyH + (rowsLe1 - 1) * Sy);
   const offX = (laize - usedW) / 2;
-  const maxCells = 80;
-  let cells = '';
-  let shown = 0;
-  for (let row = 0; row < down && shown < maxCells; row++) {
-    for (let col = 0; col < across && shown < maxCells; col++) {
-      const leftPct = ((offX + col * (copyW + S)) / laize * 100).toFixed(3);
-      const topPct = (row * (copyH + S) / leLen * 100).toFixed(3);
+  const hasImg = previewB64 && previewType && previewType.startsWith('image/');
+  // Aperçu du 1er lé. La dernière rangée du DERNIER lé peut être partielle (N exact).
+  const isLastLe = nbLes === 1;
+  const maxCells = 120;
+  let cells = '', shown = 0, placed = 0;
+  for (let row = 0; row < rowsLe1 && shown < maxCells; row++) {
+    const colsThisRow = (isLastLe && row === rowsLe1 - 1) ? (N - row * across) : across;
+    for (let col = 0; col < colsThisRow && shown < maxCells; col++) {
+      const leftPct = ((offX + col * (copyW + Sx)) / laize * 100).toFixed(3);
+      const topPct = (row * (copyH + Sy) / leLen * 100).toFixed(3);
       const wPct = (copyW / laize * 100).toFixed(3);
       const hPct = (copyH / leLen * 100).toFixed(3);
       cells += hasImg
-        ? `<img src="data:${previewType};base64,${previewB64}" style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${CROP_POS[_lesCropPos] || '50% 50%'};border:1px solid rgba(255,255,255,.25);${_lesCrop ? '' : 'background:#fff;'}">`
+        ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;border:1px solid rgba(255,255,255,.25);${_lesCrop ? 'cursor:grab;touch-action:none;' : 'background:#fff;'}">`
         : `<div style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;background:#2a2a2a;border:1px solid var(--border);"></div>`;
       shown++;
     }
+    placed += colsThisRow;
   }
+  const perLeFull = across * downMax;
   const maxH = 340;
   const wPx = Math.round(maxH * laize / leLen);
   const inputStyle = `style="width:64px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
   const matiereM2 = (nbLes * laize * leLen / 1e6).toFixed(2);
+  const lesTxt = nbLes === 1
+    ? `<b style="color:var(--accent)">1 lé</b> de ${Math.round(leLen)} mm`
+    : `<b style="color:var(--accent)">${nbLes} lés</b> (${nbLes - 1} pleins de ${perLeFull} + 1 partiel)`;
   return `<div id="les-wrap">
-    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid var(--text);border-radius:4px;background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);overflow:hidden;">${cells}${shown < perLe ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu partiel — ${perLe} visuels par lé</div>` : ''}</div>
+    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid var(--text);border-radius:4px;background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);overflow:hidden;">${cells}${shown >= maxCells ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu plafonné</div>` : ''}</div>
     <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;text-align:center;line-height:1.7;">
-      Visuel ${Math.round(copyW)} × ${Math.round(copyH)} mm · <b style="color:var(--text)">${across} × ${down} = ${perLe} visuels / lé</b> (laize utile ${Math.round(laizeU)} mm, lé de ${Math.round(leLen)} mm)<br>
-      <b style="color:var(--accent)">${nbLes} lé${nbLes > 1 ? 's' : ''} identiques à imprimer</b> → ${totalImprime} visuels pour ${N} demandé${N > 1 ? 's' : ''}${rab > 0 ? ` (${rab} en rab)` : ''} · ~${matiereM2} m² de rouleau
+      Visuel ${Math.round(copyW)} × ${Math.round(copyH)} mm · <b style="color:var(--text)">${across}/rangée × ${totalRows} rangée${totalRows > 1 ? 's' : ''}</b> (laize utile ${Math.round(laizeU)} mm)<br>
+      ${lesTxt} · <b style="color:var(--text)">${N} visuel${N > 1 ? 's' : ''}</b>${rab > 0 ? ` (+${rab} en rab)` : ''} · ~${matiereM2} m² de rouleau
     </div>
     <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
       <span>Quantité <input type="number" value="${N}" min="1" step="1" onchange="changerQte(this.value)" ${inputStyle}></span>
-      <span title="Espace imprimé entre chaque visuel pour ne pas les coller">Espacement <input type="number" value="${S}" min="0" max="100" step="1" onchange="changerEspace(this.value)" ${inputStyle}> mm</span>
-      <span title="Longueur d'un lé : plus c'est long, plus il y a de visuels par lé">Longueur lé <input type="number" value="${_nestLeLen}" min="100" step="50" onchange="changerLeLen(this.value)" ${inputStyle}> mm</span>
+      <span title="Espace minimal entre chaque visuel">Espacement <input type="number" value="${S}" min="0" max="100" step="1" onchange="changerEspace(this.value)" ${inputStyle}> mm</span>
+      <span title="Longueur d'un lé : plus c'est long, plus il y a de rangées par lé">Longueur lé <input type="number" value="${_nestLeLen}" min="100" step="50" onchange="changerLeLen(this.value)" ${inputStyle}> mm</span>
+      <button class="btn-stock" onclick="egaliserNest()" style="font-size:11px;padding:5px 12px;margin:0;${_nestEgalise ? 'border-color:var(--accent);color:var(--accent);' : ''}" title="Répartit l'espacement pour remplir le lé sans zone vide">≡ Égaliser</button>
       ${hasImg ? `<button class="btn-stock" onclick="toggleCrop()" style="font-size:11px;padding:5px 12px;margin:0;">${_lesCrop ? '🔳 Recadrée' : '🖼 Entière'}</button>` : ''}
-      ${hasImg && _lesCrop ? `<select onchange="changerCropPos(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:4px 6px;"><option value="center" ${_lesCropPos==='center'?'selected':''}>Centré</option><option value="top" ${_lesCropPos==='top'?'selected':''}>Haut</option><option value="bottom" ${_lesCropPos==='bottom'?'selected':''}>Bas</option><option value="left" ${_lesCropPos==='left'?'selected':''}>Gauche</option><option value="right" ${_lesCropPos==='right'?'selected':''}>Droite</option></select>` : ''}
+      ${hasImg && _lesCrop ? `<span style="color:var(--accent-dim);">✋ glisse un visuel pour cadrer</span>` : ''}
     </div>
     <div style="text-align:center;margin-top:6px;"><button class="btn-stock" onclick="changerQte(1)" style="font-size:10px;padding:4px 12px;margin:0;color:var(--muted);" title="Repasser en plan de lés simple (1 seul visuel)">↩ Plan de lés simple</button></div>
   </div>`;
@@ -1679,7 +1706,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const hasImg2 = previewB64 && previewType && previewType.startsWith('image/');
   // L'image occupe la zone format-fini. object-fit:cover = recadrée sans JAMAIS étirer ; contain = image entière
   const imgLayer = hasImg2
-    ? `<img src="data:${previewType};base64,${previewB64}" style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${CROP_POS[_lesCropPos] || '50% 50%'};pointer-events:none;${_lesCrop ? '' : 'background:#fff;'}" alt="">`
+    ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;${_lesCrop ? 'cursor:grab;touch-action:none;' : 'pointer-events:none;background:#fff;'}" alt="">`
     : '';
   // Trait de coupe du format fini (le débord au-delà est coupé au cutter après pose)
   if (DEBORD > 0) {
@@ -1706,13 +1733,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     ${n > 1 ? `<button class="btn-stock" onclick="egaliserLes()" style="font-size:11px;padding:5px 12px;margin:0;" title="Tous les lés à largeur égale au lieu de deux bords plus petits">≡ Égaliser les lés</button>` : ''}
     <button class="btn-stock" onclick="resetMarges()" style="font-size:11px;padding:5px 12px;margin:0;color:var(--muted);" title="Revenir aux valeurs par défaut des réglages (annule l'optimisation et l'égalisation)">↺ Par défaut</button>
     ${hasImg2 ? `<button class="btn-stock" onclick="toggleCrop()" style="font-size:11px;padding:5px 12px;margin:0;" title="${_lesCrop ? "Image recadree au format demande (jamais etiree) — cliquer pour imprimer l image entiere a la place" : "Image entiere imprimee (coupee a la pose) — cliquer pour la recadrer au format"}">${_lesCrop ? '🔳 Recadrée au format' : '🖼 Image entière'}</button>` : ''}
-    ${hasImg2 && _lesCrop ? `<span title="Quelle partie de l'image garder au recadrage">Cadrage <select onchange="changerCropPos(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:4px 6px;">
-      <option value="center" ${_lesCropPos==='center'?'selected':''}>Centré</option>
-      <option value="top" ${_lesCropPos==='top'?'selected':''}>Haut</option>
-      <option value="bottom" ${_lesCropPos==='bottom'?'selected':''}>Bas</option>
-      <option value="left" ${_lesCropPos==='left'?'selected':''}>Gauche</option>
-      <option value="right" ${_lesCropPos==='right'?'selected':''}>Droite</option>
-    </select></span>` : ''}
+    ${hasImg2 && _lesCrop ? `<span style="color:var(--accent-dim);">✋ glisse l'image pour cadrer</span>` : ''}
   </div>
   <div id="les-optim-note" style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);text-align:center;margin-top:6px;"></div>
   ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}</div>`;
@@ -1818,8 +1839,8 @@ function toggleCrop() {
   _lesCrop = !_lesCrop;
   _rebuildLes();
 }
-function changerCropPos(v) {
-  _lesCropPos = v;
+function egaliserNest() {
+  _nestEgalise = !_nestEgalise;
   _rebuildLes();
 }
 function changerQte(v) {
@@ -1992,13 +2013,14 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   _lesSens = null;
   _lesMode = null;
   _lesCrop = true; // recadrage au format par défaut (jamais d'étirement)
-  _lesCropPos = 'center';
+  _lesCropX = 50; _lesCropY = 50;
   window._lesCtx = null; // nouveau plan = nouveau contexte (laizeOrig réinitialisée)
   const m = r.montage;
   // Imposition multi-copies : quantité lue depuis l'IA (réinitialisée à chaque analyse)
   _nestQte = (m && Number(m.quantite) > 1) ? Math.round(Number(m.quantite)) : 1;
   _nestEspace = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
   _nestLeLen = 1000;
+  _nestEgalise = false;
   // Débord décidé par l'IA (0 si "pas de bords tournants" / "échelle 1" / repères de découpe présents)
   if (m && typeof m.debord_mm === 'number') _lesDebord = m.debord_mm;
   if (m) {
