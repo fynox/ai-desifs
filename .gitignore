@@ -4,3 +4,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# Graphify (carte de code locale)
+graphify-out/

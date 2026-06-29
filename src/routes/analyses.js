@@ -438,6 +438,8 @@ DÉFINITIONS IMPORTANTES — respecte-les strictement :
 
 Ne confonds JAMAIS ces categories.
 
+REGLE DE RECOMMANDATION : mets EN AVANT UN SEUL adhesif 'principal' (le mieux adapte a ce cas precis). N'ajoute un 2e adhesif 'alternatif' QUE s'il apporte un vrai compromis different (ex: moins cher, autre finition utile) — JAMAIS deux references quasi identiques en concurrence. Le principal doit etre clairement LE choix recommande.
+
 REGLE ABSOLUE D'IMPRESSION : pour TOUTE impression d'un visuel (logo, photo, fond de couleur, affiche, decor mural...), recommande UNIQUEMENT un adhesif de categorie "Imprimable" (vinyl BLANC imprimable). La couleur du visuel n'a AUCUNE importance : un fond bleu, rouge ou noir s'imprime sur du vinyl BLANC. N'utilise JAMAIS un vinyl de couleur ("Couleur DAO") pour reproduire un visuel imprime. La categorie "Couleur DAO" sert EXCLUSIVEMENT a decouper du lettrage ou des formes en vinyl uni, et UNIQUEMENT si le client demande explicitement de la decoupe/du lettrage adhesif (pas d'impression).
 
 STOCK DISPONIBLE :

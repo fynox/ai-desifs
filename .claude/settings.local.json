@@ -7,7 +7,8 @@
       "Bash(copy index.html app.html)",
       "Bash(node -e \"require\\('./src/routes/stock.js'\\); require\\('./src/routes/analyses.js'\\); require\\('./src/routes/webhook.js'\\); console.log\\('syntax ok'\\)\")",
       "WebSearch",
-      "PowerShell(node -e \"require\\('./src/config/db.js'\\); require\\('./src/utils/usage.js'\\); require\\('./src/routes/analyses.js'\\); require\\('./src/routes/webhook.js'\\); require\\('./src/routes/stock.js'\\); require\\('./src/routes/admin.js'\\); console.log\\('syntax ok'\\)\")"
+      "PowerShell(node -e \"require\\('./src/config/db.js'\\); require\\('./src/utils/usage.js'\\); require\\('./src/routes/analyses.js'\\); require\\('./src/routes/webhook.js'\\); require\\('./src/routes/stock.js'\\); require\\('./src/routes/admin.js'\\); console.log\\('syntax ok'\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
