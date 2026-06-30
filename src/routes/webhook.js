@@ -59,9 +59,11 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     if (!user) return;
     if (user.subscription_status !== 'active') return;
     // Adresse mail dédiée réservée aux plans Pro et Ultra + limite mensuelle d'analyses
-    const { hasMailInbound, checkLimit } = require('../utils/limits');
+    const { hasMailInbound, affordAnalyse, analyseOverQuota, consumeJetons } = require('../utils/limits');
+    const { JETON_COSTS } = require('../utils/plans');
     if (!hasMailInbound(user)) return;
-    if (checkLimit(user, 'analyses')) return;
+    if (affordAnalyse(user)) return; // quota dépassé et pas assez de jetons → on ignore le mail
+    const mailOverQuota = analyseOverQuota(user);
     const apiKey = getSetting('ANTHROPIC_API_KEY');
     if (!apiKey) return;
 
@@ -210,6 +212,7 @@ Réponds UNIQUEMENT en JSON valide :
     let result;
     try { result = JSON.parse(jsonMatch[0]); } catch { failItem('JSON invalide dans la réponse IA (réponse tronquée ?).'); return; }
     if (!result.adhesifs || !result.specs) { failItem('Structure de réponse incomplète.'); return; }
+    if (mailOverQuota) consumeJetons(user, JETON_COSTS.analyse_extra, 'analyse_extra');
 
     // Stocker tous les visuels (sauf si le quota de stockage est plein)
     let visuel_b64 = null, visuel_type = null, visuelsToStore = [];
@@ -256,6 +259,17 @@ router.post('/stripe', express.raw({ type: 'application/json' }), (req, res) => 
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object;
     db.prepare('UPDATE users SET subscription_status = ?, plan = CASE WHEN plan_override=1 THEN plan ELSE ? END WHERE stripe_customer_id = ?').run('inactive', 'free', sub.customer);
+  }
+  // Achat ponctuel d'un pack de jetons → créditer le portefeuille
+  if (event.type === 'checkout.session.completed') {
+    const s = event.data.object;
+    if (s.mode === 'payment' && s.payment_status === 'paid' && s.metadata && s.metadata.jetons) {
+      const uid = Number(s.metadata.user_id), jetons = Number(s.metadata.jetons);
+      if (uid && jetons > 0) {
+        try { db.prepare('UPDATE users SET jetons = COALESCE(jetons,0) + ? WHERE id = ?').run(jetons, uid); }
+        catch (e) { console.error('Crédit jetons error:', e.message); }
+      }
+    }
   }
 
   res.json({ received: true });

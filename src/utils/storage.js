@@ -1,13 +1,8 @@
 const db = require('../config/db');
+const { PLAN_INFO } = require('./plans');
 
-// Quotas de stockage des visuels par plan (en octets)
-const STORAGE_QUOTAS = {
-  free: 200e6,   // 200 Mo
-  trial: 200e6,
-  smart: 500e6,  // 500 Mo
-  pro: 2e9,      // 2 Go
-  ultra: 5e9,    // 5 Go
-};
+const GO = 1e9;
+const TRIAL_QUOTA = 200e6; // 200 Mo en essai gratuit
 
 // Espace occupé par les visuels d'un utilisateur (octets réels ≈ longueur base64 × 3/4)
 function getStorage(userId) {
@@ -17,10 +12,17 @@ function getStorage(userId) {
     ),0) as b64len
     FROM analyses WHERE user_id = ?
   `).get(userId);
-  const user = db.prepare('SELECT plan, subscription_status FROM users WHERE id = ?').get(userId) || {};
-  const plan = user.subscription_status === 'active' ? (user.plan || 'pro') : (user.subscription_status === 'trial' ? 'trial' : 'free');
-  const quota = STORAGE_QUOTAS[plan] || STORAGE_QUOTAS.free;
-  return { used: Math.round(row.b64len * 0.75), quota, plan };
+  const user = db.prepare('SELECT plan, subscription_status, bonus_go FROM users WHERE id = ?').get(userId) || {};
+  let quota, plan;
+  if (user.subscription_status === 'active') {
+    plan = PLAN_INFO[user.plan] ? user.plan : 'pro';
+    quota = (PLAN_INFO[plan].go + (user.bonus_go || 0)) * GO;
+  } else if (user.subscription_status === 'trial') {
+    plan = 'trial'; quota = TRIAL_QUOTA + (user.bonus_go || 0) * GO;
+  } else {
+    plan = 'free'; quota = TRIAL_QUOTA;
+  }
+  return { used: Math.round(row.b64len * 0.75), quota, plan, bonus_go: user.bonus_go || 0 };
 }
 
 function isStorageFull(userId) {
@@ -28,4 +30,4 @@ function isStorageFull(userId) {
   return s.used >= s.quota;
 }
 
-module.exports = { getStorage, isStorageFull, STORAGE_QUOTAS };
+module.exports = { getStorage, isStorageFull };

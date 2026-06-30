@@ -5,7 +5,8 @@ const { requireAuth } = require('../middleware/auth');
 const { logUsage, logCost } = require('../utils/usage');
 const { getSetting } = require('../utils/appSettings');
 const { getStorage, isStorageFull } = require('../utils/storage');
-const { checkLimit } = require('../utils/limits');
+const { checkFeature, affordJetons, consumeJetons, affordAnalyse, analyseOverQuota, getJetonState } = require('../utils/limits');
+const { JETON_COSTS } = require('../utils/plans');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -80,6 +81,25 @@ router.get('/storage', (req, res) => {
   res.json(getStorage(req.user.id));
 });
 
+// État des jetons du compte
+router.get('/jetons', (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  res.json(getJetonState(user));
+});
+
+// Acheter +2 Go de stockage avec des jetons
+router.post('/buy-storage', (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.subscription_status !== 'active') return res.status(403).json({ error: 'Abonnement requis pour acheter du stockage.' });
+  const cost = JETON_COSTS.storage_2go;
+  const aff = affordJetons(user, cost);
+  if (aff) return res.status(403).json(aff);
+  consumeJetons(user, cost, 'storage_2go');
+  db.prepare('UPDATE users SET bonus_go = COALESCE(bonus_go,0) + 2 WHERE id = ?').run(user.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  res.json({ ok: true, storage: getStorage(user.id), jetons: getJetonState(fresh) });
+});
+
 // Libérer de l'espace : mode = all | half_old | heaviest | hd_only
 router.post('/clear', (req, res) => {
   const { mode } = req.body || {};
@@ -132,8 +152,8 @@ router.post('/:id/relance', async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
-  const lim = checkLimit(user, 'relance');
-  if (lim) return res.status(403).json(lim);
+  const ftR = checkFeature(user, 'relance'); if (ftR) return res.status(403).json(ftR);
+  const affR = affordJetons(user, JETON_COSTS.relance); if (affR) return res.status(403).json(affR);
 
   let result = {};
   try { result = JSON.parse(item.result_json || '{}'); } catch {}
@@ -186,6 +206,7 @@ Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
   try { mail = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
   if (!mail.objet || !mail.corps) return res.status(502).json({ error: 'Réponse incomplète — réessayez.' });
 
+  consumeJetons(user, JETON_COSTS.relance, 'relance');
   res.json({ to: clientEmail, objet: mail.objet, corps: mail.corps });
 });
 
@@ -197,8 +218,8 @@ router.post('/:id/devis', async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
-  const lim = checkLimit(user, 'devis');
-  if (lim) return res.status(403).json(lim);
+  const ftD = checkFeature(user, 'devis'); if (ftD) return res.status(403).json(ftD);
+  const affD = affordJetons(user, JETON_COSTS.devis); if (affD) return res.status(403).json(affD);
 
   let result = {};
   try { result = JSON.parse(item.result_json || '{}'); } catch {}
@@ -277,6 +298,7 @@ Réponds UNIQUEMENT en JSON valide :
   // Sauvegarder le devis pour pouvoir le rouvrir sans le regénérer
   db.prepare('UPDATE analyses SET devis_json = ? WHERE id = ?').run(JSON.stringify(devis), item.id);
 
+  consumeJetons(user, JETON_COSTS.devis, 'devis');
   res.json(devis);
 });
 
@@ -304,8 +326,10 @@ router.post('/:id/upscale', async (req, res) => {
     return res.status(403).json({ error: 'storage_full' });
   }
   const upUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const upLim = checkLimit(upUser, 'upscale');
-  if (upLim) return res.status(403).json(upLim);
+  const ftU = checkFeature(upUser, 'upscale'); if (ftU) return res.status(403).json(ftU);
+  // Réactivation d'une HD déjà générée = gratuit (pas de nouveau coût)
+  const alreadyHd = Boolean(item.visuel_hd_b64);
+  if (!alreadyHd) { const affU = affordJetons(upUser, JETON_COSTS.upscale); if (affU) return res.status(403).json(affU); }
 
   try {
     // Real-ESRGAN sur Replicate (nightmareai/real-esrgan)
@@ -358,6 +382,7 @@ router.post('/:id/upscale', async (req, res) => {
     }
     db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=?, visuel_hd_b64=?, visuel_hd_type=? WHERE id=?').run(newB64, newType, newB64, newType, item.id);
     logCost(req.user.id, 'upscale', 'real-esrgan', parseFloat(process.env.REPLICATE_COST_PER_UPSCALE || '0.01'));
+    consumeJetons(upUser, JETON_COSTS.upscale, 'upscale');
     res.json({ visuel_b64: newB64, visuel_type: newType, has_orig: true });
   } catch (e) {
     console.error('Upscale error:', e);
@@ -401,8 +426,10 @@ router.post('/analyse', async (req, res) => {
   if (file_base64 && isStorageFull(req.user.id)) {
     return res.status(403).json({ error: 'storage_full' });
   }
-  const lim = checkLimit(user, 'analyses');
-  if (lim) return res.status(403).json(lim);
+  // Analyse gratuite sous le quota du forfait, sinon coûte des jetons (vérifié ici, débité après succès)
+  const affA = (user.subscription_status === 'active') ? affordAnalyse(user) : null;
+  if (affA) return res.status(403).json(affA);
+  const analyseOver = (user.subscription_status === 'active') && analyseOverQuota(user);
 
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
@@ -491,6 +518,7 @@ Réponds UNIQUEMENT en JSON valide :
   try { result = JSON.parse(jsonMatch[0]); } catch { return res.status(502).json({ error: 'JSON invalide dans la réponse IA.' }); }
   if (!result.adhesifs || !result.specs) return res.status(502).json({ error: 'Structure de réponse incomplète.' });
 
+  if (analyseOver) consumeJetons(user, JETON_COSTS.analyse_extra, 'analyse_extra');
   if (user.subscription_status === 'trial') {
     db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
   }

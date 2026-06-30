@@ -105,6 +105,9 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN visuel_hd_type TEXT',
   'ALTER TABLE analyses ADD COLUMN visuels_json TEXT',
   'ALTER TABLE analyses ADD COLUMN error_msg TEXT',
+  'ALTER TABLE users ADD COLUMN jetons INTEGER DEFAULT 0',     // portefeuille de jetons achetés (cumulables)
+  'ALTER TABLE users ADD COLUMN bonus_go INTEGER DEFAULT 0',   // Go de stockage achetés en plus (par tranche de 2)
+  'ALTER TABLE usage_log ADD COLUMN jetons INTEGER DEFAULT 0', // jetons consommés depuis l\'allocation mensuelle du forfait
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

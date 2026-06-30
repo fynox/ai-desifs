@@ -1,86 +1,104 @@
 const db = require('../config/db');
+const { PLAN_INFO, JETON_COSTS, JETON_LABELS, FEATURE_MIN_PLAN, planHasFeature } = require('./plans');
 
-// Limites mensuelles par plan (-1 = illimité, 0 = fonction non incluse).
-// Les comptages s'appuient sur usage_log (déjà alimenté à chaque appel IA).
-const PLAN_LIMITS = {
-  smart: {
-    analyses: 100,          // analyses IA / mois (manuelles — pas de mail dédié en Smart)
-    relance: 30,            // mails de relance / mois
-    devis: 30,              // devis auto / mois
-    upscale: 0,             // amélioration HD non incluse
-    import_catalogue: 0,    // import catalogue PDF non inclus
-    mail_inbound: false,    // pas d'adresse mail dédiée
-  },
-  pro: {
-    analyses: 300,
-    relance: -1,
-    devis: -1,
-    upscale: 20,
-    import_catalogue: 5,
-    mail_inbound: true,
-  },
-  ultra: {
-    analyses: -1,
-    relance: -1,
-    devis: -1,
-    upscale: 100,
-    import_catalogue: -1,
-    mail_inbound: true,
-  },
+const FEATURE_NAMES = {
+  devis: 'devis automatique',
+  relance: 'mail au client',
+  upscale: 'amélioration HD',
+  import_catalogue: 'import de catalogue',
+  mail_inbound: 'adresse mail dédiée',
 };
 
-const PLAN_LABELS = { smart: 'Smart', pro: 'Pro', ultra: 'Ultra' };
-
-// Plan effectif pour les limites : abonné → son plan ; essai gratuit → limites Smart
-// (l'essai est déjà plafonné à 5 analyses au total par ailleurs).
+// Plan effectif. Abonné → son plan ; essai gratuit → 'smart' (avec plafond d'essai géré ailleurs).
 function planKey(user) {
-  if (user.subscription_status === 'active') return PLAN_LIMITS[user.plan] ? user.plan : 'pro';
+  if (user.subscription_status === 'active') return PLAN_INFO[user.plan] ? user.plan : 'pro';
   return 'smart';
 }
 
-function monthlyCount(userId, types) {
-  const placeholders = types.map(() => '?').join(',');
+// Nombre d'analyses faites ce mois-ci
+function monthlyAnalyses(userId) {
   const row = db.prepare(
-    `SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND type IN (${placeholders}) AND created_at >= datetime('now','start of month')`
-  ).get(userId, ...types);
+    "SELECT COUNT(*) as c FROM usage_log WHERE user_id = ? AND type IN ('analyse','analyse_email') AND created_at >= datetime('now','start of month')"
+  ).get(userId);
   return row.c;
 }
 
-const FEATURE_TYPES = {
-  analyses: ['analyse', 'analyse_email'],
-  relance: ['relance'],
-  devis: ['devis'],
-  upscale: ['upscale'],
-  import_catalogue: ['import_catalogue'],
-};
+// Jetons de l'allocation mensuelle du forfait déjà consommés ce mois
+function monthlyPlanJetons(userId) {
+  const row = db.prepare(
+    "SELECT COALESCE(SUM(jetons),0) as j FROM usage_log WHERE user_id = ? AND created_at >= datetime('now','start of month')"
+  ).get(userId);
+  return row.j;
+}
 
-const FEATURE_NAMES = {
-  analyses: 'analyses IA',
-  relance: 'mails de relance',
-  devis: 'devis automatiques',
-  upscale: 'améliorations HD',
-  import_catalogue: 'imports de catalogue',
-};
-
-// Retourne null si OK, sinon { error } prêt à renvoyer en 403.
-function checkLimit(user, feature) {
+// État complet des jetons d'un utilisateur
+function getJetonState(user) {
   const plan = planKey(user);
-  const limit = PLAN_LIMITS[plan][feature];
-  if (limit === -1) return null;
-  const label = PLAN_LABELS[plan] || plan;
-  if (limit === 0) {
-    return { error: `🔒 ${FEATURE_NAMES[feature].charAt(0).toUpperCase() + FEATURE_NAMES[feature].slice(1)} : fonction non incluse dans le plan ${label}. Passez au plan supérieur pour en profiter.` };
-  }
-  const used = monthlyCount(user.id, FEATURE_TYPES[feature]);
-  if (used >= limit) {
-    return { error: `🔒 Limite mensuelle atteinte : ${used}/${limit} ${FEATURE_NAMES[feature]} ce mois-ci (plan ${label}). Passez au plan supérieur pour continuer.` };
+  const allotment = PLAN_INFO[plan] ? PLAN_INFO[plan].jetons : 0;
+  const planUsed = monthlyPlanJetons(user.id);
+  const planRestant = Math.max(0, allotment - planUsed);
+  const achetes = user.jetons || 0;            // portefeuille acheté (cumulable)
+  return { plan, allotment, planUsed, planRestant, achetes, total: planRestant + achetes };
+}
+
+// Vérifie l'accès à une fonction réservée à un plan. Retourne null si OK, sinon { error }.
+function checkFeature(user, feature) {
+  const plan = planKey(user);
+  if (!planHasFeature(plan, feature)) {
+    const min = FEATURE_MIN_PLAN[feature];
+    const minLabel = PLAN_INFO[min] ? PLAN_INFO[min].label : min;
+    return { error: `🔒 ${(FEATURE_NAMES[feature] || feature)} : réservé au plan ${minLabel} et supérieur. Passez à un forfait supérieur pour en profiter.` };
   }
   return null;
 }
 
-// L'adresse mail dédiée (analyses automatiques par mail) est-elle incluse ?
-function hasMailInbound(user) {
-  return PLAN_LIMITS[planKey(user)].mail_inbound && user.subscription_status === 'active';
+// Solde suffisant pour `cost` jetons ? Retourne null si OK, sinon { error }. Ne débite PAS.
+function affordJetons(user, cost) {
+  if (!cost || cost <= 0) return null;
+  const st = getJetonState(user);
+  if (st.total < cost) {
+    return { error: `🪙 Jetons insuffisants : il te reste ${st.total} jeton${st.total > 1 ? 's' : ''} et cette action en coûte ${cost}. Recharge des jetons depuis ton profil.`, jetons_insuffisants: true, restant: st.total, cout: cost };
+  }
+  return null;
 }
 
-module.exports = { PLAN_LIMITS, checkLimit, hasMailInbound, planKey };
+// Débite `cost` jetons (allocation mensuelle d'abord, puis portefeuille acheté). À appeler APRÈS succès.
+function consumeJetons(user, cost, logType) {
+  if (!cost || cost <= 0) return;
+  const st = getJetonState(user);
+  const fromPlan = Math.min(cost, st.planRestant);
+  const fromWallet = cost - fromPlan;
+  if (fromPlan > 0) {
+    db.prepare("INSERT INTO usage_log (user_id, type, model, input_tokens, output_tokens, cost_usd, own_key, jetons) VALUES (?,?,?,0,0,0,0,?)")
+      .run(user.id, logType || 'jetons', 'jetons', fromPlan);
+  }
+  if (fromWallet > 0) {
+    db.prepare('UPDATE users SET jetons = MAX(0, jetons - ?) WHERE id = ?').run(fromWallet, user.id);
+  }
+}
+
+// L'analyse à venir dépasse-t-elle le quota du forfait (donc payante en jetons) ?
+function analyseOverQuota(user) {
+  const plan = planKey(user);
+  const limit = PLAN_INFO[plan] ? PLAN_INFO[plan].analyses : 0;
+  return monthlyAnalyses(user.id) >= limit;
+}
+
+// Peut-on lancer une analyse ? (gratuite sous quota, sinon jetons). Ne débite PAS.
+function affordAnalyse(user) {
+  if (!analyseOverQuota(user)) return null;
+  const cost = JETON_COSTS.analyse_extra;
+  const a = affordJetons(user, cost);
+  if (a) {
+    const plan = planKey(user);
+    const limit = PLAN_INFO[plan] ? PLAN_INFO[plan].analyses : 0;
+    return { error: `🪙 Quota de ${limit} analyses atteint ce mois-ci. Au-delà, chaque analyse coûte ${cost} jetons — solde insuffisant. Recharge des jetons ou passe au forfait supérieur.`, jetons_insuffisants: true };
+  }
+  return null;
+}
+
+function hasMailInbound(user) {
+  return user.subscription_status === 'active' && planHasFeature(planKey(user), 'mail_inbound');
+}
+
+module.exports = { planKey, getJetonState, checkFeature, affordJetons, consumeJetons, affordAnalyse, analyseOverQuota, hasMailInbound, monthlyAnalyses };

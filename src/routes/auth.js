@@ -72,8 +72,18 @@ router.get('/profile', requireAuth, async (req, res) => {
     }
   }
 
+  // État jetons + stockage + infos du forfait
+  const full = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  let jetons = null, storage = null, planInfo = null;
+  try {
+    jetons = require('../utils/limits').getJetonState(full);
+    storage = require('../utils/storage').getStorage(req.user.id);
+    const { PLAN_INFO } = require('../utils/plans');
+    planInfo = PLAN_INFO[jetons.plan] || null;
+  } catch (e) { console.error('profile extras error:', e.message); }
+
   const { id, stripe_customer_id, ...pub } = user;
-  res.json(pub);
+  res.json({ ...pub, jetons, storage, plan_info: planInfo });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

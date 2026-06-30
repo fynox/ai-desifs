@@ -9,7 +9,8 @@ const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
 const { logUsage } = require('../utils/usage');
 const { getSetting } = require('../utils/appSettings');
-const { checkLimit } = require('../utils/limits');
+const { checkFeature, affordJetons, consumeJetons } = require('../utils/limits');
+const { JETON_COSTS } = require('../utils/plans');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -162,8 +163,8 @@ router.post('/import-catalogue', (req, res, next) => {
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(500).json({ error: 'Clé API Anthropic non configurée.' });
   const impUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const impLim = checkLimit(impUser, 'import_catalogue');
-  if (impLim) return res.status(403).json(impLim);
+  const ftI = checkFeature(impUser, 'import_catalogue'); if (ftI) return res.status(403).json(ftI);
+  const affI = affordJetons(impUser, JETON_COSTS.import_catalogue); if (affI) return res.status(403).json(affI);
 
   try {
     const images = await pdfToImages(req.file.buffer);
@@ -219,6 +220,7 @@ router.post('/import-catalogue', (req, res, next) => {
       added.push({ id: result.lastInsertRowid, ...p });
     }
 
+    consumeJetons(impUser, JETON_COSTS.import_catalogue, 'import_catalogue');
     res.json({ ok: true, count: added.length, produits: added });
   } catch (e) {
     console.error('Import catalogue error:', e);

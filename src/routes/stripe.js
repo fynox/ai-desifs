@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
-const { STRIPE_PRICE_IDS } = require('../utils/plans');
+const { STRIPE_PRICE_IDS, JETON_PACKS, jetonPackPriceId } = require('../utils/plans');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -13,7 +13,7 @@ function getStripe() {
 router.post('/checkout', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { period = 'monthly', plan = '' } = req.body;
+    const { plan = '' } = req.body;
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
     let customerId = user.stripe_customer_id;
@@ -23,19 +23,9 @@ router.post('/checkout', async (req, res) => {
       db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customerId, user.id);
     }
 
-    // Multi-plans : price IDs centralisés dans utils/plans.js.
-    // Si la période annuelle n'a pas encore de prix (Smart/Ultra), on retombe sur le mensuel.
-    let priceId;
-    const prices = STRIPE_PRICE_IDS[plan];
-    if (prices) {
-      priceId = period === 'annual' ? (prices.annual || prices.monthly) : prices.monthly;
-    }
-    if (!priceId) {
-      // Sans plan précisé : abonnement historique (compté comme Pro)
-      priceId = period === 'annual'
-        ? (process.env.STRIPE_PRICE_ID_ANNUAL || STRIPE_PRICE_IDS.pro.annual || process.env.STRIPE_PRICE_ID)
-        : process.env.STRIPE_PRICE_ID;
-    }
+    // Forfaits mensuels (price IDs dans utils/plans.js / variables Railway)
+    const priceId = (STRIPE_PRICE_IDS[plan] && STRIPE_PRICE_IDS[plan].monthly) || process.env.STRIPE_PRICE_ID;
+    if (!priceId) return res.status(400).json({ error: 'Forfait non configuré côté Stripe (price ID manquant).' });
 
     // URL de retour : on prend l'origine réelle de la requête (le domaine sur lequel l'utilisateur navigue),
     // avec APP_URL en secours. Évite les redirections cassées si APP_URL est absent ou en http.
@@ -54,6 +44,44 @@ router.post('/checkout', async (req, res) => {
     res.json({ url: session.url });
   } catch (e) {
     console.error('Stripe checkout error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Achat ponctuel d'un pack de jetons
+router.post('/checkout-jetons', async (req, res) => {
+  try {
+    const stripe = getStripe();
+    const jetons = Number(req.body.jetons);
+    const pack = JETON_PACKS.find(p => p.jetons === jetons);
+    if (!pack) return res.status(400).json({ error: 'Pack de jetons invalide.' });
+    const priceId = jetonPackPriceId(jetons);
+    if (!priceId) return res.status(400).json({ error: `Pack ${jetons} jetons non configuré côté Stripe (price ID manquant).` });
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    let customerId = user.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: user.email });
+      customerId = customer.id;
+      db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customerId, user.id);
+    }
+
+    let appUrl = req.headers.origin || process.env.APP_URL || 'https://ai-dhesif.fr';
+    if (appUrl.startsWith('http://') && !appUrl.includes('localhost')) appUrl = appUrl.replace('http://', 'https://');
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      // métadonnées lues par le webhook pour créditer les jetons
+      metadata: { user_id: String(user.id), jetons: String(jetons) },
+      payment_intent_data: { metadata: { user_id: String(user.id), jetons: String(jetons) } },
+      success_url: `${appUrl}/app?jetons=1`,
+      cancel_url: `${appUrl}/app?jetons_cancel=1`,
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Stripe checkout-jetons error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
