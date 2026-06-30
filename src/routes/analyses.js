@@ -239,6 +239,21 @@ router.post('/:id/devis', async (req, res) => {
     ? encres.map(i => `• ${i.nom} | prix: ${i.prix_m2 != null ? i.prix_m2 + ' €/m² imprimé' : 'NON RENSEIGNÉ'}${i.note ? ' | ' + i.note : ''}`).join('\n')
     : 'Aucune encre renseignée — utilise une estimation standard de 0,80 €/m² imprimé et signale-le dans les hypothèses.';
 
+  // Apprentissage des prix : si l'utilisateur a déjà ajusté ses prix sur de précédents devis,
+  // on pousse l'IA à se rapprocher de SA tarification plutôt que du coût brut calculé.
+  let devisPrefHint = '';
+  try {
+    const pref = JSON.parse(user.devis_pref || '{}');
+    if (pref && pref.ratio && pref.n >= 1) {
+      const pct = Math.round(pref.ratio * 100);
+      devisPrefHint = `PRÉFÉRENCE TARIFAIRE DE L'UTILISATEUR (apprise sur ${pref.n} devis précédents) :
+- Sur ses devis passés, l'utilisateur facture en moyenne ≈ ${pct}% du coût que tu calcules (ratio ${pref.ratio.toFixed(2)}x).
+- Ajuste les prix_unitaire et total pour TE RAPPROCHER de cette tarification réelle, tout en restant cohérent avec les coûts. C'est SA façon de facturer, respecte-la.
+
+`;
+    }
+  } catch {}
+
   const prompt = `Tu es un imprimeur professionnel (signalétique / adhésifs grand format). Établis un DEVIS APPROXIMATIF pour cette demande client :
 
 ---
@@ -254,7 +269,7 @@ ${stockLines || 'Aucun'}
 ENCRES D'IMPRESSION (coût au m² imprimé) :
 ${encreLines}
 
-RÈGLES :
+${devisPrefHint}RÈGLES :
 - Utilise en priorité les adhésifs recommandés par l'analyse et leurs prix réels du stock.
 - Calcule la surface à partir des dimensions du mail. Si dimensions absentes, fais une hypothèse raisonnable et signale-la.
 - Tiens compte des laizes (largeurs de rouleau) pour estimer le nombre de lés.
@@ -300,6 +315,48 @@ Réponds UNIQUEMENT en JSON valide :
 
   consumeJetons(user, JETON_COSTS.devis, 'devis');
   res.json(devis);
+});
+
+// Feedback sur le devis : l'utilisateur valide ses propres prix.
+// On apprend le ratio (prix perso / prix proposé) pour rapprocher les prochains devis de SA tarification.
+// On mémorise aussi ses infos émetteur pour le PDF. Ne consomme aucun jeton.
+router.post('/:id/devis/feedback', (req, res) => {
+  const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const user = db.prepare('SELECT devis_pref FROM users WHERE id = ?').get(req.user.id);
+
+  const lignes = Array.isArray(req.body.lignes) ? req.body.lignes : [];
+  const ratios = [];
+  for (const l of lignes) {
+    const propose = Number(l.propose);
+    const perso = Number(l.perso);
+    if (propose > 0 && perso > 0) ratios.push(perso / propose);
+  }
+
+  if (ratios.length) {
+    const moy = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    let pref = {};
+    try { pref = JSON.parse(user.devis_pref || '{}'); } catch {}
+    const n = (pref.n || 0);
+    // moyenne mobile pondérée : on lisse pour ne pas réagir trop fort à un seul devis
+    const newRatio = n > 0 ? (pref.ratio * n + moy) / (n + 1) : moy;
+    pref = { ratio: Math.max(0.2, Math.min(10, newRatio)), n: n + 1 };
+    db.prepare('UPDATE users SET devis_pref = ? WHERE id = ?').run(JSON.stringify(pref), req.user.id);
+  }
+
+  if (req.body.infos && typeof req.body.infos === 'object') {
+    db.prepare('UPDATE users SET devis_infos = ? WHERE id = ?').run(JSON.stringify(req.body.infos), req.user.id);
+  }
+
+  res.json({ ok: true });
+});
+
+// Renvoie les infos émetteur mémorisées (pré-remplissage du PDF de devis)
+router.get('/devis-infos', (req, res) => {
+  const user = db.prepare('SELECT devis_infos FROM users WHERE id = ?').get(req.user.id);
+  let infos = {};
+  try { infos = JSON.parse(user.devis_infos || '{}'); } catch {}
+  res.json(infos || {});
 });
 
 // Upscale IA du visuel via Replicate (Real-ESRGAN x4)

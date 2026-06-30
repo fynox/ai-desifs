@@ -42,10 +42,10 @@ const JETON_PACKS = [
 // Price IDs Stripe des abonnements (variable Railway du même nom prioritaire).
 // À créer côté Stripe puis renseigner : STRIPE_PRICE_SMART, STRIPE_PRICE_PRO, STRIPE_PRICE_ULTRA, STRIPE_PRICE_ENTREPRISE.
 const STRIPE_PRICE_IDS = {
-  smart:      { monthly: process.env.STRIPE_PRICE_SMART || null,      annual: process.env.STRIPE_PRICE_SMART_ANNUAL || null },
-  pro:        { monthly: process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRICE_ID || null, annual: process.env.STRIPE_PRICE_PRO_ANNUAL || null },
-  ultra:      { monthly: process.env.STRIPE_PRICE_ULTRA || null,      annual: process.env.STRIPE_PRICE_ULTRA_ANNUAL || null },
-  entreprise: { monthly: process.env.STRIPE_PRICE_ENTREPRISE || null, annual: process.env.STRIPE_PRICE_ENTREPRISE_ANNUAL || null },
+  smart:      { monthly: process.env.STRIPE_PRICE_SMART || 'price_1TnsAFP9wUBWfeABHWlOyBen',      annual: process.env.STRIPE_PRICE_SMART_ANNUAL || null },
+  pro:        { monthly: process.env.STRIPE_PRICE_PRO || 'price_1TnsAbP9wUBWfeAB29t8A4wy',        annual: process.env.STRIPE_PRICE_PRO_ANNUAL || null },
+  ultra:      { monthly: process.env.STRIPE_PRICE_ULTRA || 'price_1TnsAtP9wUBWfeABbMvJWE5M',      annual: process.env.STRIPE_PRICE_ULTRA_ANNUAL || null },
+  entreprise: { monthly: process.env.STRIPE_PRICE_ENTREPRISE || 'price_1TnsBIP9wUBWfeABEOyu5BZk', annual: process.env.STRIPE_PRICE_ENTREPRISE_ANNUAL || null },
 };
 
 // Price IDs Stripe des packs de jetons : STRIPE_PRICE_JETON_10, _30, _50, _100, _500, _1000

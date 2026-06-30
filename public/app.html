@@ -357,6 +357,12 @@ textarea:focus { border-color: var(--accent); }
 .btn-cancel:hover { border-color: var(--muted); }
 .btn-submit { background: var(--accent); color: #111; border: none; border-radius: 9px; padding: 9px 22px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-submit:hover { background: #b8e030; }
+.devis-inp{width:100%;box-sizing:border-box;margin-bottom:7px;padding:7px 9px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--surface2,var(--surface));color:var(--text,inherit);font-family:inherit;}
+.devis-inp:last-child{margin-bottom:0;}
+.devis-inp:focus{outline:none;border-color:var(--accent);}
+.dv-prix-perso{width:92px;box-sizing:border-box;padding:5px 7px;font-size:12px;text-align:right;border:1px solid var(--border);border-radius:6px;background:var(--surface2,var(--surface));color:var(--text,inherit);font-family:'DM Mono',monospace;}
+.dv-prix-perso:focus{outline:none;border-color:var(--accent);}
+.btn-cost{display:inline-block;margin-left:7px;padding:1px 7px;font-size:10px;font-weight:600;border-radius:20px;background:rgba(220,170,40,.16);color:#caa23a;font-family:'DM Mono',monospace;vertical-align:middle;white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -473,7 +479,7 @@ textarea:focus { border-color: var(--accent); }
             <button class="btn-remove-file" id="btn-remove-file" onclick="removeFile(event)" style="display:none">✕ Retirer le fichier</button>
           </div>
         </div>
-        <button class="btn-analyze" id="btn-analyze" onclick="analyzeRequest()">Analyser la demande →</button>
+        <button class="btn-analyze" id="btn-analyze" onclick="analyzeRequest()">Analyser la demande →<span class="btn-cost" title="Gratuit dans la limite de ton forfait, puis 5 jetons par analyse au-delà du quota mensuel">inclus · 5🪙 au-delà du quota</span></button>
         <div class="stock-warning" id="stock-warning" style="display:none">⚠ Aucun adhésif en stock. Cliquez sur "Gérer le stock" dans la sidebar.</div>
       </div>
 
@@ -579,15 +585,54 @@ textarea:focus { border-color: var(--accent); }
 
 <!-- MODAL DEVIS -->
 <div class="modal-overlay" id="modal-devis">
-  <div class="modal" style="max-width:620px">
-    <h3>📋 Devis approximatif</h3>
-    <div id="devis-body" style="margin-top:10px;"></div>
+  <div class="modal" style="max-width:860px;width:96vw">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <h3 style="margin:0">📋 Devis</h3>
+      <div style="font-size:11px;color:var(--muted);max-width:420px;line-height:1.5;">Prix conseillés calculés par l'IA. Saisis ton propre prix dans la colonne « Ton prix » si tu factures différemment — laissé vide, le prix conseillé est conservé. À la validation, l'IA apprend ta tarification pour les prochains devis.</div>
+    </div>
+    <div id="devis-body" style="margin-top:14px;"></div>
+
+    <div style="margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;">Émetteur (toi)</div>
+        <input class="devis-inp" id="dv-em-nom" placeholder="Nom / Société">
+        <input class="devis-inp" id="dv-em-adr" placeholder="Adresse">
+        <input class="devis-inp" id="dv-em-cp" placeholder="Code postal · Ville">
+        <input class="devis-inp" id="dv-em-tel" placeholder="Téléphone">
+        <input class="devis-inp" id="dv-em-mail" placeholder="Email">
+        <input class="devis-inp" id="dv-em-siret" placeholder="SIRET / TVA (optionnel)">
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;">Client</div>
+        <input class="devis-inp" id="dv-cl-nom" placeholder="Nom / Société du client">
+        <input class="devis-inp" id="dv-cl-adr" placeholder="Adresse">
+        <input class="devis-inp" id="dv-cl-cp" placeholder="Code postal · Ville">
+        <input class="devis-inp" id="dv-cl-tel" placeholder="Téléphone (optionnel)">
+        <input class="devis-inp" id="dv-cl-mail" placeholder="Email (optionnel)">
+        <input class="devis-inp" id="dv-ref" placeholder="Référence devis (ex: DEV-2026-001)">
+      </div>
+    </div>
+
     <div class="auth-error" id="devis-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="devis-copied">✓ Copié dans le presse-papier</div>
-    <div class="modal-actions">
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
       <button class="btn-cancel" onclick="closeDevis()">Fermer</button>
       <button class="btn-cancel" id="btn-regen-devis" title="Refaire le calcul (utile si le stock ou les prix ont changé)">↻ Régénérer</button>
-      <button class="btn-submit" onclick="copierDevis()">⧉ Copier le devis</button>
+      <button class="btn-cancel" onclick="copierDevis()">⧉ Copier (texte)</button>
+      <button class="btn-submit" onclick="validerEtExporter()">✅ Valider et exporter le PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL JETONS INSUFFISANTS -->
+<div class="modal-overlay" id="modal-jetons-ko" style="z-index:700">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <div style="font-size:38px;margin-bottom:6px;">🪙</div>
+    <h3 style="margin:0 0 8px">Jetons insuffisants</h3>
+    <div id="jetons-ko-msg" style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">Tu n'as pas assez de jetons pour cette action.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <a class="btn-submit" style="width:100%;text-decoration:none;display:block;box-sizing:border-box;" href="/pricing#jetons" target="_blank" rel="noopener">＋ Recharger des jetons</a>
+      <button class="btn-cancel" style="width:100%" onclick="closeJetonsKo()">Plus tard</button>
     </div>
   </div>
 </div>
@@ -760,9 +805,26 @@ async function api(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch('/api' + path, opts);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `Erreur ${res.status}`);
+    err.data = data;
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
+
+// Gestion centralisée des erreurs d'action : si jetons insuffisants → modal d'achat, sinon alerte.
+function handleActionError(e) {
+  if (e && e.data && e.data.jetons_insuffisants) {
+    const msg = document.getElementById('jetons-ko-msg');
+    if (msg) msg.textContent = e.message || 'Tu n\'as pas assez de jetons pour cette action.';
+    document.getElementById('modal-jetons-ko').classList.add('open');
+  } else {
+    alert('Erreur : ' + (e && e.message ? e.message : e));
+  }
+}
+function closeJetonsKo() { document.getElementById('modal-jetons-ko').classList.remove('open'); }
 
 // ===================== AUTH =====================
 function switchAuthTab(tab) {
@@ -1571,7 +1633,10 @@ async function analyzeRequest() {
   } catch (e) {
     historique = historique.filter(h => !h._pending);
     renderSidebarHisto();
-    if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {
+    if (e.data && e.data.jetons_insuffisants) {
+      document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">🪙</div><p style="color:var(--danger);font-size:12px;">${e.message}</p></div>`;
+      handleActionError(e);
+    } else if (e.message === 'trial_expired' || e.message.includes('trial_expired')) {
       showUpgradeWall('trial_expired');
     } else if (e.message.includes('storage_full')) {
       document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">💾</div><p style="color:var(--danger);font-size:12px;">Espace de stockage plein — libérez de l'espace pour analyser avec un fichier joint.</p></div>`;
@@ -1583,7 +1648,7 @@ async function analyzeRequest() {
       document.getElementById('output-panel').innerHTML = `<div class="output-empty"><div class="output-empty-icon">⚠️</div><p style="color:var(--danger);font-size:12px;word-break:break-all;">${e.message}</p></div>`;
     }
   }
-  btn.disabled = false; btn.textContent = 'Analyser la demande →';
+  btn.disabled = false; btn.innerHTML = 'Analyser la demande →<span class="btn-cost" title="Gratuit dans la limite de ton forfait, puis 5 jetons par analyse au-delà du quota mensuel">inclus · 5🪙 au-delà du quota</span>';
 }
 
 function closeResult() {
@@ -2049,7 +2114,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       const hasOrig = (historique.find(a => a.id === analyseId) || {}).has_orig;
       const visuelBtns = analyseId && analyseId !== '_pending'
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-            <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution</button>
+            <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -2168,7 +2233,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${montageHTML}
       <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
       ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client</button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif</button></div>` : ''}
+      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif<span class="btn-cost" title="2 jetons. Rouvrir un devis déjà généré est gratuit.">2🪙</span></button></div>` : ''}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
@@ -2241,7 +2306,7 @@ async function upscaleVisuel(id) {
     if (item && item.has_orig) {
       const orig = await api('GET', `/analyses/${id}/visuel-orig`);
       showAvantApres(`data:${orig.visuel_type};base64,${orig.visuel_b64}`, `data:${item.visuel_type};base64,${item.visuel_b64}`);
-      if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = '✨ Améliorer la résolution<span class="btn-cost">5🪙</span>'; }
       return;
     }
     const srcAvant = item ? `data:${item.visuel_type};base64,${item.visuel_b64}` : null;
@@ -2262,9 +2327,9 @@ async function upscaleVisuel(id) {
   } catch (e) {
     if ((e.message || '').includes('dev')) alert('🛠 Fonction en cours de développement — disponible très bientôt !');
     else if ((e.message || '').includes('storage_full')) { alert('💾 Espace de stockage plein — libère de l\'espace avec le bouton 🧹 dans la barre latérale.'); openClear(); }
-    else alert('Erreur : ' + e.message);
+    else handleActionError(e);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '✨ Améliorer la résolution'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Améliorer la résolution<span class="btn-cost">5🪙</span>'; }
   }
 }
 
@@ -2659,40 +2724,170 @@ async function genererDevis(id, force = false) {
     afficherDevis(d, id);
     loadJetons();
   } catch(e) {
-    alert('Erreur : ' + e.message);
+    handleActionError(e);
   }
-  if (btn) { btn.disabled = false; btn.textContent = '📋 Devis approximatif'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = '📋 Devis approximatif<span class="btn-cost">2🪙</span>'; }
 }
 
+let _devisId = null;
 function afficherDevis(d, id) {
   {
     _devisData = d;
+    _devisId = id;
     const fmtPrix = v => typeof v === 'number' ? v.toFixed(2) + ' €' : (v || '—');
-    const lignes = (d.lignes || []).map(l => `<tr>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;">${l.designation}${l.details ? `<br><span style="font-size:10px;color:var(--muted);">${l.details}</span>` : ''}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;">${l.quantite || '—'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;">${fmtPrix(l.prix_unitaire)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:600;">${fmtPrix(l.total)}</td>
-    </tr>`).join('');
+    const num = v => { const n = Number(v); return isFinite(n) ? n : null; };
+    const lignes = (d.lignes || []).map((l, i) => {
+      const pu = num(l.prix_unitaire);
+      const tot = num(l.total);
+      return `<tr>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.45;">${l.designation || ''}${l.details ? `<br><span style="font-size:10.5px;color:var(--muted);">${l.details}</span>` : ''}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;white-space:nowrap;">${l.quantite || '—'}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;color:var(--muted);white-space:nowrap;">${fmtPrix(l.prix_unitaire)}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:600;white-space:nowrap;">${fmtPrix(l.total)}</td>
+      <td style="padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;">
+        <input class="dv-prix-perso" id="dv-perso-${i}" type="number" step="0.01" min="0" placeholder="${tot != null ? tot.toFixed(2) : ''}"
+               data-propose="${tot != null ? tot : ''}" title="Ton prix de vente pour cette ligne (laisser vide = prix conseillé)">
+      </td>
+    </tr>`;
+    }).join('');
     document.getElementById('devis-body').innerHTML = `
-      <table style="width:100%;border-collapse:collapse;">
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:560px;">
         <thead><tr>
           <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Désignation</th>
           <th style="text-align:center;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Qté</th>
           <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">P.U.</th>
-          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Total</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Conseillé</th>
+          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--accent);text-transform:uppercase;">Ton prix</th>
         </tr></thead>
         <tbody>${lignes}</tbody>
       </table>
-      <div style="text-align:right;margin-top:12px;font-size:15px;font-weight:700;">Total coût : ${typeof d.total_ht === 'number' ? d.total_ht.toFixed(2) : d.total_ht} € HT</div>
+      </div>
+      <div style="text-align:right;margin-top:12px;font-size:15px;font-weight:700;">Total conseillé : ${typeof d.total_ht === 'number' ? d.total_ht.toFixed(2) : d.total_ht} € HT</div>
       ${d.marge_conseillee ? `<div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;">Marge conseillée : ${d.marge_conseillee}</div>` : ''}
-      ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}
-      <div style="font-size:10px;color:var(--muted);margin-top:10px;font-style:italic;">Devis indicatif généré automatiquement — à valider avant envoi au client.</div>`;
+      ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}`;
     document.getElementById('devis-error').textContent = '';
     document.getElementById('devis-copied').style.display = 'none';
     document.getElementById('btn-regen-devis').onclick = () => { closeDevis(); genererDevis(id, true); };
+    prefillDevisInfos();
     document.getElementById('modal-devis').classList.add('open');
   }
+}
+
+// Pré-remplit les infos émetteur mémorisées précédemment
+async function prefillDevisInfos() {
+  try {
+    const infos = await api('GET', '/analyses/devis-infos');
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v && !el.value) el.value = v; };
+    set('dv-em-nom', infos.em_nom); set('dv-em-adr', infos.em_adr); set('dv-em-cp', infos.em_cp);
+    set('dv-em-tel', infos.em_tel); set('dv-em-mail', infos.em_mail); set('dv-em-siret', infos.em_siret);
+  } catch {}
+}
+
+// Lit les prix perso saisis ligne par ligne (vide = prix conseillé)
+function lireDevisPerso() {
+  const d = _devisData; if (!d) return [];
+  return (d.lignes || []).map((l, i) => {
+    const el = document.getElementById('dv-perso-' + i);
+    const propose = el ? Number(el.dataset.propose) : Number(l.total);
+    const persoRaw = el && el.value.trim() !== '' ? Number(el.value) : null;
+    const perso = (persoRaw != null && isFinite(persoRaw)) ? persoRaw : null;
+    return { designation: l.designation, details: l.details, quantite: l.quantite,
+             prix_unitaire: l.prix_unitaire, propose: isFinite(propose) ? propose : null,
+             perso, total: perso != null ? perso : (isFinite(propose) ? propose : l.total) };
+  });
+}
+
+function collectDevisInfos() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  return {
+    em_nom: g('dv-em-nom'), em_adr: g('dv-em-adr'), em_cp: g('dv-em-cp'),
+    em_tel: g('dv-em-tel'), em_mail: g('dv-em-mail'), em_siret: g('dv-em-siret'),
+    cl_nom: g('dv-cl-nom'), cl_adr: g('dv-cl-adr'), cl_cp: g('dv-cl-cp'),
+    cl_tel: g('dv-cl-tel'), cl_mail: g('dv-cl-mail'), ref: g('dv-ref'),
+  };
+}
+
+// Valide : (1) apprend la tarification de l'utilisateur, (2) exporte le PDF du devis
+async function validerEtExporter() {
+  const lignes = lireDevisPerso();
+  const infos = collectDevisInfos();
+  // 1) apprentissage des prix (et mémorisation des infos émetteur) — silencieux
+  try {
+    await api('POST', `/analyses/${_devisId}/devis/feedback`, {
+      lignes: lignes.map(l => ({ designation: l.designation, propose: l.propose, perso: l.perso })),
+      infos: { em_nom: infos.em_nom, em_adr: infos.em_adr, em_cp: infos.em_cp, em_tel: infos.em_tel, em_mail: infos.em_mail, em_siret: infos.em_siret },
+    });
+  } catch (e) { /* l'export reste possible même si l'apprentissage échoue */ }
+  // 2) export PDF
+  exporterDevisPDF(lignes, infos);
+}
+
+function exporterDevisPDF(lignes, infos) {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const fmt = v => typeof v === 'number' && isFinite(v) ? v.toFixed(2).replace('.', ',') + ' €' : '—';
+  const total = lignes.reduce((s, l) => s + (Number(l.total) || 0), 0);
+  const today = new Date().toLocaleDateString('fr-FR');
+  const rows = lignes.map(l => `<tr>
+      <td class="d">${esc(l.designation)}${l.details ? `<div class="sub">${esc(l.details)}</div>` : ''}</td>
+      <td class="c">${esc(l.quantite || '')}</td>
+      <td class="r">${l.quantite && Number(l.total) ? fmt(Number(l.total) / (parseFloat(l.quantite) || 1)) : (l.prix_unitaire != null ? fmt(Number(l.prix_unitaire)) : '—')}</td>
+      <td class="r b">${fmt(Number(l.total))}</td>
+    </tr>`).join('');
+  const block = (titre, lines) => `<div class="party"><div class="pt">${titre}</div>${lines.filter(Boolean).map(esc).map(x => `<div>${x}</div>`).join('') || '<div class="muted">—</div>'}</div>`;
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Devis ${esc(infos.ref || '')}</title>
+<style>
+*{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:32px;font-size:13px;}
+.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:14px;margin-bottom:22px;}
+.title{font-size:30px;font-weight:800;letter-spacing:1px;}
+.meta{text-align:right;font-size:12px;color:#444;line-height:1.6;}
+.parties{display:flex;gap:24px;margin-bottom:24px;}
+.party{flex:1;border:1px solid #ddd;border-radius:8px;padding:12px 14px;line-height:1.55;}
+.pt{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:700;}
+.muted{color:#aaa}
+table{width:100%;border-collapse:collapse;margin-bottom:18px;}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#666;text-align:left;border-bottom:2px solid #111;padding:8px 10px;}
+td{padding:9px 10px;border-bottom:1px solid #eee;vertical-align:top;}
+td.c,th.c{text-align:center} td.r,th.r{text-align:right} td.b{font-weight:700}
+td.d .sub{font-size:11px;color:#888;margin-top:2px;}
+.tot{display:flex;justify-content:flex-end;}
+.tot table{width:auto;min-width:240px;}
+.tot td{border:none;padding:5px 10px;}
+.tot .grand{font-size:17px;font-weight:800;border-top:2px solid #111;}
+.foot{margin-top:30px;font-size:11px;color:#777;line-height:1.6;border-top:1px solid #eee;padding-top:12px;}
+@media print{body{padding:0}}
+</style></head><body>
+<div class="head">
+  <div class="title">DEVIS</div>
+  <div class="meta">
+    <div><strong>N° ${esc(infos.ref || '—')}</strong></div>
+    <div>Date : ${esc(today)}</div>
+    <div>Valable 30 jours</div>
+  </div>
+</div>
+<div class="parties">
+  ${block('Émetteur', [infos.em_nom, infos.em_adr, [infos.em_cp].filter(Boolean).join(' '), infos.em_tel, infos.em_mail, infos.em_siret ? 'SIRET/TVA : ' + infos.em_siret : ''])}
+  ${block('Client', [infos.cl_nom, infos.cl_adr, infos.cl_cp, infos.cl_tel, infos.cl_mail])}
+</div>
+<table>
+  <thead><tr><th>Désignation</th><th class="c">Qté</th><th class="r">P.U. HT</th><th class="r">Total HT</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="tot"><table>
+  <tr><td>Total HT</td><td class="r">${fmt(total)}</td></tr>
+  <tr class="grand"><td>TOTAL</td><td class="r">${fmt(total)} HT</td></tr>
+</table></div>
+<div class="foot">
+  Devis établi le ${esc(today)} — TVA non applicable / à adapter selon votre régime. Bon pour accord : signature et date du client.
+  <div style="height:46px;"></div>
+  <div>Signature client (précédée de « Bon pour accord ») :</div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { alert('Autorise les fenêtres pop-up pour exporter le devis en PDF.'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 function closeDevis() { document.getElementById('modal-devis').classList.remove('open'); }
@@ -2733,7 +2928,7 @@ async function genererRelance(id, ton = 'pro') {
     document.getElementById('relance-copied').style.display = 'none';
     document.getElementById('modal-relance').classList.add('open');
   } catch(e) {
-    alert('Erreur : ' + e.message);
+    handleActionError(e);
   }
   if (btn) { btn.disabled = false; btn.textContent = '✉ Mail au client — demander les infos manquantes'; }
 }

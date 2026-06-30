@@ -108,6 +108,8 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN jetons INTEGER DEFAULT 0',     // portefeuille de jetons achetés (cumulables)
   'ALTER TABLE users ADD COLUMN bonus_go INTEGER DEFAULT 0',   // Go de stockage achetés en plus (par tranche de 2)
   'ALTER TABLE usage_log ADD COLUMN jetons INTEGER DEFAULT 0', // jetons consommés depuis l\'allocation mensuelle du forfait
+  'ALTER TABLE users ADD COLUMN devis_pref TEXT DEFAULT \'\'',  // apprentissage des prix : JSON {ratio, n} (prix perso / prix proposé)
+  'ALTER TABLE users ADD COLUMN devis_infos TEXT DEFAULT \'\'', // infos émetteur mémorisées pour le PDF de devis (JSON)
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
