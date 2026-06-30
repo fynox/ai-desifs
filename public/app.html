@@ -2421,6 +2421,8 @@ function nettoyerSVGvecto(svgStr, dropLight, thr) {
       if (!c) return null;
       c = c.trim().toLowerCase();
       if (c === 'none' || c === 'transparent') return null;
+      if (c === 'white') return [255, 255, 255];
+      if (c === 'black') return [0, 0, 0];
       let m = c.match(/rgba?\(([^)]+)\)/);
       if (m) { const p = m[1].split(',').map(x => parseFloat(x)); return [p[0], p[1], p[2]]; }
       m = c.match(/^#([0-9a-f]{3})$/);
@@ -2429,19 +2431,33 @@ function nettoyerSVGvecto(svgStr, dropLight, thr) {
       if (m) { const h = m[1]; return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
       return null;
     };
+    // vectorizer.ai met souvent les couleurs dans des classes CSS (<style>.cls-1{fill:#fff}</style>)
+    const classFill = {};
+    doc.querySelectorAll('style').forEach(s => {
+      const css = s.textContent || '';
+      const re = /\.([-\w]+)\s*\{([^}]*)\}/g; let mm;
+      while ((mm = re.exec(css))) { const fm = mm[2].match(/fill\s*:\s*([^;]+)/i); if (fm) classFill[mm[1]] = fm[1].trim(); }
+    });
+    const fillOf = el => {
+      if (!el || !el.getAttribute) return null;
+      let f = el.getAttribute('fill');
+      const st = el.getAttribute('style');
+      if ((!f || f === '') && st) { const m2 = st.match(/fill\s*:\s*([^;]+)/i); if (m2) f = m2[1]; }
+      if (!f || f === '') { const cls = (el.getAttribute('class') || '').split(/\s+/); for (const c of cls) { if (classFill[c]) { f = classFill[c]; break; } } }
+      return f;
+    };
     if (dropLight) {
       const els = Array.from(doc.querySelectorAll('path,polygon,rect,circle,ellipse'));
       for (const el of els) {
-        let fill = el.getAttribute('fill');
-        const style = el.getAttribute('style');
-        if ((!fill || fill === '') && style) { const mm = style.match(/fill\s*:\s*([^;]+)/i); if (mm) fill = mm[1]; }
-        const rgb = parseColor(fill);
+        let f = fillOf(el);
+        let p = el.parentNode;                              // héritage du fill depuis les parents
+        while ((!f || f === '') && p) { f = fillOf(p); p = p.parentNode; }
+        const rgb = parseColor(f);
         if (!rgb) continue;
         if (lum(rgb[0], rgb[1], rgb[2]) > thr) el.remove();
       }
     }
     svg.style.background = 'transparent';
-    svg.removeAttribute('style');
     return new XMLSerializer().serializeToString(svg);
   } catch (e) { return svgStr; }
 }
