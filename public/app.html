@@ -966,7 +966,8 @@ async function saveReglages() {
   } catch (e) { alert('Erreur : ' + e.message); }
 }
 
-const PLAN_LABELS = { free:['Free','#8a8f98'], smart:['Smart','#4a9eff'], pro:['Pro','#b06af0'], ultra:['Ultra','#f0b43c'] };
+const PLAN_LABELS = { free:['Free','#8a8f98'], trial:['Essai','#8a8f98'], smart:['Smart','#4a9eff'], pro:['Pro','#b06af0'], ultra:['Ultra','#f0b43c'], entreprise:['Entreprise','#3fcf6f'] };
+let userJetons = null, userStorage = null;
 
 function renderProfilPlan() {
   const wrap = document.getElementById('profil-plan-wrap');
@@ -981,7 +982,36 @@ function renderProfilPlan() {
       <span style="font-size:13px;font-weight:700;border:1.5px solid ${color};color:${color};border-radius:20px;padding:3px 14px;">${label}</span>
       <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);">${statusTxt}${periodTxt}</span>
     </div>
+    ${jetonHTML()}
     <button class="btn-submit" onclick="window.location.href='/pricing'" style="width:100%;margin-top:10px;font-size:12px;">${isActive ? 'Voir les formules / changer de formule →' : 'Voir les formules →'}</button>`;
+}
+
+function jetonHTML() {
+  if (!userJetons) return '';
+  const j = userJetons;
+  const goTxt = userStorage ? ` · ${(userStorage.used/1e9 < 1 ? (userStorage.used/1e6).toFixed(0)+' Mo' : (userStorage.used/1e9).toFixed(1)+' Go')} / ${(userStorage.quota/1e9).toFixed(0)} Go` : '';
+  return `<div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-family:'DM Mono',monospace;">
+      <span>🪙 <b style="color:var(--accent);font-size:15px;">${j.total}</b> jetons dispo</span>
+      <span style="color:var(--muted);">${j.planRestant}/${j.allotment} forfait + ${j.achetes} achetés</span>
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Stockage${goTxt}</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn-stock" onclick="window.location.href='/pricing#jetons'" style="flex:1;min-width:130px;font-size:11px;margin:0;">🪙 Recharger des jetons</button>
+      <button class="btn-stock" onclick="acheterStockage()" style="flex:1;min-width:130px;font-size:11px;margin:0;" title="Ajoute 2 Go de stockage pour 20 jetons">+2 Go (20 jetons)</button>
+    </div>
+  </div>`;
+}
+
+async function acheterStockage() {
+  if (!confirm('Ajouter 2 Go de stockage pour 20 jetons ?')) return;
+  try {
+    const r = await api('POST', '/analyses/buy-storage');
+    userJetons = r.jetons; userStorage = r.storage;
+    renderProfilPlan();
+    if (typeof loadStorage === 'function') loadStorage();
+    alert('✓ +2 Go ajoutés. Stockage : ' + (r.storage.quota/1e9).toFixed(0) + ' Go.');
+  } catch (e) { alert(e.message); }
 }
 
 function openProfile() {
@@ -992,6 +1022,8 @@ function openProfile() {
     if (p.subscription_status) subscriptionStatus = p.subscription_status;
     userPlan = p.plan || userPlan;
     userPlanPeriod = p.plan_period || userPlanPeriod;
+    if (p.jetons) userJetons = p.jetons;
+    if (p.storage) userStorage = p.storage;
     renderProfilPlan();
   }).catch(() => {});
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');

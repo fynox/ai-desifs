@@ -91,148 +91,144 @@ nav {
   <p>Commencez gratuitement, évoluez selon vos besoins.</p>
 </div>
 
-<div class="billing-toggle">
-  <span class="billing-opt active" id="opt-monthly" onclick="setBilling('monthly')">Mensuel</span>
-  <label class="toggle-switch">
-    <input type="checkbox" id="billing-switch" onchange="setBilling(this.checked ? 'annual' : 'monthly')">
-    <div class="toggle-track"></div>
-    <div class="toggle-thumb"></div>
-  </label>
-  <span class="billing-opt" id="opt-annual" onclick="setBilling('annual')">Annuel</span>
-  <span class="annual-badge">jusqu'à -20%</span>
-</div>
-
-<div class="plans">
+<div class="plans" style="grid-template-columns:repeat(4,1fr);max-width:1280px;">
 
   <!-- SMART -->
   <div class="plan-card">
     <div class="plan-name">Smart</div>
-    <div class="plan-price" id="smart-price">12€ <span>/ mois</span></div>
-    <div class="plan-desc" id="smart-desc">Pour les indépendants qui traitent quelques demandes par semaine.</div>
+    <div class="plan-price">35€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour démarrer : recommandation d'adhésif et gestion du stock.</div>
     <div class="plan-features">
-      <div class="plan-feature"><span class="check">✓</span> 100 analyses IA / mois</div>
-      <div class="plan-feature"><span class="check">✓</span> Gestion de stock + import variantes</div>
-      <div class="plan-feature"><span class="check">✓</span> Plan de lés, export, optimiseur matière</div>
-      <div class="plan-feature"><span class="check">✓</span> 30 devis + 30 mails de relance / mois</div>
-      <div class="plan-feature"><span class="check">✓</span> 500 Mo de stockage visuels</div>
-      <div class="plan-feature off"><span class="dash">—</span> Adresse mail dédiée (analyses auto)</div>
-      <div class="plan-feature off"><span class="dash">—</span> Amélioration HD des visuels</div>
-      <div class="plan-feature off"><span class="dash">—</span> Import catalogue PDF par IA</div>
+      <div class="plan-feature"><span class="check">✓</span> 50 analyses IA / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> 50 jetons / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> Gestion de stock</div>
+      <div class="plan-feature"><span class="check">✓</span> Recommandation adhésif + plastification</div>
+      <div class="plan-feature"><span class="check">✓</span> Contrôle de résolution</div>
+      <div class="plan-feature"><span class="check">✓</span> 3 Go de stockage</div>
+      <div class="plan-feature"><span class="check">✓</span> 1 utilisateur</div>
     </div>
-    <button class="btn-plan btn-plan-accent" id="btn-smart" onclick="subscribe('smart')">S'abonner pour 12€/mois →</button>
-    <div id="smart-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-10px;">Tarif annuel bientôt disponible — facturé au mois</div>
+    <button class="btn-plan btn-plan-accent" id="btn-smart" onclick="subscribe('smart')">S'abonner — 35€/mois →</button>
   </div>
 
   <!-- PRO -->
   <div class="plan-card featured">
-    <div class="plan-badge" id="pro-badge">Recommandé</div>
+    <div class="plan-badge">Recommandé</div>
     <div class="plan-name">Pro</div>
-    <div class="plan-price" id="pro-price">20€ <span>/ mois</span></div>
-    <div class="plan-desc" id="pro-desc">Pour les professionnels qui traitent des demandes clients au quotidien.</div>
+    <div class="plan-price">89€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les pros au quotidien : devis, mails et catalogue automatiques.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Tout Smart, et en plus :</div>
-      <div class="plan-feature"><span class="check">✓</span> 300 analyses IA / mois</div>
-      <div class="plan-feature"><span class="check">✓</span> Adresse mail dédiée — analyses automatiques</div>
-      <div class="plan-feature"><span class="check">✓</span> Devis et mails de relance illimités</div>
-      <div class="plan-feature"><span class="check">✓</span> Amélioration HD des visuels (20/mois)</div>
-      <div class="plan-feature"><span class="check">✓</span> Import catalogue PDF par IA (5/mois)</div>
-      <div class="plan-feature"><span class="check">✓</span> 2 Go de stockage visuels</div>
+      <div class="plan-feature"><span class="check">✓</span> 200 analyses IA / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> 100 jetons / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> Devis automatiques</div>
+      <div class="plan-feature"><span class="check">✓</span> Mails automatiques au client</div>
+      <div class="plan-feature"><span class="check">✓</span> Import catalogue par IA</div>
+      <div class="plan-feature"><span class="check">✓</span> 1 boîte mail dédiée</div>
+      <div class="plan-feature"><span class="check">✓</span> 5 Go de stockage</div>
     </div>
-    <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe('pro')">S'abonner pour 20€/mois →</button>
-    <div id="pro-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:-10px;">192€ facturés en une fois — soit -20% sur l'année</div>
+    <button class="btn-plan btn-plan-accent" id="btn-pro" onclick="subscribe('pro')">S'abonner — 89€/mois →</button>
   </div>
 
   <!-- ULTRA -->
   <div class="plan-card">
     <div class="plan-name">Ultra</div>
-    <div class="plan-price" id="ultra-price">49€ <span>/ mois</span></div>
-    <div class="plan-desc" id="ultra-desc">Pour les équipes et les enseignes avec plusieurs utilisateurs.</div>
+    <div class="plan-price">199€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les gros volumes : amélioration HD et traitement prioritaire.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Tout Pro, et en plus :</div>
-      <div class="plan-feature"><span class="check">✓</span> Analyses IA illimitées</div>
-      <div class="plan-feature"><span class="check">✓</span> Amélioration HD des visuels (100/mois)</div>
-      <div class="plan-feature"><span class="check">✓</span> Import catalogue PDF illimité</div>
-      <div class="plan-feature"><span class="check">✓</span> 5 Go de stockage visuels</div>
+      <div class="plan-feature"><span class="check">✓</span> 600 analyses IA / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> 300 jetons / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> Amélioration HD des visuels (upscaling)</div>
+      <div class="plan-feature"><span class="check">✓</span> Traitement prioritaire</div>
       <div class="plan-feature"><span class="check">✓</span> Support prioritaire</div>
+      <div class="plan-feature"><span class="check">✓</span> 10 Go de stockage</div>
     </div>
-    <button class="btn-plan btn-plan-accent" id="btn-ultra" onclick="subscribe('ultra')">S'abonner pour 49€/mois →</button>
-    <div id="ultra-annual-note" style="display:none;text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-10px;">Tarif annuel bientôt disponible — facturé au mois</div>
+    <button class="btn-plan btn-plan-accent" id="btn-ultra" onclick="subscribe('ultra')">S'abonner — 199€/mois →</button>
+  </div>
+
+  <!-- ENTREPRISE -->
+  <div class="plan-card">
+    <div class="plan-name">Entreprise</div>
+    <div class="plan-price">399€ <span>/ mois</span></div>
+    <div class="plan-desc">Pour les équipes : multi-utilisateurs et panneau d'administration.</div>
+    <div class="plan-features">
+      <div class="plan-feature"><span class="check">✓</span> Tout Ultra, et en plus :</div>
+      <div class="plan-feature"><span class="check">✓</span> 1000 analyses IA / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> 500 jetons / mois</div>
+      <div class="plan-feature"><span class="check">✓</span> Profils employés (multi-utilisateurs)</div>
+      <div class="plan-feature"><span class="check">✓</span> Panneau d'administration</div>
+      <div class="plan-feature"><span class="check">✓</span> 20 Go de stockage</div>
+    </div>
+    <button class="btn-plan btn-plan-accent" id="btn-entreprise" onclick="subscribe('entreprise')">S'abonner — 399€/mois →</button>
+    <div style="text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-8px;">ou sur devis pour de plus gros besoins</div>
   </div>
 
 </div>
 
-<div class="note">Sans engagement — résiliable à tout moment depuis votre profil</div>
+<div class="note">Sans engagement — résiliable à tout moment depuis votre profil. Les jetons du forfait se renouvellent chaque mois.</div>
+
+<!-- JETONS -->
+<div style="max-width:1000px;margin:10px auto 70px;padding:0 24px;">
+  <h2 style="text-align:center;font-size:26px;font-weight:800;margin-bottom:6px;">🪙 Jetons</h2>
+  <p style="text-align:center;font-size:13px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.7;margin-bottom:8px;">
+    Les jetons servent aux actions premium. Chaque forfait en inclut un quota mensuel ; recharge à tout moment (les jetons achetés ne expirent pas).
+  </p>
+  <p style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:26px;">
+    Devis auto : 2 · Mail auto : 2 · Amélioration HD : 5 · Import catalogue : 10 · +2 Go de stockage : 20 · Analyse au-delà du quota : 5
+  </p>
+  <div id="jeton-packs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;"></div>
+</div>
 
 <script>
 const token = sessionStorage.getItem('aidesif_token');
-let billingPeriod = 'monthly';
 
-// monthly = prix mensuel ; annual = prix facturé sur l'année (null = pas encore disponible)
-const PLANS = {
-  smart: { monthly: 12, annual: null, descMonthly: 'Pour les indépendants qui traitent quelques demandes par semaine.' },
-  pro:   { monthly: 20, annual: 192, descMonthly: 'Pour les professionnels qui traitent des demandes clients au quotidien.' },
-  ultra: { monthly: 49, annual: null, descMonthly: 'Pour les équipes et les enseignes avec plusieurs utilisateurs.' },
-};
+const PLANS = { smart: 35, pro: 89, ultra: 199, entreprise: 399 };
+const JETON_PACKS = [
+  { jetons: 10, prix: 15 }, { jetons: 30, prix: 30 }, { jetons: 50, prix: 45 },
+  { jetons: 100, prix: 60 }, { jetons: 500, prix: 250 }, { jetons: 1000, prix: 400 },
+];
 
-function discountPct(p) {
-  if (!p.annual) return 0;
-  return Math.round((1 - p.annual / (p.monthly * 12)) * 100);
-}
-
-function btnLabel(plan, isAnnual) {
-  const p = PLANS[plan];
-  return isAnnual && p.annual
-    ? `S'abonner pour ${p.annual}€/an →`
-    : `S'abonner pour ${p.monthly}€/mois →`;
-}
-
-function setBilling(period) {
-  billingPeriod = period;
-  const isAnnual = period === 'annual';
-
-  document.getElementById('billing-switch').checked = isAnnual;
-  document.getElementById('opt-monthly').classList.toggle('active', !isAnnual);
-  document.getElementById('opt-annual').classList.toggle('active', isAnnual);
-
-  for (const plan of Object.keys(PLANS)) {
-    const p = PLANS[plan];
-    const pct = discountPct(p);
-    const priceEl = document.getElementById(plan + '-price');
-    const descEl = document.getElementById(plan + '-desc');
-    const btnEl = document.getElementById('btn-' + plan);
-    const noteEl = document.getElementById(plan + '-annual-note');
-
-    if (isAnnual && p.annual) {
-      const perMonth = p.annual / 12;
-      priceEl.innerHTML = `${Number.isInteger(perMonth) ? perMonth : perMonth.toFixed(2)}€ <span>/ mois</span> <span style="font-size:13px;font-family:'DM Mono',monospace;background:#1a2a05;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:2px 10px;vertical-align:middle;">-${pct}%</span>`;
-      descEl.textContent = `Économisez ${p.monthly * 12 - p.annual}€ par an — facturé ${p.annual}€ en une fois.`;
-    } else {
-      priceEl.innerHTML = `${p.monthly}€ <span>/ mois</span>`;
-      descEl.textContent = p.descMonthly;
-    }
-    if (btnEl) btnEl.textContent = btnLabel(plan, isAnnual);
-    if (noteEl) noteEl.style.display = isAnnual ? 'block' : 'none';
-  }
-}
+// Affiche les packs de jetons
+document.getElementById('jeton-packs').innerHTML = JETON_PACKS.map(p => `
+  <div class="plan-card" style="padding:20px;text-align:center;gap:10px;">
+    <div style="font-size:24px;font-weight:800;color:var(--accent);">${p.jetons}</div>
+    <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">jetons</div>
+    <div style="font-size:18px;font-weight:700;">${p.prix}€</div>
+    <button class="btn-plan btn-plan-accent" style="padding:10px;font-size:13px;" onclick="buyJetons(${p.jetons})">Acheter</button>
+  </div>`).join('');
 
 async function subscribe(plan) {
   if (!token) { window.location.href = '/app'; return; }
   const btn = document.getElementById('btn-' + plan);
+  const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Redirection vers Stripe...';
   try {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ plan, period: billingPeriod })
+      body: JSON.stringify({ plan })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     window.location.href = data.url;
   } catch (e) {
     alert(e.message);
-    btn.disabled = false;
-    btn.textContent = btnLabel(plan, billingPeriod === 'annual');
+    btn.disabled = false; btn.textContent = label;
   }
+}
+
+async function buyJetons(jetons) {
+  if (!token) { window.location.href = '/app'; return; }
+  try {
+    const res = await fetch('/api/stripe/checkout-jetons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ jetons })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    window.location.href = data.url;
+  } catch (e) { alert(e.message); }
 }
 </script>
 </body>
