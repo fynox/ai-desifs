@@ -981,11 +981,14 @@ async function loadStorage() {
 
 async function loadJetons() {
   try {
-    const j = await api('GET', '/analyses/jetons');
+    const j = await api('GET', '/analyses/jetons?_=' + Date.now());
     userJetons = j;
     const wrap = document.getElementById('jeton-wrap');
     const cnt = document.getElementById('jeton-count');
     if (wrap && cnt) { wrap.style.display = subscriptionStatus === 'active' ? 'block' : 'none'; cnt.textContent = j.total; }
+    // si la fenêtre profil est ouverte, on rafraîchit aussi son affichage jetons
+    const pj = document.getElementById('profile-jetons');
+    if (pj) pj.innerHTML = jetonHTML();
   } catch {}
 }
 
@@ -1062,7 +1065,7 @@ function renderProfilPlan() {
       <span style="font-size:13px;font-weight:700;border:1.5px solid ${color};color:${color};border-radius:20px;padding:3px 14px;">${label}</span>
       <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);">${statusTxt}${periodTxt}</span>
     </div>
-    ${jetonHTML()}
+    <div id="profile-jetons">${jetonHTML()}</div>
     <button class="btn-submit" onclick="window.location.href='/pricing'" style="width:100%;margin-top:10px;font-size:12px;">${isActive ? 'Voir les formules / changer de formule →' : 'Voir les formules →'}</button>`;
 }
 

@@ -73,12 +73,27 @@ router.patch('/users/:id/plan', (req, res) => {
 
 // Modifier le portefeuille de jetons achetés d'un utilisateur (admin)
 router.patch('/users/:id/jetons', (req, res) => {
-  let jetons = Math.round(Number(req.body.jetons));   // peut être négatif (retrait au-delà du portefeuille)
-  if (isNaN(jetons)) return res.status(400).json({ error: 'Valeur invalide.' });
-  db.prepare('UPDATE users SET jetons=? WHERE id=?').run(jetons, req.params.id);
   const { getJetonState } = require('../utils/limits');
+  const u0 = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
+  if (!u0) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+  let wallet;
+  if (req.body.total != null) {
+    // L'admin fixe le TOTAL dispo voulu. On calcule le portefeuille acheté correspondant :
+    // total = max(0, planRestant + wallet)  =>  wallet = total - planRestant (peut être négatif).
+    const desired = Math.round(Number(req.body.total));
+    if (isNaN(desired)) return res.status(400).json({ error: 'Valeur invalide.' });
+    const st = getJetonState(u0);
+    wallet = desired - st.planRestant;
+  } else {
+    // Compat : fixe directement le portefeuille acheté (peut être négatif).
+    wallet = Math.round(Number(req.body.jetons));
+    if (isNaN(wallet)) return res.status(400).json({ error: 'Valeur invalide.' });
+  }
+
+  db.prepare('UPDATE users SET jetons=? WHERE id=?').run(wallet, req.params.id);
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
-  res.json({ ok: true, jetons, state: getJetonState(u) });
+  res.json({ ok: true, jetons: wallet, state: getJetonState(u) });
 });
 
 // Reset essais gratuits

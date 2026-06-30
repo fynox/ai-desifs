@@ -83,6 +83,7 @@ router.get('/storage', (req, res) => {
 
 // État des jetons du compte
 router.get('/jetons', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json(getJetonState(user));
 });

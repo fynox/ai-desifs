@@ -14,7 +14,8 @@
       "Bash(node -e \"require\\('./src/utils/plans.js'\\);require\\('./src/routes/stripe.js'\\);require\\('./src/routes/admin.js'\\);console.log\\('backend ok'\\)\")",
       "Bash(node -e \"require\\('./src/utils/plans.js'\\); console.log\\('plans ok'\\)\")",
       "Bash(node -c src/routes/analyses.js)",
-      "Bash(node -e \"require\\('./src/utils/plans.js'\\)\")"
+      "Bash(node -e \"require\\('./src/utils/plans.js'\\)\")",
+      "Bash(node -c src/routes/admin.js)"
     ]
   }
 }
