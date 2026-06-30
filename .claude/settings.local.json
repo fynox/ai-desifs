@@ -22,7 +22,8 @@
       "Bash(git commit -q -m 'feat: vectorisation mode test gratuit \\(mode=test ne debite aucun jeton, note filigrane affichee\\) *)",
       "Bash(git commit -q -m 'feat: champs admin pour les cles vectorizer.ai \\(API ID, API Secret, mode test/production\\) *)",
       "Bash(git commit -q -m 'fix: nettoyage vectorisation pro - resout les couleurs definies par classe CSS et heritage parent \\(supprime le blanc des SVG vectorizer.ai\\) *)",
-      "Bash(git commit -q -m 'feat: vectorisation - force les traits conserves en noir pur + bouton debug '\\\\''SVG brut'\\\\'' pour diagnostiquer le blanc residuel *)"
+      "Bash(git commit -q -m 'feat: vectorisation - force les traits conserves en noir pur + bouton debug '\\\\''SVG brut'\\\\'' pour diagnostiquer le blanc residuel *)",
+      "Bash(git commit -q -m 'fix: nettoyage vectorisation - evalue aussi la couleur stroke \\(les SVG vectorizer.ai utilisent des contours fill=none + stroke\\), supprime les contours clairs et force les traits gardes en noir *)"
     ]
   }
 }

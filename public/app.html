@@ -2439,27 +2439,37 @@ function nettoyerSVGvecto(svgStr, dropLight, thr) {
       const re = /\.([-\w]+)\s*\{([^}]*)\}/g; let mm;
       while ((mm = re.exec(css))) { const fm = mm[2].match(/fill\s*:\s*([^;]+)/i); if (fm) classFill[mm[1]] = fm[1].trim(); }
     });
-    const fillOf = el => {
+    // Récupère une propriété de couleur (fill ou stroke) : attribut inline, style inline, puis classe CSS.
+    const propOf = (el, prop) => {
       if (!el || !el.getAttribute) return null;
-      let f = el.getAttribute('fill');
+      let v = el.getAttribute(prop);
       const st = el.getAttribute('style');
-      if ((!f || f === '') && st) { const m2 = st.match(/fill\s*:\s*([^;]+)/i); if (m2) f = m2[1]; }
-      if (!f || f === '') { const cls = (el.getAttribute('class') || '').split(/\s+/); for (const c of cls) { if (classFill[c]) { f = classFill[c]; break; } } }
-      return f;
+      if ((!v || v === '') && st) { const m2 = st.match(new RegExp(prop + '\\s*:\\s*([^;]+)', 'i')); if (m2) v = m2[1]; }
+      if (!v || v === '') { const cls = (el.getAttribute('class') || '').split(/\s+/); for (const c of cls) { if (classFill[c]) { v = classFill[c]; break; } } }
+      return v;
+    };
+    // Couleur effective d'un trait : le fill s'il est plein, sinon le stroke (en remontant aux parents).
+    const colorOf = el => {
+      let f = propOf(el, 'fill'); let p = el.parentNode;
+      while ((!f || f === '') && p && p.getAttribute) { f = propOf(p, 'fill'); p = p.parentNode; }
+      if (f && f.trim().toLowerCase() !== 'none') return f;
+      let s = propOf(el, 'stroke'); p = el.parentNode;
+      while ((!s || s === '') && p && p.getAttribute) { s = propOf(p, 'stroke'); p = p.parentNode; }
+      return s;
     };
     if (dropLight) {
-      const els = Array.from(doc.querySelectorAll('path,polygon,rect,circle,ellipse'));
+      const els = Array.from(doc.querySelectorAll('path,polygon,polyline,line,rect,circle,ellipse'));
       for (const el of els) {
-        let f = fillOf(el);
-        let p = el.parentNode;                              // héritage du fill depuis les parents
-        while ((!f || f === '') && p) { f = fillOf(p); p = p.parentNode; }
-        const rgb = parseColor(f);
+        const rgb = parseColor(colorOf(el));
         if (!rgb) continue;
         if (lum(rgb[0], rgb[1], rgb[2]) > thr) { el.remove(); continue; }
-        // trait conservé → forcé en noir pur pour un fichier de découpe net
-        if (el.hasAttribute('fill')) el.setAttribute('fill', '#000000');
-        const stl = el.getAttribute('style');
-        if (stl && /fill\s*:/i.test(stl)) el.setAttribute('style', stl.replace(/fill\s*:\s*[^;]+/i, 'fill:#000000'));
+        // trait conservé → fill et stroke forcés en noir pur pour un fichier de découpe net
+        ['fill', 'stroke'].forEach(prop => {
+          const cur = el.getAttribute(prop);
+          if (cur && cur.trim().toLowerCase() !== 'none') el.setAttribute(prop, '#000000');
+          const stl = el.getAttribute('style');
+          if (stl && new RegExp(prop + '\\s*:', 'i').test(stl) && !/none/i.test(stl)) el.setAttribute('style', stl.replace(new RegExp(prop + '\\s*:\\s*[^;]+', 'i'), prop + ':#000000'));
+        });
       }
     }
     svg.style.background = 'transparent';
