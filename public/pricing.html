@@ -91,12 +91,23 @@ nav {
   <p>Commencez gratuitement, évoluez selon vos besoins.</p>
 </div>
 
+<div class="billing-toggle">
+  <span class="billing-opt active" id="opt-monthly" onclick="setBilling('monthly')">Mensuel</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="billing-switch" onchange="setBilling(this.checked ? 'annual' : 'monthly')">
+    <div class="toggle-track"></div>
+    <div class="toggle-thumb"></div>
+  </label>
+  <span class="billing-opt" id="opt-annual" onclick="setBilling('annual')">Annuel</span>
+  <span class="annual-badge">2 mois offerts</span>
+</div>
+
 <div class="plans" style="grid-template-columns:repeat(4,1fr);max-width:1280px;">
 
   <!-- SMART -->
   <div class="plan-card">
     <div class="plan-name">Smart</div>
-    <div class="plan-price">35€ <span>/ mois</span></div>
+    <div class="plan-price" id="price-smart">35€ <span>/ mois</span></div>
     <div class="plan-desc">Pour démarrer : recommandation d'adhésif et gestion du stock.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> 50 analyses IA / mois</div>
@@ -114,7 +125,7 @@ nav {
   <div class="plan-card featured">
     <div class="plan-badge">Recommandé</div>
     <div class="plan-name">Pro</div>
-    <div class="plan-price">89€ <span>/ mois</span></div>
+    <div class="plan-price" id="price-pro">89€ <span>/ mois</span></div>
     <div class="plan-desc">Pour les pros au quotidien : devis, mails et catalogue automatiques.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Tout Smart, et en plus :</div>
@@ -132,7 +143,7 @@ nav {
   <!-- ULTRA -->
   <div class="plan-card">
     <div class="plan-name">Ultra</div>
-    <div class="plan-price">199€ <span>/ mois</span></div>
+    <div class="plan-price" id="price-ultra">199€ <span>/ mois</span></div>
     <div class="plan-desc">Pour les gros volumes : amélioration HD et traitement prioritaire.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Tout Pro, et en plus :</div>
@@ -149,7 +160,7 @@ nav {
   <!-- ENTREPRISE -->
   <div class="plan-card">
     <div class="plan-name">Entreprise</div>
-    <div class="plan-price">399€ <span>/ mois</span></div>
+    <div class="plan-price" id="price-entreprise">399€ <span>/ mois</span></div>
     <div class="plan-desc">Pour les équipes : multi-utilisateurs et panneau d'administration.</div>
     <div class="plan-features">
       <div class="plan-feature"><span class="check">✓</span> Tout Ultra, et en plus :</div>
@@ -181,8 +192,37 @@ nav {
 
 <script>
 const token = sessionStorage.getItem('aidesif_token');
+let billingPeriod = 'monthly';
 
-const PLANS = { smart: 35, pro: 89, ultra: 199, entreprise: 399 };
+// monthly = prix / mois ; annual = montant facturé sur l'année (2 mois offerts)
+const PLANS = {
+  smart:      { monthly: 35,  annual: 350 },
+  pro:        { monthly: 89,  annual: 890 },
+  ultra:      { monthly: 199, annual: 1990 },
+  entreprise: { monthly: 399, annual: 3990 },
+};
+const PLAN_LABEL = { smart: 'Smart', pro: 'Pro', ultra: 'Ultra', entreprise: 'Entreprise' };
+
+function setBilling(period) {
+  billingPeriod = period;
+  const annual = period === 'annual';
+  document.getElementById('billing-switch').checked = annual;
+  document.getElementById('opt-monthly').classList.toggle('active', !annual);
+  document.getElementById('opt-annual').classList.toggle('active', annual);
+  for (const plan of Object.keys(PLANS)) {
+    const p = PLANS[plan];
+    const priceEl = document.getElementById('price-' + plan);
+    const btnEl = document.getElementById('btn-' + plan);
+    if (annual) {
+      const perMonth = Math.round(p.annual / 12);
+      priceEl.innerHTML = `${perMonth}€ <span>/ mois</span> <span style="font-size:12px;font-family:'DM Mono',monospace;background:#1a2a05;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:2px 9px;vertical-align:middle;">${p.annual}€/an</span>`;
+      if (btnEl) btnEl.textContent = `S'abonner — ${p.annual}€/an →`;
+    } else {
+      priceEl.innerHTML = `${p.monthly}€ <span>/ mois</span>`;
+      if (btnEl) btnEl.textContent = `S'abonner — ${p.monthly}€/mois →`;
+    }
+  }
+}
 const JETON_PACKS = [
   { jetons: 10, prix: 15 }, { jetons: 30, prix: 30 }, { jetons: 50, prix: 45 },
   { jetons: 100, prix: 60 }, { jetons: 500, prix: 250 }, { jetons: 1000, prix: 400 },
@@ -206,7 +246,7 @@ async function subscribe(plan) {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ plan })
+      body: JSON.stringify({ plan, period: billingPeriod })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);

@@ -13,7 +13,7 @@ function getStripe() {
 router.post('/checkout', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { plan = '' } = req.body;
+    const { plan = '', period = 'monthly' } = req.body;
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
     let customerId = user.stripe_customer_id;
@@ -23,8 +23,10 @@ router.post('/checkout', async (req, res) => {
       db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(customerId, user.id);
     }
 
-    // Forfaits mensuels (price IDs dans utils/plans.js / variables Railway)
-    const priceId = (STRIPE_PRICE_IDS[plan] && STRIPE_PRICE_IDS[plan].monthly) || process.env.STRIPE_PRICE_ID;
+    // Forfaits mensuels ou annuels (price IDs dans utils/plans.js / variables Railway)
+    const prices = STRIPE_PRICE_IDS[plan] || {};
+    let priceId = period === 'annual' ? prices.annual : prices.monthly;
+    if (!priceId) priceId = prices.monthly || process.env.STRIPE_PRICE_ID; // repli mensuel si l'annuel n'est pas configuré
     if (!priceId) return res.status(400).json({ error: 'Forfait non configuré côté Stripe (price ID manquant).' });
 
     // URL de retour : on prend l'origine réelle de la requête (le domaine sur lequel l'utilisateur navigue),
