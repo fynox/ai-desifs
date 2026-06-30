@@ -14,8 +14,8 @@ function getStorage(userId) {
   `).get(userId);
   const user = db.prepare('SELECT plan, subscription_status, bonus_go FROM users WHERE id = ?').get(userId) || {};
   let quota, plan;
-  if (user.subscription_status === 'active') {
-    plan = PLAN_INFO[user.plan] ? user.plan : 'pro';
+  if (user.subscription_status === 'active' && PLAN_INFO[user.plan]) {
+    plan = user.plan;
     quota = (PLAN_INFO[plan].go + (user.bonus_go || 0)) * GO;
   } else if (user.subscription_status === 'trial') {
     plan = 'trial'; quota = TRIAL_QUOTA + (user.bonus_go || 0) * GO;

@@ -73,11 +73,12 @@ router.patch('/users/:id/plan', (req, res) => {
 
 // Modifier le portefeuille de jetons achetés d'un utilisateur (admin)
 router.patch('/users/:id/jetons', (req, res) => {
-  let { jetons } = req.body;
-  jetons = Math.max(0, Math.round(Number(jetons)));
+  let jetons = Math.round(Number(req.body.jetons));   // peut être négatif (retrait au-delà du portefeuille)
   if (isNaN(jetons)) return res.status(400).json({ error: 'Valeur invalide.' });
   db.prepare('UPDATE users SET jetons=? WHERE id=?').run(jetons, req.params.id);
-  res.json({ ok: true, jetons });
+  const { getJetonState } = require('../utils/limits');
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
+  res.json({ ok: true, jetons, state: getJetonState(u) });
 });
 
 // Reset essais gratuits

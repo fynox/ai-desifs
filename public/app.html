@@ -1044,6 +1044,10 @@ function openProfile() {
     if (p.jetons) userJetons = p.jetons;
     if (p.storage) userStorage = p.storage;
     renderProfilPlan();
+    // Cohérence : la sidebar utilise la même source que le profil (après la synchro Stripe du plan)
+    const cnt = document.getElementById('jeton-count');
+    if (cnt && p.jetons) { cnt.textContent = p.jetons.total; const jw = document.getElementById('jeton-wrap'); if (jw) jw.style.display = p.subscription_status === 'active' ? 'block' : 'none'; }
+    if (typeof loadStorage === 'function') loadStorage();
   }).catch(() => {});
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';

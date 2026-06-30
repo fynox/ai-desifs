@@ -9,10 +9,11 @@ const FEATURE_NAMES = {
   mail_inbound: 'adresse mail dédiée',
 };
 
-// Plan effectif. Abonné → son plan ; essai gratuit → 'smart' (avec plafond d'essai géré ailleurs).
+// Plan effectif. Abonné → son plan (s'il est valide) ; sinon 'free' (0 jeton) ; essai gratuit → 'smart'.
 function planKey(user) {
-  if (user.subscription_status === 'active') return PLAN_INFO[user.plan] ? user.plan : 'pro';
-  return 'smart';
+  if (user.subscription_status === 'active') return PLAN_INFO[user.plan] ? user.plan : 'free';
+  if (user.subscription_status === 'trial') return 'smart';
+  return 'free';
 }
 
 // Nombre d'analyses faites ce mois-ci
@@ -37,8 +38,8 @@ function getJetonState(user) {
   const allotment = PLAN_INFO[plan] ? PLAN_INFO[plan].jetons : 0;
   const planUsed = monthlyPlanJetons(user.id);
   const planRestant = Math.max(0, allotment - planUsed);
-  const achetes = user.jetons || 0;            // portefeuille acheté (cumulable)
-  return { plan, allotment, planUsed, planRestant, achetes, total: planRestant + achetes };
+  const achetes = user.jetons || 0;            // portefeuille acheté (cumulable, peut être négatif si l'admin a retiré des jetons)
+  return { plan, allotment, planUsed, planRestant, achetes, total: Math.max(0, planRestant + achetes) };
 }
 
 // Vérifie l'accès à une fonction réservée à un plan. Retourne null si OK, sinon { error }.
@@ -73,7 +74,7 @@ function consumeJetons(user, cost, logType) {
       .run(user.id, logType || 'jetons', 'jetons', fromPlan);
   }
   if (fromWallet > 0) {
-    db.prepare('UPDATE users SET jetons = MAX(0, jetons - ?) WHERE id = ?').run(fromWallet, user.id);
+    db.prepare('UPDATE users SET jetons = jetons - ? WHERE id = ?').run(fromWallet, user.id);
   }
 }
 

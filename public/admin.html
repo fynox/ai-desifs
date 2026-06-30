@@ -530,7 +530,7 @@ function renderUsers(users) {
           </td>
           <td title="Total dispo (${u.jetons_plan ?? 0} forfait + ${u.jetons ?? 0} achetés)">
             <span style="color:var(--accent);font-weight:700;">${u.jetons_total ?? 0}</span>
-            <input type="number" id="jet-${u.id}" value="${u.jetons ?? 0}" min="0" style="width:62px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;padding:2px 4px;" title="Jetons achetés (modifiable)">
+            <input type="number" id="jet-${u.id}" value="${u.jetons ?? 0}" style="width:62px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;padding:2px 4px;" title="Portefeuille acheté (négatif autorisé pour retirer des jetons)">
             <button class="action-btn" onclick="saveJetons(${u.id})" title="Enregistrer les jetons achetés">✓</button>
           </td>
           <td>${u.trial_analyses_used}/5</td>
@@ -574,12 +574,12 @@ async function changePlan(id, value) {
 
 async function saveJetons(id) {
   const val = parseInt(document.getElementById('jet-' + id).value, 10);
-  if (isNaN(val) || val < 0) { alert('Valeur invalide'); return; }
+  if (isNaN(val)) { alert('Valeur invalide'); return; }
   try {
-    await api(`/api/admin/users/${id}/jetons`, { method: 'PATCH', body: JSON.stringify({ jetons: val }) });
+    const r = await api(`/api/admin/users/${id}/jetons`, { method: 'PATCH', body: JSON.stringify({ jetons: val }) });
     const u = allUsers.find(u => u.id === id);
-    if (u) u.jetons = val;
-    alert('✓ Jetons mis à jour : ' + val + ' achetés');
+    if (u && r.state) { u.jetons = val; u.jetons_total = r.state.total; u.jetons_plan = r.state.planRestant; renderUsers(allUsers); }
+    alert(`✓ Jetons mis à jour — total dispo : ${r.state ? r.state.total : '?'}`);
   } catch(e) { alert('Erreur: ' + e.message); }
 }
 
