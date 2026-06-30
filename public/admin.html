@@ -194,11 +194,29 @@ tr:hover td { background: var(--surface2); }
             <input type="password" id="key-replicate" placeholder="r8_..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
             <span id="key-replicate-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
           </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);width:90px;">Vecto. ID</span>
+            <input type="password" id="key-vecto-id" placeholder="API ID vectorizer.ai" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
+            <span id="key-vecto-id-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);width:90px;">Vecto. Secret</span>
+            <input type="password" id="key-vecto-secret" placeholder="API Secret vectorizer.ai" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
+            <span id="key-vecto-secret-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);width:90px;">Vecto. Mode</span>
+            <select id="key-vecto-mode" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
+              <option value="test">test (gratuit, filigrané)</option>
+              <option value="production">production (facturé)</option>
+            </select>
+            <span id="key-vecto-mode-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
+          </div>
           <div style="display:flex;align-items:center;gap:12px;">
             <button class="btn-sm" onclick="saveApiKeys()" style="background:var(--accent);color:#111;border:none;font-weight:700;">Enregistrer les clés</button>
             <span id="keys-status" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
           </div>
-          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">La clé enregistrée ici prime sur la variable Railway. Replicate active le bouton "Améliorer la résolution". Laisser un champ vide ne change rien.</div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">La clé enregistrée ici prime sur la variable Railway. Replicate active le bouton "Améliorer la résolution". Vectorizer.ai active la "Vectorisation pro" (DAO) — en mode test c'est gratuit et filigrané, aucun jeton débité. Laisser un champ vide ne change rien.</div>
         </div>
       </div>
       <div class="stats-grid" id="usage-stats">
@@ -389,6 +407,10 @@ async function loadApiKeys() {
     const d = await api('/api/admin/apikeys');
     document.getElementById('key-anthropic-cur').textContent = d.ANTHROPIC_API_KEY ? 'actuelle : ' + d.ANTHROPIC_API_KEY : 'non définie';
     document.getElementById('key-replicate-cur').textContent = d.REPLICATE_API_TOKEN ? 'actuelle : ' + d.REPLICATE_API_TOKEN : 'non définie';
+    document.getElementById('key-vecto-id-cur').textContent = d.VECTORIZER_API_ID ? 'actuelle : ' + d.VECTORIZER_API_ID : 'non définie';
+    document.getElementById('key-vecto-secret-cur').textContent = d.VECTORIZER_API_SECRET ? 'actuelle : ' + d.VECTORIZER_API_SECRET : 'non définie';
+    if (d.VECTORIZER_MODE) document.getElementById('key-vecto-mode').value = d.VECTORIZER_MODE;
+    document.getElementById('key-vecto-mode-cur').textContent = d.VECTORIZER_MODE ? 'actuel : ' + d.VECTORIZER_MODE : 'défaut : production';
   } catch {}
 }
 
@@ -396,8 +418,14 @@ async function saveApiKeys() {
   const body = {};
   const a = document.getElementById('key-anthropic').value.trim();
   const r = document.getElementById('key-replicate').value.trim();
+  const vi = document.getElementById('key-vecto-id').value.trim();
+  const vs = document.getElementById('key-vecto-secret').value.trim();
+  const vm = document.getElementById('key-vecto-mode').value;
   if (a) body.ANTHROPIC_API_KEY = a;
   if (r) body.REPLICATE_API_TOKEN = r;
+  if (vi) body.VECTORIZER_API_ID = vi;
+  if (vs) body.VECTORIZER_API_SECRET = vs;
+  if (vm) body.VECTORIZER_MODE = vm;
   const st = document.getElementById('keys-status');
   if (!Object.keys(body).length) { st.textContent = 'Rien à enregistrer.'; return; }
   try {
@@ -405,6 +433,8 @@ async function saveApiKeys() {
     st.textContent = '✓ Enregistré';
     document.getElementById('key-anthropic').value = '';
     document.getElementById('key-replicate').value = '';
+    document.getElementById('key-vecto-id').value = '';
+    document.getElementById('key-vecto-secret').value = '';
     loadApiKeys();
   } catch(e) { st.textContent = 'Erreur : ' + e.message; }
 }

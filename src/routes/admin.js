@@ -240,13 +240,17 @@ router.get('/users/:id/usage', (req, res) => {
 });
 
 // Clés API globales (Claude / Replicate) — la valeur en base prime sur les variables Railway
-const API_KEY_NAMES = ['ANTHROPIC_API_KEY', 'REPLICATE_API_TOKEN'];
+const API_KEY_NAMES = ['ANTHROPIC_API_KEY', 'REPLICATE_API_TOKEN', 'VECTORIZER_API_ID', 'VECTORIZER_API_SECRET'];
+const PLAIN_SETTINGS = ['VECTORIZER_MODE']; // valeurs non sensibles (renvoyées en clair)
 
 router.get('/apikeys', (req, res) => {
   const out = {};
   for (const name of API_KEY_NAMES) {
     const v = getSetting(name);
     out[name] = v ? `••••${v.slice(-6)}` : null; // jamais la clé complète vers le front
+  }
+  for (const name of PLAIN_SETTINGS) {
+    out[name] = getSetting(name) || null;
   }
   res.json(out);
 });
@@ -260,7 +264,14 @@ router.put('/apikeys', (req, res) => {
       updated.push(name);
     }
   }
-  if (!updated.length) return res.status(400).json({ error: 'Aucune clé fournie.' });
+  for (const name of PLAIN_SETTINGS) {
+    const v = req.body[name];
+    if (typeof v === 'string' && v.trim()) {
+      setSetting(name, v.trim());
+      updated.push(name);
+    }
+  }
+  if (!updated.length) return res.status(400).json({ error: 'Aucune valeur fournie.' });
   res.json({ ok: true, updated });
 });
 
