@@ -59,7 +59,7 @@ router.patch('/users/:id/plan', (req, res) => {
     db.prepare('UPDATE users SET plan_override=0 WHERE id=?').run(req.params.id);
     return res.json({ ok: true, mode: 'auto' });
   }
-  const valid = ['free', 'smart', 'pro', 'ultra'];
+  const valid = ['free', 'smart', 'pro', 'ultra', 'entreprise'];
   if (!valid.includes(plan)) return res.status(400).json({ error: 'Plan invalide.' });
   const validPeriod = ['monthly', 'annual'].includes(period) ? period : 'monthly';
   db.prepare('UPDATE users SET plan=?, plan_period=?, plan_override=1 WHERE id=?').run(plan, validPeriod, req.params.id);
