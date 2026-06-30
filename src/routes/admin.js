@@ -33,13 +33,18 @@ router.get('/stats', (req, res) => {
 
 // Liste des utilisateurs
 router.get('/users', (req, res) => {
+  const { getJetonState } = require('../utils/limits');
   const users = db.prepare(`
-    SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.plan_override, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
+    SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.plan_override, u.jetons, u.bonus_go, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
       (SELECT COUNT(*) FROM analyses WHERE user_id=u.id) as analyses_count,
       (SELECT COUNT(*) FROM stock WHERE user_id=u.id) as stock_count
     FROM users u
     ORDER BY u.created_at DESC
   `).all();
+  // Ajoute l'état jetons (alloc forfait restante + achetés)
+  for (const u of users) {
+    try { const st = getJetonState(u); u.jetons_total = st.total; u.jetons_plan = st.planRestant; u.jetons_allotment = st.allotment; } catch {}
+  }
   res.json(users);
 });
 
@@ -64,6 +69,15 @@ router.patch('/users/:id/plan', (req, res) => {
   const validPeriod = ['monthly', 'annual'].includes(period) ? period : 'monthly';
   db.prepare('UPDATE users SET plan=?, plan_period=?, plan_override=1 WHERE id=?').run(plan, validPeriod, req.params.id);
   res.json({ ok: true, mode: 'override' });
+});
+
+// Modifier le portefeuille de jetons achetés d'un utilisateur (admin)
+router.patch('/users/:id/jetons', (req, res) => {
+  let { jetons } = req.body;
+  jetons = Math.max(0, Math.round(Number(jetons)));
+  if (isNaN(jetons)) return res.status(400).json({ error: 'Valeur invalide.' });
+  db.prepare('UPDATE users SET jetons=? WHERE id=?').run(jetons, req.params.id);
+  res.json({ ok: true, jetons });
 });
 
 // Reset essais gratuits

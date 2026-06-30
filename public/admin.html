@@ -507,13 +507,13 @@ function renderUsers(users) {
   if (!users.length) { document.getElementById('users-table').innerHTML = '<div class="empty">Aucun utilisateur</div>'; return; }
   document.getElementById('users-table').innerHTML = `
     <table>
-      <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Jetons</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
       <tbody>${users.map(u => `
         <tr id="user-row-${u.id}">
           <td>${u.email}</td>
           <td>
             <select class="status-select" onchange="changePlan(${u.id}, this.value)" title="${u.plan_override ? 'Plan forcé manuellement' : 'Plan suivi automatiquement depuis Stripe'}">
-              <option value="auto" ${!u.plan_override ? 'selected' : ''}>Auto${!u.plan_override ? ' (' + ({free:'Free',smart:'Smart',pro:'Pro',ultra:'Ultra'}[u.subscription_status === 'active' ? (u.plan || 'free') : 'free']) + ')' : ''}</option>
+              <option value="auto" ${!u.plan_override ? 'selected' : ''}>Auto${!u.plan_override ? ' (' + ({free:'Free',smart:'Smart',pro:'Pro',ultra:'Ultra',entreprise:'Entreprise'}[u.subscription_status === 'active' ? (u.plan || 'free') : 'free']) + ')' : ''}</option>
               <option value="free" ${u.plan_override && u.plan === 'free' ? 'selected' : ''}>⚠ Free forcé</option>
               <option value="smart" ${u.plan_override && u.plan === 'smart' ? 'selected' : ''}>⚠ Smart forcé</option>
               <option value="pro" ${u.plan_override && u.plan === 'pro' ? 'selected' : ''}>⚠ Pro forcé</option>
@@ -527,6 +527,11 @@ function renderUsers(users) {
               <option value="active" ${u.subscription_status==='active'?'selected':''}>Actif</option>
               <option value="inactive" ${u.subscription_status==='inactive'?'selected':''}>Inactif</option>
             </select>
+          </td>
+          <td title="Total dispo (${u.jetons_plan ?? 0} forfait + ${u.jetons ?? 0} achetés)">
+            <span style="color:var(--accent);font-weight:700;">${u.jetons_total ?? 0}</span>
+            <input type="number" id="jet-${u.id}" value="${u.jetons ?? 0}" min="0" style="width:62px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px;padding:2px 4px;" title="Jetons achetés (modifiable)">
+            <button class="action-btn" onclick="saveJetons(${u.id})" title="Enregistrer les jetons achetés">✓</button>
           </td>
           <td>${u.trial_analyses_used}/5</td>
           <td>${u.analyses_count}</td>
@@ -564,6 +569,17 @@ async function changePlan(id, value) {
       else { u.plan_override = 1; u.plan = value; }
     }
     renderUsers(allUsers);
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+async function saveJetons(id) {
+  const val = parseInt(document.getElementById('jet-' + id).value, 10);
+  if (isNaN(val) || val < 0) { alert('Valeur invalide'); return; }
+  try {
+    await api(`/api/admin/users/${id}/jetons`, { method: 'PATCH', body: JSON.stringify({ jetons: val }) });
+    const u = allUsers.find(u => u.id === id);
+    if (u) u.jetons = val;
+    alert('✓ Jetons mis à jour : ' + val + ' achetés');
   } catch(e) { alert('Erreur: ' + e.message); }
 }
 
