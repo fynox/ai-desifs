@@ -2471,6 +2471,7 @@ async function vectoriserPro() {
     prev.innerHTML = r.svg;
     const el = prev.querySelector('svg');
     if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+    if (r.test) document.getElementById('vecto-error').textContent = 'ℹ Rendu de TEST (filigrané, gratuit) — passe VECTORIZER_MODE en production pour le rendu final.';
     loadJetons();
   } catch (e) {
     if (e.message && e.message.includes('dev')) document.getElementById('vecto-error').textContent = '🛠 Vectorisation pro pas encore activée (clé API à configurer).';

@@ -375,10 +375,13 @@ router.post('/:id/vectoriser', async (req, res) => {
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const ftV = checkFeature(user, 'vectorisation'); if (ftV) return res.status(403).json(ftV);
-  const affV = affordJetons(user, JETON_COSTS.vectorisation); if (affV) return res.status(403).json(affV);
 
   const colors = Math.max(2, Math.min(12, parseInt(req.body.colors, 10) || 4));
-  const mode = getSetting('VECTORIZER_MODE') || 'production'; // 'test' pour essais gratuits (filigrane)
+  const mode = getSetting('VECTORIZER_MODE') || 'production'; // 'test'/'test_preview' = gratuit (filigrane)
+  const isFree = mode.startsWith('test'); // les appels en mode test sont gratuits chez vectorizer.ai → on ne débite pas de jetons
+
+  // On ne vérifie/débite des jetons que pour un vrai rendu facturé (mode production)
+  if (!isFree) { const affV = affordJetons(user, JETON_COSTS.vectorisation); if (affV) return res.status(403).json(affV); }
 
   let svg;
   try {
@@ -406,8 +409,8 @@ router.post('/:id/vectoriser', async (req, res) => {
 
   if (!svg || svg.indexOf('<svg') === -1) return res.status(502).json({ error: 'Réponse de vectorisation invalide.' });
 
-  consumeJetons(user, JETON_COSTS.vectorisation, 'vectorisation');
-  res.json({ svg });
+  if (!isFree) consumeJetons(user, JETON_COSTS.vectorisation, 'vectorisation');
+  res.json({ svg, test: isFree });
 });
 
 // Upscale IA du visuel via Replicate (Real-ESRGAN x4)
