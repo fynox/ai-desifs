@@ -814,6 +814,16 @@ textarea:focus { border-color: var(--accent); }
       </label>
       <button class="btn-cancel" style="font-size:12px;" onclick="lancerVectoApercu()">↻ Recalculer l'aperçu</button>
     </div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <label style="font-size:12px;display:flex;align-items:center;gap:7px;cursor:pointer;">
+        <input type="checkbox" id="vecto-traits" checked onchange="appliquerNettoyageVecto()">
+        Garder seulement les traits foncés (fond transparent)
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;">Seuil clair
+        <input type="range" id="vecto-seuil" min="100" max="245" value="180" oninput="document.getElementById('vecto-seuil-val').textContent=this.value;appliquerNettoyageVecto()">
+        <b id="vecto-seuil-val" style="color:var(--accent);font-family:'DM Mono',monospace;">180</b>
+      </label>
+    </div>
 
     <div class="auth-error" id="vecto-error"></div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
@@ -2398,7 +2408,56 @@ async function restaurerVisuel(id) {
 }
 
 // ===================== VECTORISATION (DAO) =====================
-let _vectoId = null, _vectoSVG = '', _vectoOrigSrc = '';
+let _vectoId = null, _vectoSVG = '', _vectoSVGraw = '', _vectoOrigSrc = '';
+
+// Supprime les aplats clairs (fond/blanc) et rend le fond transparent — ne garde que les traits foncés.
+function nettoyerSVGvecto(svgStr, dropLight, thr) {
+  try {
+    const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    if (!svg) return svgStr;
+    const lum = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
+    const parseColor = c => {
+      if (!c) return null;
+      c = c.trim().toLowerCase();
+      if (c === 'none' || c === 'transparent') return null;
+      let m = c.match(/rgba?\(([^)]+)\)/);
+      if (m) { const p = m[1].split(',').map(x => parseFloat(x)); return [p[0], p[1], p[2]]; }
+      m = c.match(/^#([0-9a-f]{3})$/);
+      if (m) { const h = m[1]; return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)]; }
+      m = c.match(/^#([0-9a-f]{6})$/);
+      if (m) { const h = m[1]; return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+      return null;
+    };
+    if (dropLight) {
+      const els = Array.from(doc.querySelectorAll('path,polygon,rect,circle,ellipse'));
+      for (const el of els) {
+        let fill = el.getAttribute('fill');
+        const style = el.getAttribute('style');
+        if ((!fill || fill === '') && style) { const mm = style.match(/fill\s*:\s*([^;]+)/i); if (mm) fill = mm[1]; }
+        const rgb = parseColor(fill);
+        if (!rgb) continue;
+        if (lum(rgb[0], rgb[1], rgb[2]) > thr) el.remove();
+      }
+    }
+    svg.style.background = 'transparent';
+    svg.removeAttribute('style');
+    return new XMLSerializer().serializeToString(svg);
+  } catch (e) { return svgStr; }
+}
+
+// Applique le nettoyage au SVG brut courant et rafraîchit l'aperçu + la version téléchargeable
+function appliquerNettoyageVecto() {
+  if (!_vectoSVGraw) return;
+  const drop = document.getElementById('vecto-traits').checked;
+  const thr = parseInt(document.getElementById('vecto-seuil').value, 10) || 180;
+  _vectoSVG = nettoyerSVGvecto(_vectoSVGraw, drop, thr);
+  const prev = document.getElementById('vecto-preview');
+  prev.style.background = drop ? 'repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 16px 16px' : '#fff';
+  prev.innerHTML = _vectoSVG;
+  const el = prev.querySelector('svg');
+  if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+}
 function openVectoriser(id) {
   const item = historique.find(a => a.id === id);
   if (!item || !item.visuel_b64 || !(item.visuel_type || '').startsWith('image/')) { alert('Aucune image à vectoriser sur cette analyse.'); return; }
@@ -2436,10 +2495,8 @@ function lancerVectoApercu() {
   };
   try {
     ImageTracer.imageToSVG(_vectoOrigSrc, svg => {
-      _vectoSVG = svg;
-      prev.innerHTML = svg;
-      const el = prev.querySelector('svg');
-      if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+      _vectoSVGraw = svg;
+      appliquerNettoyageVecto();
     }, opts);
   } catch (e) {
     document.getElementById('vecto-error').textContent = 'Échec du tracé : ' + e.message;
@@ -2466,11 +2523,8 @@ async function vectoriserPro() {
   try {
     const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
     const r = await api('POST', `/analyses/${_vectoId}/vectoriser`, { colors });
-    _vectoSVG = r.svg;
-    const prev = document.getElementById('vecto-preview');
-    prev.innerHTML = r.svg;
-    const el = prev.querySelector('svg');
-    if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+    _vectoSVGraw = r.svg;
+    appliquerNettoyageVecto();
     if (r.test) document.getElementById('vecto-error').textContent = 'ℹ Rendu de TEST (filigrané, gratuit) — passe VECTORIZER_MODE en production pour le rendu final.';
     loadJetons();
   } catch (e) {
