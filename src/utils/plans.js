@@ -16,6 +16,7 @@ const JETON_COSTS = {
   import_catalogue: 10,
   analyse_extra: 5,      // chaque analyse AU-DELÀ du quota du forfait
   storage_2go: 20,       // +2 Go de stockage
+  vectorisation: 4,      // vectorisation "qualité pro" via API (l'aperçu navigateur reste gratuit)
 };
 
 // Fonction réservée à un plan minimum
@@ -24,6 +25,7 @@ const FEATURE_MIN_PLAN = {
   relance: 'pro',
   import_catalogue: 'pro',
   upscale: 'ultra',
+  vectorisation: 'pro',
   mail_inbound: 'pro',
   admin_panel: 'entreprise',
   multi_user: 'entreprise',

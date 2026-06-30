@@ -784,6 +784,47 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL VECTORISATION (DAO) -->
+<div class="modal-overlay" id="modal-vecto" style="z-index:650">
+  <div class="modal" style="max-width:820px;width:96vw">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <h3 style="margin:0">✂ Vectoriser pour la découpe (DAO)</h3>
+      <div style="font-size:11px;color:var(--muted);max-width:380px;line-height:1.5;">Convertit le visuel en tracé vectoriel (SVG) en aplats de couleur, prêt pour le plotter de découpe. Aperçu gratuit côté navigateur ; rendu « qualité pro » via l'API si le client l'exige.</div>
+    </div>
+
+    <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;letter-spacing:.5px;">Original</div>
+        <img id="vecto-orig" style="width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;">
+      </div>
+      <div style="flex:1;min-width:240px;">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;letter-spacing:.5px;">Vectorisé (SVG)</div>
+        <div id="vecto-preview" style="width:100%;min-height:200px;max-height:300px;overflow:auto;border-radius:8px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">L'aperçu apparaîtra ici.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;">Nombre de couleurs
+        <input type="range" id="vecto-colors" min="2" max="12" value="4" oninput="document.getElementById('vecto-colors-val').textContent=this.value">
+        <b id="vecto-colors-val" style="color:var(--accent);font-family:'DM Mono',monospace;">4</b>
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;">Lissage
+        <input type="range" id="vecto-smooth" min="0" max="4" value="1" oninput="document.getElementById('vecto-smooth-val').textContent=this.value">
+        <b id="vecto-smooth-val" style="color:var(--accent);font-family:'DM Mono',monospace;">1</b>
+      </label>
+      <button class="btn-cancel" style="font-size:12px;" onclick="lancerVectoApercu()">↻ Recalculer l'aperçu</button>
+    </div>
+
+    <div class="auth-error" id="vecto-error"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn-cancel" onclick="closeVecto()">Fermer</button>
+      <button class="btn-cancel" id="btn-vecto-dl" onclick="telechargerVectoSVG()">⬇ Télécharger le SVG (gratuit)</button>
+      <button class="btn-submit" id="btn-vecto-pro" onclick="vectoriserPro()">★ Qualité pro<span class="btn-cost">4🪙</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/imagetracer_v1.2.6.js"></script>
 <script>
 // ===================== API HELPER =====================
 const TRIAL_LIMIT = 5;
@@ -2118,6 +2159,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       const visuelBtns = analyseId && analyseId !== '_pending'
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
+            <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Aperçu gratuit côté navigateur. Le rendu 'qualité pro' coûte des jetons.">gratuit · pro 🪙</span></button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -2352,6 +2394,89 @@ async function restaurerVisuel(id) {
   } catch (e) {
     alert('Erreur : ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = '↩ Image d\'origine'; }
+  }
+}
+
+// ===================== VECTORISATION (DAO) =====================
+let _vectoId = null, _vectoSVG = '', _vectoOrigSrc = '';
+function openVectoriser(id) {
+  const item = historique.find(a => a.id === id);
+  if (!item || !item.visuel_b64 || !(item.visuel_type || '').startsWith('image/')) { alert('Aucune image à vectoriser sur cette analyse.'); return; }
+  _vectoId = id;
+  _vectoOrigSrc = `data:${item.visuel_type};base64,${item.visuel_b64}`;
+  _vectoSVG = '';
+  document.getElementById('vecto-orig').src = _vectoOrigSrc;
+  document.getElementById('vecto-preview').innerHTML = 'L\'aperçu apparaîtra ici.';
+  document.getElementById('vecto-error').textContent = '';
+  document.getElementById('modal-vecto').classList.add('open');
+  // premier aperçu automatique
+  setTimeout(lancerVectoApercu, 60);
+}
+function closeVecto() { document.getElementById('modal-vecto').classList.remove('open'); }
+document.getElementById('modal-vecto').addEventListener('click', e => { if (e.target === document.getElementById('modal-vecto')) closeVecto(); });
+
+// Aperçu gratuit : tracé côté navigateur via ImageTracer.js
+function lancerVectoApercu() {
+  if (!_vectoOrigSrc || typeof ImageTracer === 'undefined') { document.getElementById('vecto-error').textContent = 'Module de vectorisation indisponible.'; return; }
+  const prev = document.getElementById('vecto-preview');
+  prev.innerHTML = '<span style="color:#999;">Calcul du tracé…</span>';
+  document.getElementById('vecto-error').textContent = '';
+  const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
+  const smooth = parseInt(document.getElementById('vecto-smooth').value, 10) || 0;
+  // options : peu de couleurs = aplats nets pour la découpe, blur = lissage
+  const opts = {
+    numberofcolors: colors,
+    colorquantcycles: 3,
+    pathomit: 8,
+    ltres: 1, qtres: 1,
+    blurradius: smooth, blurdelta: 20,
+    scale: 1, roundcoords: 1,
+    strokewidth: 0, linefilter: true,
+    viewbox: true,
+  };
+  try {
+    ImageTracer.imageToSVG(_vectoOrigSrc, svg => {
+      _vectoSVG = svg;
+      prev.innerHTML = svg;
+      const el = prev.querySelector('svg');
+      if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+    }, opts);
+  } catch (e) {
+    document.getElementById('vecto-error').textContent = 'Échec du tracé : ' + e.message;
+    prev.innerHTML = '<span style="color:#c33;">Erreur</span>';
+  }
+}
+
+function telechargerVectoSVG() {
+  if (!_vectoSVG) { document.getElementById('vecto-error').textContent = 'Génère d\'abord un aperçu.'; return; }
+  const blob = new Blob([_vectoSVG], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `vectorise-${_vectoId || 'visuel'}.svg`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+// Qualité pro : vectorisation serveur (API), facturée en jetons
+async function vectoriserPro() {
+  const btn = document.getElementById('btn-vecto-pro');
+  const old = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '★ Vectorisation pro…';
+  document.getElementById('vecto-error').textContent = '';
+  try {
+    const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
+    const r = await api('POST', `/analyses/${_vectoId}/vectoriser`, { colors });
+    _vectoSVG = r.svg;
+    const prev = document.getElementById('vecto-preview');
+    prev.innerHTML = r.svg;
+    const el = prev.querySelector('svg');
+    if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
+    loadJetons();
+  } catch (e) {
+    if (e.message && e.message.includes('dev')) document.getElementById('vecto-error').textContent = '🛠 Vectorisation pro pas encore activée (clé API à configurer).';
+    else handleActionError(e);
+  } finally {
+    btn.disabled = false; btn.innerHTML = old;
   }
 }
 

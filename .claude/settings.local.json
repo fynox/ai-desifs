@@ -15,7 +15,10 @@
       "Bash(node -e \"require\\('./src/utils/plans.js'\\); console.log\\('plans ok'\\)\")",
       "Bash(node -c src/routes/analyses.js)",
       "Bash(node -e \"require\\('./src/utils/plans.js'\\)\")",
-      "Bash(node -c src/routes/admin.js)"
+      "Bash(node -c src/routes/admin.js)",
+      "Bash(curl -sL -o public/vendor/imagetracer_v1.2.6.js \"https://cdn.jsdelivr.net/gh/jankovicsandras/imagetracerjs@1.2.6/imagetracer_v1.2.6.js\")",
+      "Bash(node -e \"console.log\\('node-fetch', require\\('node-fetch/package.json'\\).version\\); try{console.log\\('form-data', require\\('form-data/package.json'\\).version\\)}catch\\(e\\){console.log\\('form-data: ABSENT'\\)}\")",
+      "Bash(git commit -q -m 'feat: vectorisation des visuels pour la decoupe DAO \\(apercu SVG gratuit cote navigateur via ImageTracer.js + bouton qualite pro via API vectorizer.ai facture en jetons, telechargement SVG\\) *)"
     ]
   }
 }

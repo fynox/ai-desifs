@@ -360,6 +360,56 @@ router.get('/devis-infos', (req, res) => {
   res.json(infos || {});
 });
 
+// Vectorisation "qualité pro" via l'API vectorizer.ai (l'aperçu navigateur, lui, est gratuit).
+// Nécessite VECTORIZER_API_ID + VECTORIZER_API_SECRET dans les réglages. Facturée en jetons.
+router.post('/:id/vectoriser', async (req, res) => {
+  const apiId = getSetting('VECTORIZER_API_ID');
+  const apiSecret = getSetting('VECTORIZER_API_SECRET');
+  if (!apiId || !apiSecret) return res.status(503).json({ error: 'dev' }); // pas encore configuré
+
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  if (!item.visuel_b64 || !(item.visuel_type || '').startsWith('image/')) {
+    return res.status(400).json({ error: 'Aucun visuel image à vectoriser sur cette analyse.' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const ftV = checkFeature(user, 'vectorisation'); if (ftV) return res.status(403).json(ftV);
+  const affV = affordJetons(user, JETON_COSTS.vectorisation); if (affV) return res.status(403).json(affV);
+
+  const colors = Math.max(2, Math.min(12, parseInt(req.body.colors, 10) || 4));
+  const mode = getSetting('VECTORIZER_MODE') || 'production'; // 'test' pour essais gratuits (filigrane)
+
+  let svg;
+  try {
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('image', Buffer.from(item.visuel_b64, 'base64'), { filename: 'visuel', contentType: item.visuel_type });
+    form.append('mode', mode);
+    form.append('output.file_format', 'svg');
+    form.append('processing.max_colors', String(colors));
+
+    const auth = 'Basic ' + Buffer.from(`${apiId}:${apiSecret}`).toString('base64');
+    const vr = await fetch('https://vectorizer.ai/api/v1/vectorize', {
+      method: 'POST',
+      headers: { ...form.getHeaders(), Authorization: auth },
+      body: form,
+    });
+    if (!vr.ok) {
+      const txt = await vr.text().catch(() => '');
+      return res.status(502).json({ error: `Vectorisation pro échouée (${vr.status}). ${txt.slice(0, 200)}` });
+    }
+    svg = await vr.text();
+  } catch (e) {
+    return res.status(502).json({ error: 'Impossible de joindre le service de vectorisation.' });
+  }
+
+  if (!svg || svg.indexOf('<svg') === -1) return res.status(502).json({ error: 'Réponse de vectorisation invalide.' });
+
+  consumeJetons(user, JETON_COSTS.vectorisation, 'vectorisation');
+  res.json({ svg });
+});
+
 // Upscale IA du visuel via Replicate (Real-ESRGAN x4)
 // Nécessite REPLICATE_API_TOKEN dans les variables d'environnement Railway.
 router.post('/:id/upscale', async (req, res) => {
