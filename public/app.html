@@ -2513,17 +2513,17 @@ function lancerVectoApercu() {
   document.getElementById('vecto-error').textContent = '';
   const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
   const smooth = parseInt(document.getElementById('vecto-smooth').value, 10) || 0;
-  // Plus de lissage = on suragrandit l'image (plus de points → courbes plus douces)
-  // + tolérance de courbe plus élevée. up: 1→3x selon le curseur.
-  const up = [1, 2, 2, 3, 3][smooth] || 2;
+  // Le lissage vient AVANT tout de la résolution : on suragrandit fort (2→5x),
+  // ce qui lisse les courbes ET garde les lettres fidèles, avec une tolérance de courbe BASSE.
+  const up = [2, 3, 3, 4, 5][smooth] || 3;
   const opts = {
     numberofcolors: colors,
     colorquantcycles: 3,
-    pathomit: 8 + smooth * 4,          // supprime les micro-taches parasites
-    ltres: 0.5 + smooth * 0.7,         // tolérance ligne droite
-    qtres: 0.5 + smooth * 0.9,         // tolérance courbe (↑ = plus lisse)
-    blurradius: Math.min(smooth, 3), blurdelta: 20,
-    rightangleenhance: false,          // ne pas forcer les angles droits → plus fluide
+    pathomit: 2 + smooth,              // bas = on préserve les petits détails (lettres fines)
+    ltres: 1,                          // tolérance ligne droite fidèle
+    qtres: 1 + smooth * 0.25,          // tolérance courbe légère (ne déforme pas les lettres)
+    blurradius: 0, blurdelta: 20,      // pas de flou : il empâte le texte
+    rightangleenhance: true,           // renforce les angles nets (bon pour les lettres)
     scale: 1 / up, roundcoords: 2,     // on ramène le tracé aux dimensions d'origine
     strokewidth: 0, linefilter: true,
     viewbox: true,
@@ -2533,9 +2533,12 @@ function lancerVectoApercu() {
     img.onload = () => {
       try {
         const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        // on plafonne la taille du canvas pour rester fluide (max ~3200 px sur le plus grand côté)
+        const cap = 3200, upEff = Math.max(1, Math.min(up, cap / Math.max(w, h)));
         const cv = document.createElement('canvas');
-        cv.width = Math.max(1, Math.round(w * up));
-        cv.height = Math.max(1, Math.round(h * up));
+        cv.width = Math.max(1, Math.round(w * upEff));
+        cv.height = Math.max(1, Math.round(h * upEff));
+        opts.scale = 1 / upEff;
         const ctx = cv.getContext('2d');
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); // fond blanc pour PNG transparents
