@@ -809,8 +809,8 @@ textarea:focus { border-color: var(--accent); }
         <b id="vecto-colors-val" style="color:var(--accent);font-family:'DM Mono',monospace;">4</b>
       </label>
       <label style="font-size:12px;display:flex;align-items:center;gap:8px;">Lissage
-        <input type="range" id="vecto-smooth" min="0" max="4" value="1" oninput="document.getElementById('vecto-smooth-val').textContent=this.value">
-        <b id="vecto-smooth-val" style="color:var(--accent);font-family:'DM Mono',monospace;">1</b>
+        <input type="range" id="vecto-smooth" min="0" max="4" value="3" oninput="document.getElementById('vecto-smooth-val').textContent=this.value">
+        <b id="vecto-smooth-val" style="color:var(--accent);font-family:'DM Mono',monospace;">3</b>
       </label>
       <button class="btn-cancel" style="font-size:12px;" onclick="lancerVectoApercu()">↻ Recalculer l'aperçu</button>
     </div>
@@ -2513,22 +2513,44 @@ function lancerVectoApercu() {
   document.getElementById('vecto-error').textContent = '';
   const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
   const smooth = parseInt(document.getElementById('vecto-smooth').value, 10) || 0;
-  // options : peu de couleurs = aplats nets pour la découpe, blur = lissage
+  // Plus de lissage = on suragrandit l'image (plus de points → courbes plus douces)
+  // + tolérance de courbe plus élevée. up: 1→3x selon le curseur.
+  const up = [1, 2, 2, 3, 3][smooth] || 2;
   const opts = {
     numberofcolors: colors,
     colorquantcycles: 3,
-    pathomit: 8,
-    ltres: 1, qtres: 1,
-    blurradius: smooth, blurdelta: 20,
-    scale: 1, roundcoords: 1,
+    pathomit: 8 + smooth * 4,          // supprime les micro-taches parasites
+    ltres: 0.5 + smooth * 0.7,         // tolérance ligne droite
+    qtres: 0.5 + smooth * 0.9,         // tolérance courbe (↑ = plus lisse)
+    blurradius: Math.min(smooth, 3), blurdelta: 20,
+    rightangleenhance: false,          // ne pas forcer les angles droits → plus fluide
+    scale: 1 / up, roundcoords: 2,     // on ramène le tracé aux dimensions d'origine
     strokewidth: 0, linefilter: true,
     viewbox: true,
   };
   try {
-    ImageTracer.imageToSVG(_vectoOrigSrc, svg => {
-      _vectoSVGraw = svg;
-      appliquerNettoyageVecto();
-    }, opts);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        const cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(w * up));
+        cv.height = Math.max(1, Math.round(h * up));
+        const ctx = cv.getContext('2d');
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); // fond blanc pour PNG transparents
+        ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        const idata = ctx.getImageData(0, 0, cv.width, cv.height);
+        const svg = ImageTracer.imagedataToSVG(idata, opts);
+        _vectoSVGraw = svg;
+        appliquerNettoyageVecto();
+      } catch (e2) {
+        document.getElementById('vecto-error').textContent = 'Échec du tracé : ' + e2.message;
+        prev.innerHTML = '<span style="color:#c33;">Erreur</span>';
+      }
+    };
+    img.onerror = () => { document.getElementById('vecto-error').textContent = 'Image illisible.'; };
+    img.src = _vectoOrigSrc;
   } catch (e) {
     document.getElementById('vecto-error').textContent = 'Échec du tracé : ' + e.message;
     prev.innerHTML = '<span style="color:#c33;">Erreur</span>';
