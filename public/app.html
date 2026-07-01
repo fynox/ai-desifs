@@ -363,6 +363,17 @@ textarea:focus { border-color: var(--accent); }
 .dv-prix-perso{width:92px;box-sizing:border-box;padding:5px 7px;font-size:12px;text-align:right;border:1px solid var(--border);border-radius:6px;background:var(--surface2,var(--surface));color:var(--text,inherit);font-family:'DM Mono',monospace;}
 .dv-prix-perso:focus{outline:none;border-color:var(--accent);}
 .btn-cost{display:inline-block;margin-left:7px;padding:1px 7px;font-size:10px;font-weight:600;border-radius:20px;background:rgba(220,170,40,.16);color:#caa23a;font-family:'DM Mono',monospace;vertical-align:middle;white-space:nowrap;}
+.acc-section{border:1px solid var(--border);border-radius:14px;margin-bottom:12px;background:var(--surface);overflow:hidden;transition:border-color .15s;}
+.acc-section:hover{border-color:var(--accent-dim,var(--border));}
+.acc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;cursor:pointer;user-select:none;}
+.acc-head:hover{background:var(--surface2);}
+.acc-title{font-size:13px;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;gap:9px;}
+.acc-ico{font-size:15px;line-height:1;}
+.acc-hint{font-size:10px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace;}
+.acc-chevron{color:var(--muted);font-size:11px;transition:transform .2s;}
+.acc-section.collapsed .acc-chevron{transform:rotate(-90deg);}
+.acc-section.collapsed .acc-body{display:none;}
+.acc-body{padding:2px 16px 15px;}
 </style>
 </head>
 <body>
@@ -2146,6 +2157,31 @@ async function exporterLes() {
   if (btn) { btn.disabled = false; btn.textContent = `⬇ Exporter les ${p.segs.length} lés (images séparées)`; }
 }
 
+// Section repliable de l'analyse
+function accSection(title, body, opts) {
+  opts = opts || {};
+  const open = opts.open !== false;
+  const ico = opts.icon ? `<span class="acc-ico">${opts.icon}</span>` : '';
+  const hint = opts.hint ? `<span class="acc-hint">${opts.hint}</span>` : '';
+  return `<div class="acc-section${open ? '' : ' collapsed'}">
+    <div class="acc-head" onclick="toggleAcc(this)">
+      <span class="acc-title">${ico}${title}${hint}</span>
+      <span class="acc-chevron">▾</span>
+    </div>
+    <div class="acc-body">${body}</div>
+  </div>`;
+}
+function toggleAcc(head) { head.parentNode.classList.toggle('collapsed'); }
+
+// Détecte une demande de découpe (DAO / adhésif découpé) → pas de plan de lés / impression
+function isDemandeDAO(r) {
+  const txt = ((r.resume || '') + ' ' + (r.attention || '') + ' ' + (r.specs ? Object.values(r.specs).join(' ') : '') + ' ' + (r.adhesifs || []).map(a => (a.nom || '') + ' ' + (a.raison || '')).join(' ')).toLowerCase();
+  // mots-clés découpe/lettrage vinyle vs impression
+  const dao = /\bdao\b|découp|decoup|lettrage|vinyle de couleur|couleur unie|adhésif de couleur|adhesif de couleur|plotter|détourage|detourage/.test(txt);
+  const impression = /imprim|impression|quadri|cmjn|photo|dpi/.test(txt);
+  return dao && !impression;
+}
+
 function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const adhesifsHTML = r.adhesifs.map(a => {
     const principal = a.priorite === 'principal';
@@ -2160,7 +2196,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   }).join('');
   const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
-  let previewHTML = '';
+  let previewInner = '', previewTitle = 'Aperçu du visuel';
   const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
@@ -2181,16 +2217,17 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <div style="font-size:10px;color:${v.w && v.h ? 'var(--accent)' : 'var(--muted)'};font-family:'DM Mono',monospace;">${v.w && v.h ? v.w + '×' + v.h + ' mm' : 'taille ?'}</div>
             <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="planPourFichier(${i})">📐 Plan de lés</button>
           </div>`).join('');
-        previewHTML = `<div class="result-section"><div class="rs-label">${visuels.length} fichiers à imprimer</div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${visuelBtns}</div>`;
+        previewTitle = `${visuels.length} fichiers à imprimer`;
+        previewInner = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${visuelBtns}`;
       } else {
-        previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${visuelBtns}</div>`;
+        previewInner = `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${visuelBtns}`;
       }
     } else if (previewType === 'application/pdf') {
-      previewHTML = `<div class="result-section"><div class="rs-label">Aperçu du visuel</div><iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe></div>`;
+      previewInner = `<iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe>`;
     }
   }
   // Visuel montage : plan de lés
-  let montageHTML = '';
+  let montageInner = '';
   // Marges par défaut du compte (réglables dans Réglages, ajustables sous le plan)
   _lesRecouvrement = Number(userSettings.marge_raccord_mm) >= 0 ? Number(userSettings.marge_raccord_mm) : 10;
   _lesMargeImp = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
@@ -2268,26 +2305,39 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       </div>`;
     }
     const multiNote = (Array.isArray(visuels) && visuels.length > 1) ? `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Plusieurs fichiers — clique sur « 📐 Plan de lés » sous un fichier pour voir SON plan (chacun a sa taille).</div>` : '';
-    montageHTML = `<div class="result-section"><div class="rs-label">Plan de lés / impression</div>${multiNote}<div id="les-host">${lesHTML}</div></div>`;
+    montageInner = `${multiNote}<div id="les-host">${lesHTML}</div>`;
   }
 
-  const panel = document.getElementById('output-panel');
-  panel.innerHTML = `
-    <div class="result-block">
-      <div class="result-top"><h2>Analyse complète</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
-      <div class="result-section"><div class="rs-label">Résumé</div><div class="rs-text">${r.resume}</div></div>
-      ${previewHTML}
-      <div class="result-section"><div class="rs-label">Adhésif recommandé</div>${adhesifsHTML}</div>
-      <div class="result-section"><div class="rs-label">Spécifications</div><div class="specs-grid">
+  const dao = isDemandeDAO(r);
+  const specsInner = `<div class="specs-grid">
         <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
         <div class="spec-box"><div class="spec-box-key">Durée</div><div class="spec-box-val">${r.specs.duree}</div></div>
         <div class="spec-box"><div class="spec-box-key">Environnement</div><div class="spec-box-val">${r.specs.pose}</div></div>
         <div class="spec-box"><div class="spec-box-key">Retrait</div><div class="spec-box-val">${r.specs.retrait}</div></div>
-      </div></div>
-      ${montageHTML}
-      <div class="result-section"><div class="rs-label">Préparation</div><div class="checklist">${prepHTML}</div></div>
-      ${attentionHTML}
-      ${analyseId && analyseId !== '_pending' ? `<div class="result-section" style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button><button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif<span class="btn-cost" title="2 jetons. Rouvrir un devis déjà généré est gratuit.">2🪙</span></button></div>` : ''}
+      </div>`;
+  // Plan de lés : masqué pour une DAO (découpe, pas d'impression), sinon présent mais replié par défaut
+  const montageSection = (montageInner && !dao)
+    ? accSection('Plan de lés / impression', montageInner, { icon: '📐', open: false, hint: 'replié — clique pour ouvrir' })
+    : '';
+  const actionsBar = (analyseId && analyseId !== '_pending')
+    ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+         <button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button>
+         <button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif<span class="btn-cost" title="2 jetons. Rouvrir un devis déjà généré est gratuit.">2🪙</span></button>
+       </div>`
+    : '';
+
+  const panel = document.getElementById('output-panel');
+  panel.innerHTML = `
+    <div class="result-block">
+      <div class="result-top"><h2>Analyse${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
+      ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
+      ${accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true })}
+      ${accSection('Spécifications', specsInner, { icon: '📋', open: true })}
+      ${montageSection}
+      ${accSection('Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' })}
+      ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
+      ${actionsBar}
     </div>`;
   panel.classList.add('open');
   panel.scrollTop = 0;
