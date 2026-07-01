@@ -27,7 +27,8 @@
       "Bash(git commit -q -m 'fix: vectorisation - fidelite du texte/police \\(resolution forte 2-5x + tolerance de courbe basse + pas de flou + angles nets\\), plafond canvas 3200px *)",
       "Bash(git commit -q -m 'feat: vectorisation - suppression de la version pro \\(vectorizer.ai\\), passage en betaonly gratuit facture 2 jetons au telechargement + badge BETA/en cours de test + nettoyage champs admin vectorizer *)",
       "Bash(git commit -q -m 'feat: vectorisation - agrandissement plein ecran de l apercu SVG \\(bouton Agrandir + clic\\) sur fond damier, original zoomable aussi *)",
-      "Bash(git commit -q -m 'refonte DA onglet analyse: sections repliables \\(accordeon\\) - plan de les et preparation replies par defaut, plan de les masque pour les demandes DAO \\(decoupe sans impression\\), presentation plus aeree et moins lineaire *)"
+      "Bash(git commit -q -m 'refonte DA onglet analyse: sections repliables \\(accordeon\\) - plan de les et preparation replies par defaut, plan de les masque pour les demandes DAO \\(decoupe sans impression\\), presentation plus aeree et moins lineaire *)",
+      "Bash(git commit -q -m 'refonte DA \\(passe 1\\): palette plus profonde + degrade de fond, ombres douces, typo lissee, rayons coherents + zone de saisie simplifiee \\(mail en principal, consignes/fichier replies derriere un lien optionnel\\) *)"
     ]
   }
 }

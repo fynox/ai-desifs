@@ -8,15 +8,20 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
 
 :root {
-  --bg: #111210;
-  --surface: #1c1d1a;
-  --surface2: #252622;
-  --border: #2f3029;
+  --bg: #0e0f0d;
+  --bg-soft: radial-gradient(1200px 600px at 15% -10%, #191b16 0%, #0e0f0d 60%);
+  --surface: #191a17;
+  --surface2: #22231f;
+  --border: #2b2c26;
+  --border-soft: #232420;
   --accent: #c8f04a;
   --accent-dim: #8aaa2a;
   --text: #eceee6;
-  --muted: #7a7d70;
+  --muted: #82857a;
   --danger: #f06060;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.55);
+  --shadow-lg: 0 8px 40px -8px rgba(0,0,0,.6);
   --cat-print: #4af0c8;
   --cat-plastification: #f0c84a;
   --cat-dao: #c84af0;
@@ -29,7 +34,9 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow: hidden; }
+body { background: var(--bg); background-image: var(--bg-soft); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+.acc-section, .adhesif-result-card { box-shadow: var(--shadow); }
+.auth-box { box-shadow: var(--shadow-lg); }
 
 /* ===================== AUTH ===================== */
 .auth-screen {
@@ -471,25 +478,31 @@ textarea:focus { border-color: var(--accent); }
   <main class="main-content">
     <div class="analyse-layout" id="analyse-layout">
       <div class="analyse-input">
-        <div class="section-title">Demande client</div>
+        <div class="section-title">Nouvelle analyse</div>
+        <div style="font-size:12px;color:var(--muted);margin:-6px 0 14px;line-height:1.5;">Colle le mail de ton client, l'IA identifie l'adhésif, les specs et prépare le devis.</div>
         <div class="field-group">
-          <label class="field-label">Contenu du mail</label>
+          <label class="field-label">Demande du client</label>
           <textarea id="mail-input" placeholder="Colle ici le mail du client...&#10;&#10;Ex: Bonjour, je souhaite faire imprimer mon logo pour ma vitrine. Je veux que ça tienne plusieurs années, c'est en extérieur..."></textarea>
         </div>
-        <div class="field-group">
-          <label class="field-label">Consignes supplémentaires (optionnel)</label>
-          <textarea id="consignes-input" placeholder="Ex: client veut du mat, budget serré, pose temporaire 3 mois..."></textarea>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Fichier joint (optionnel)</label>
-          <div class="file-drop" id="file-drop">
-            <input type="file" id="file-input" accept="image/*,.pdf,.ai,.eps,.svg">
-            <div class="file-drop-icon">📎</div>
-            <p>Glisse le fichier ici ou clique pour parcourir</p>
-            <div class="file-name-display" id="file-name"></div>
-            <button class="btn-remove-file" id="btn-remove-file" onclick="removeFile(event)" style="display:none">✕ Retirer le fichier</button>
+
+        <button type="button" id="toggle-options" onclick="toggleSaisieOptions()" style="background:none;border:1px dashed var(--border);border-radius:9px;color:var(--muted);font-family:'Syne',sans-serif;font-size:12px;font-weight:600;padding:9px 14px;cursor:pointer;width:100%;text-align:left;transition:all .15s;">＋ Consignes & fichier joint <span style="color:var(--muted);font-weight:400;">(optionnel)</span></button>
+        <div id="saisie-options" style="display:none;margin-top:12px;">
+          <div class="field-group">
+            <label class="field-label">Consignes supplémentaires</label>
+            <textarea id="consignes-input" placeholder="Ex: client veut du mat, budget serré, pose temporaire 3 mois..."></textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Fichier joint</label>
+            <div class="file-drop" id="file-drop">
+              <input type="file" id="file-input" accept="image/*,.pdf,.ai,.eps,.svg">
+              <div class="file-drop-icon">📎</div>
+              <p>Glisse le fichier ici ou clique pour parcourir</p>
+              <div class="file-name-display" id="file-name"></div>
+              <button class="btn-remove-file" id="btn-remove-file" onclick="removeFile(event)" style="display:none">✕ Retirer le fichier</button>
+            </div>
           </div>
         </div>
+
         <button class="btn-analyze" id="btn-analyze" onclick="analyzeRequest()">Analyser la demande →<span class="btn-cost" title="Gratuit dans la limite de ton forfait, puis 5 jetons par analyse au-delà du quota mensuel">inclus · 5🪙 au-delà du quota</span></button>
         <div class="stock-warning" id="stock-warning" style="display:none">⚠ Aucun adhésif en stock. Cliquez sur "Gérer le stock" dans la sidebar.</div>
       </div>
@@ -1663,6 +1676,16 @@ function removeFile(e) {
   e.stopPropagation(); uploadedFileBase64 = null; uploadedFileType = null;
   fileNameEl.textContent = ''; fileInput.value = '';
   document.getElementById('btn-remove-file').style.display = 'none';
+}
+
+function toggleSaisieOptions() {
+  const box = document.getElementById('saisie-options');
+  const btn = document.getElementById('toggle-options');
+  const open = box.style.display === 'none';
+  box.style.display = open ? 'block' : 'none';
+  btn.innerHTML = (open ? '−' : '＋') + ' Consignes & fichier joint <span style="color:var(--muted);font-weight:400;">(optionnel)</span>';
+  if (open) btn.style.borderColor = 'var(--accent-dim)';
+  else btn.style.borderColor = 'var(--border)';
 }
 
 async function analyzeRequest() {
