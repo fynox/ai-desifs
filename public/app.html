@@ -788,8 +788,8 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal-vecto" style="z-index:650">
   <div class="modal" style="max-width:820px;width:96vw">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <h3 style="margin:0">✂ Vectoriser pour la découpe (DAO)</h3>
-      <div style="font-size:11px;color:var(--muted);max-width:380px;line-height:1.5;">Convertit le visuel en tracé vectoriel (SVG) en aplats de couleur, prêt pour le plotter de découpe. Aperçu gratuit côté navigateur ; rendu « qualité pro » via l'API si le client l'exige.</div>
+      <h3 style="margin:0">✂ Vectoriser pour la découpe (DAO) <span style="font-size:10px;font-weight:700;background:#c9860022;color:#e0a400;border:1px solid #e0a40055;border-radius:20px;padding:2px 9px;vertical-align:middle;">BÊTA · en cours de test</span></h3>
+      <div style="font-size:11px;color:var(--muted);max-width:400px;line-height:1.5;">Convertit le visuel en tracé vectoriel (SVG) en aplats de couleur, prêt pour le plotter de découpe.<br><b style="color:#e0a400;">⚠ Fonction encore en test</b> — utilisable dès maintenant, mais <b>vérifie bien le résultat</b> avant de découper (le rendu n'est pas encore parfait). Chaque téléchargement coûte <b>2 jetons</b>.</div>
     </div>
 
     <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;">
@@ -828,9 +828,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="auth-error" id="vecto-error"></div>
     <div class="modal-actions" style="flex-wrap:wrap;gap:8px;">
       <button class="btn-cancel" onclick="closeVecto()">Fermer</button>
-      <button class="btn-cancel" id="btn-vecto-dl" onclick="telechargerVectoSVG()">⬇ Télécharger le SVG (gratuit)</button>
-      <button class="btn-cancel" style="opacity:.6;font-size:11px;" onclick="copierSVGbrut()" title="Debug : copie le SVG brut non nettoyé">🐞 SVG brut</button>
-      <button class="btn-submit" id="btn-vecto-pro" onclick="vectoriserPro()">★ Qualité pro<span class="btn-cost">4🪙</span></button>
+      <button class="btn-submit" id="btn-vecto-dl" onclick="telechargerVectoSVG()">⬇ Télécharger le SVG<span class="btn-cost">2🪙</span></button>
     </div>
   </div>
 </div>
@@ -2170,7 +2168,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       const visuelBtns = analyseId && analyseId !== '_pending'
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
-            <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Aperçu gratuit côté navigateur. Le rendu 'qualité pro' coûte des jetons.">gratuit · pro 🪙</span></button>
+            <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -2560,39 +2558,24 @@ function lancerVectoApercu() {
   }
 }
 
-async function copierSVGbrut() {
-  if (!_vectoSVGraw) { alert('Génère d\'abord un aperçu.'); return; }
-  const extrait = _vectoSVGraw.slice(0, 2500);
-  try { await navigator.clipboard.writeText(extrait); alert('SVG brut copié (2500 premiers caractères) — colle-le dans le chat.'); }
-  catch { prompt('Copie ce texte :', extrait); }
-}
-
-function telechargerVectoSVG() {
+// Téléchargement du SVG : action facturée 2 jetons (débité côté serveur, seulement si réussi).
+async function telechargerVectoSVG() {
   if (!_vectoSVG) { document.getElementById('vecto-error').textContent = 'Génère d\'abord un aperçu.'; return; }
-  const blob = new Blob([_vectoSVG], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `vectorise-${_vectoId || 'visuel'}.svg`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
-// Qualité pro : vectorisation serveur (API), facturée en jetons
-async function vectoriserPro() {
-  const btn = document.getElementById('btn-vecto-pro');
+  const btn = document.getElementById('btn-vecto-dl');
   const old = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '★ Vectorisation pro…';
+  btn.disabled = true; btn.innerHTML = '⬇ Débit des jetons…';
   document.getElementById('vecto-error').textContent = '';
   try {
-    const colors = parseInt(document.getElementById('vecto-colors').value, 10) || 4;
-    const r = await api('POST', `/analyses/${_vectoId}/vectoriser`, { colors });
-    _vectoSVGraw = r.svg;
-    appliquerNettoyageVecto();
-    if (r.test) document.getElementById('vecto-error').textContent = 'ℹ Rendu de TEST (filigrané, gratuit) — passe VECTORIZER_MODE en production pour le rendu final.';
+    await api('POST', `/analyses/${_vectoId}/vectoriser`);   // vérifie l'accès + débite 2 jetons
+    const blob = new Blob([_vectoSVG], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `vectorise-${_vectoId || 'visuel'}.svg`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
     loadJetons();
   } catch (e) {
-    if (e.message && e.message.includes('dev')) document.getElementById('vecto-error').textContent = '🛠 Vectorisation pro pas encore activée (clé API à configurer).';
-    else handleActionError(e);
+    handleActionError(e);
   } finally {
     btn.disabled = false; btn.innerHTML = old;
   }
