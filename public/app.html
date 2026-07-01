@@ -408,7 +408,15 @@ textarea:focus { border-color: var(--accent); }
   <div class="auth-box">
     <div class="auth-logo-row">
       <div class="logo">A</div>
-      <span class="auth-brand">AI-dhésif</span>
+      <div>
+        <span class="auth-brand">AI-dhésif</span>
+        <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">L'assistant IA des pros de l'adhésif</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 2px;">
+      <span style="font-size:11px;color:var(--muted);">✅ Adhésif &amp; specs</span>
+      <span style="font-size:11px;color:var(--muted);">📐 Plan de lés</span>
+      <span style="font-size:11px;color:var(--muted);">📋 Devis auto</span>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Connexion</button>
@@ -465,8 +473,11 @@ textarea:focus { border-color: var(--accent); }
         </div>
         <button onclick="openClear()" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:4px 0 0;text-decoration:underline;">🧹 Libérer de l'espace</button>
       </div>
-      <button class="btn-stock" onclick="openStock()">⬡ Gérer le stock adhésifs</button>
-      <button class="btn-stock" onclick="openReglages()" style="margin-top:0">⚙ Réglages</button>
+      <button class="btn-stock" onclick="openStock()" style="margin-bottom:8px;">⬡ Gérer le stock adhésifs</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-stock" onclick="openProfile()" style="flex:1;margin:0;">👤 Profil</button>
+        <button class="btn-stock" onclick="openReglages()" style="flex:1;margin:0;">⚙ Réglages</button>
+      </div>
       <div class="user-row">
         <span class="user-email" id="user-email-display"></span>
         <button class="btn-logout" onclick="logout()">Quitter</button>
