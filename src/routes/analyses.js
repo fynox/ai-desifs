@@ -493,7 +493,16 @@ router.post('/:id/restore-visuel', (req, res) => {
 });
 
 router.post('/analyse', async (req, res) => {
-  const { mail_content, consignes = '', file_base64, file_type } = req.body;
+  let { mail_content, consignes = '', file_base64, file_type } = req.body;
+  const reanalyse_id = req.body.reanalyse_id ? Number(req.body.reanalyse_id) : null;
+  const assemblage_force = (req.body.assemblage_force === 'assemble' || req.body.assemblage_force === 'separe') ? req.body.assemblage_force : null;
+  // Relance d'une analyse existante : on repart de SON mail et de SES visuels stockés
+  let reItem = null;
+  if (reanalyse_id) {
+    reItem = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(reanalyse_id, req.user.id);
+    if (!reItem) return res.status(404).json({ error: 'Analyse introuvable.' });
+    mail_content = reItem.mail_content || mail_content;
+  }
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
@@ -562,10 +571,28 @@ MULTI-FICHIERS (plusieurs fichiers joints) : détermine si les fichiers forment 
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal","debord_mm":0,"quantite":1,"assemblage":"assemble|separe|inconnu"}}`;
 
+  // Consigne impérative d'assemblage lors d'une relance (le choix confirmé prime sur la déduction)
+  const forceLine = assemblage_force
+    ? `\n\nCONSIGNE IMPÉRATIVE DE L'IMPRIMEUR (confirmée avec le client) : les fichiers joints sont ${assemblage_force === 'assemble'
+        ? 'À ASSEMBLER CÔTE À CÔTE pour former UN SEUL grand visuel continu (raccord). Traite-les comme les parties d\'un même visuel : mets "assemblage":"assemble", et tu peux cumuler les largeurs et parler de lés d\'un visuel unique.'
+        : 'des VISUELS SÉPARÉS ET INDÉPENDANTS à imprimer distinctement. Ne les assemble PAS : mets "assemblage":"separe", ne cumule pas les largeurs.'}`
+    : '';
+  const finalSystem = systemPrompt + forceLine;
+
+  const { shrinkForApi } = require('../utils/image');
   const userContent = [{ type: 'text', text: `Mail client :\n${mail_content}${consignes ? `\n\nConsignes : ${consignes}` : ''}` }];
-  // Pour l'IA : copie réduite si > 8000 px (l'original uploadé reste stocké intact)
-  if (file_base64 && file_type && file_type.startsWith('image/')) {
-    const { shrinkForApi } = require('../utils/image');
+  if (reItem) {
+    // Relance : on réutilise les visuels déjà stockés sur l'analyse
+    let storedVis = [];
+    try { storedVis = reItem.visuels_json ? JSON.parse(reItem.visuels_json) : []; } catch {}
+    if (!storedVis.length && reItem.visuel_b64) storedVis = [{ b64: reItem.visuel_b64, type: reItem.visuel_type }];
+    for (const v of storedVis.slice(0, 6)) {
+      if (!v.b64 || !(v.type || '').startsWith('image/')) continue;
+      const s = await shrinkForApi(Buffer.from(v.b64, 'base64'), v.type);
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
+    }
+  } else if (file_base64 && file_type && file_type.startsWith('image/')) {
+    // Pour l'IA : copie réduite si > 8000 px (l'original uploadé reste stocké intact)
     const s = await shrinkForApi(Buffer.from(file_base64, 'base64'), file_type);
     userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
   }
@@ -582,7 +609,7 @@ Réponds UNIQUEMENT en JSON valide :
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 2000,
-        system: systemPrompt,
+        system: finalSystem,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
@@ -606,6 +633,15 @@ Réponds UNIQUEMENT en JSON valide :
   if (analyseOver) consumeJetons(user, JETON_COSTS.analyse_extra, 'analyse_extra');
   if (user.subscription_status === 'trial') {
     db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
+  }
+
+  // Relance : on met à jour l'analyse existante (on garde ses visuels), pas de nouvelle ligne
+  if (reItem) {
+    db.prepare("UPDATE analyses SET result_json = ?, status = 'done', error_msg = NULL WHERE id = ?").run(JSON.stringify(result), reItem.id);
+    const analyse = db.prepare('SELECT * FROM analyses WHERE id = ?').get(reItem.id);
+    let visuels = [];
+    try { visuels = reItem.visuels_json ? JSON.parse(reItem.visuels_json) : []; } catch {}
+    return res.json({ ...analyse, result, visuels, lu: false });
   }
 
   // Stocker le visuel ORIGINAL en pleine qualité (export fidèle)

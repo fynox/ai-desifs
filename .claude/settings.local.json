@@ -44,7 +44,9 @@
       "Bash(git commit -q -m 'feat analyse: detection assemblage cote-a-cote vs visuels separes \\(champ montage.assemblage\\) - l IA ne suppose plus l assemblage, signale l incertitude en attention + point de mail au client pour confirmer *)",
       "Bash(grep -n '\\\\${bg}' public/app.html)",
       "Bash(git commit -q -m 'refonte plan de les WYSIWYG: fond blanc = adhesif reel \\(fini le fond raye sombre\\), bandes de les distinctes + etiquettes '\\\\''Le N'\\\\'', visuel pose avec marges blanches non imprimees visibles, traits de coupe pointilles, contour format fini + legende. Mode imposition aussi passe sur fond blanc *)",
-      "Bash(git commit -q -m 'feat plan de les: regroupement des visuels identiques + onglets par visuel distinct \\(fini le x3 errone quand les fichiers different\\). Exemplaires identiques imposes ensemble, grand visuel en plusieurs les = un seul plan, tailles differentes = onglets separes *)"
+      "Bash(git commit -q -m 'feat plan de les: regroupement des visuels identiques + onglets par visuel distinct \\(fini le x3 errone quand les fichiers different\\). Exemplaires identiques imposes ensemble, grand visuel en plusieurs les = un seul plan, tailles differentes = onglets separes *)",
+      "Bash(node -e \"require\\('./src/routes/analyses.js'\\); console.log\\('analyses OK'\\)\")",
+      "Bash(git commit -q -m 'feat: relance d analyse avec hypothese d assemblage forcee \\(A assembler cote a cote / Visuels separes\\) - reutilise la route analyse \\(visuels stockes rejoues, consigne imperative, mise a jour en place\\) + banniere de choix dans le resultat multi-fichiers *)"
     ]
   }
 }

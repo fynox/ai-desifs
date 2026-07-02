@@ -1771,6 +1771,26 @@ function closeResult() {
   document.getElementById('output-panel').classList.remove('open');
 }
 
+// Relance l'analyse d'un dossier multi-fichiers avec l'hypothèse d'assemblage confirmée
+async function relancerAssemblage(id, choix) {
+  if (!id || id === '_pending') return;
+  const msg = choix === 'assemble'
+    ? 'Relancer l\'analyse en considérant les fichiers comme UN SEUL visuel à assembler côte à côte ?'
+    : 'Relancer l\'analyse en considérant les fichiers comme des visuels SÉPARÉS ?';
+  if (!confirm(msg + '\n(Compte comme une analyse.)')) return;
+  document.getElementById('output-panel').innerHTML = `<div class="output-loading"><div class="spinner"></div><p>Nouvelle analyse…</p></div>`;
+  try {
+    const analyse = await api('POST', '/analyses/analyse', { mail_content: '.', reanalyse_id: id, assemblage_force: choix });
+    const idx = historique.findIndex(h => h.id === id);
+    if (idx >= 0) historique[idx] = analyse; else historique.unshift(analyse);
+    renderSidebarHisto();
+    renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type, analyse.id, analyse.visuels);
+    loadJetons();
+  } catch (e) {
+    handleActionError(e);
+  }
+}
+
 // Laize saisie tantôt en mm (1520) tantôt en cm (152) → toujours normalisée en MILLIMÈTRES
 function normMm(v) { const n = Number(v); return n > 0 && n < 400 ? Math.round(n * 10) : Math.round(n); }
 
@@ -2458,6 +2478,19 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const montageSection = (montageInner && !dao)
     ? accSection('Plan de lés / impression', montageInner, { icon: '📐', open: false, hint: 'replié — clique pour ouvrir' })
     : '';
+  // Choix d'assemblage (plusieurs fichiers) : relance l'analyse avec l'hypothèse imposée
+  const multiFichiers = Array.isArray(visuels) && visuels.length > 1;
+  const asm = r.montage && r.montage.assemblage;
+  const assemblageBox = (multiFichiers && analyseId && analyseId !== '_pending')
+    ? `<div style="margin-top:6px;padding:12px 14px;border:1px solid ${asm === 'inconnu' ? 'var(--accent)' : 'var(--border)'};border-radius:12px;background:var(--surface);">
+         <div style="font-size:12px;margin-bottom:8px;">🧩 Plusieurs fichiers — ${asm === 'assemble' ? 'traités comme <b>un seul visuel à assembler côte à côte</b>.' : asm === 'separe' ? 'traités comme <b>des visuels séparés</b>.' : '<b style="color:var(--accent)">à confirmer :</b> à assembler côte à côte ou séparés ?'}</div>
+         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+           <button class="btn-stock" style="font-size:11px;padding:6px 12px;margin:0;${asm === 'assemble' ? 'border-color:var(--accent);color:var(--accent);' : ''}" onclick="relancerAssemblage(${analyseId},'assemble')">🔗 À assembler côte à côte</button>
+           <button class="btn-stock" style="font-size:11px;padding:6px 12px;margin:0;${asm === 'separe' ? 'border-color:var(--accent);color:var(--accent);' : ''}" onclick="relancerAssemblage(${analyseId},'separe')">🗂 Visuels séparés</button>
+         </div>
+         <div style="font-size:10px;color:var(--muted);margin-top:6px;">Change le choix → relance l'analyse avec cette hypothèse (compte comme une analyse).</div>
+       </div>`
+    : '';
   const actionsBar = (analyseId && analyseId !== '_pending')
     ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
          <button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button>
@@ -2476,6 +2509,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${montageSection}
       ${accSection('Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' })}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
+      ${assemblageBox}
       ${actionsBar}
     </div>`;
   panel.classList.add('open');
