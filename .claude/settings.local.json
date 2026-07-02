@@ -43,7 +43,8 @@
       "Bash(git commit -q -m 'fix: adresse mail dediee de retour sur le domaine racine @ai-dhesif.fr \\(au lieu de @mail.ai-dhesif.fr\\) - migration inverse pour corriger les adresses existantes + domaine configurable via INBOUND_DOMAIN *)",
       "Bash(git commit -q -m 'feat analyse: detection assemblage cote-a-cote vs visuels separes \\(champ montage.assemblage\\) - l IA ne suppose plus l assemblage, signale l incertitude en attention + point de mail au client pour confirmer *)",
       "Bash(grep -n '\\\\${bg}' public/app.html)",
-      "Bash(git commit -q -m 'refonte plan de les WYSIWYG: fond blanc = adhesif reel \\(fini le fond raye sombre\\), bandes de les distinctes + etiquettes '\\\\''Le N'\\\\'', visuel pose avec marges blanches non imprimees visibles, traits de coupe pointilles, contour format fini + legende. Mode imposition aussi passe sur fond blanc *)"
+      "Bash(git commit -q -m 'refonte plan de les WYSIWYG: fond blanc = adhesif reel \\(fini le fond raye sombre\\), bandes de les distinctes + etiquettes '\\\\''Le N'\\\\'', visuel pose avec marges blanches non imprimees visibles, traits de coupe pointilles, contour format fini + legende. Mode imposition aussi passe sur fond blanc *)",
+      "Bash(git commit -q -m 'feat plan de les: regroupement des visuels identiques + onglets par visuel distinct \\(fini le x3 errone quand les fichiers different\\). Exemplaires identiques imposes ensemble, grand visuel en plusieurs les = un seul plan, tailles differentes = onglets separes *)"
     ]
   }
 }
