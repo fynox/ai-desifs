@@ -33,7 +33,11 @@
       "Bash(git commit -q -m 'feat devis: edition en direct \\(prix appliques immediatement, total live\\), croix de suppression par ligne, ajout de prestations \\(HD/vecto/libre\\) sans regenerer + garde-fou sur Regenerer. feat mail: fenetre de composition avec points a aborder cochables, propose upscaling si image basse resolution et vectorisation si DAO *)",
       "Bash(node -e \"const p=require\\('./src/utils/plans.js'\\); console.log\\('jeton 10:',p.jetonPackPriceId\\(10\\),'| 1000:',p.jetonPackPriceId\\(1000\\)\\);\")",
       "Bash(node -c src/routes/stripe.js)",
-      "Bash(git commit -q -m 'feat: price IDs des 6 packs de jetons cables en dur + refonte section achat jetons \\(grille 3 colonnes equilibree, badge % economie par pack, prix/jeton, section mise en avant avec ancre #jetons\\) + suppression repli legacy STRIPE_PRICE_ID *)"
+      "Bash(git commit -q -m 'feat: price IDs des 6 packs de jetons cables en dur + refonte section achat jetons \\(grille 3 colonnes equilibree, badge % economie par pack, prix/jeton, section mise en avant avec ancre #jetons\\) + suppression repli legacy STRIPE_PRICE_ID *)",
+      "Bash(node -e \"require\\('./src/routes/analyses.js'\\); require\\('./src/routes/webhook.js'\\); require\\('./src/routes/stripe.js'\\); require\\('./src/routes/admin.js'\\); require\\('./src/utils/plans.js'\\); require\\('./src/utils/limits.js'\\); console.log\\('all routes load OK'\\);\")",
+      "Bash(node -c src/routes/webhook.js)",
+      "Bash(node -e \"require\\('./src/routes/webhook.js'\\); console.log\\('webhook OK'\\)\")",
+      "Bash(git commit -q -m 'fix: mail entrant - creation immediate d une analyse visible + rejets rendus visibles \\(plan/stock/quota affiches en echec avec la raison\\) au lieu de returns silencieux \\(plus de '\\\\''rien ne se passe'\\\\''\\) *)"
     ]
   }
 }

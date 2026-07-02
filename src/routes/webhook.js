@@ -56,19 +56,10 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     if (!toMatch) return;
     const inboundAddr = toMatch[1].toLowerCase();
     const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
-    if (!user) return;
-    if (user.subscription_status !== 'active') return;
-    // Adresse mail dédiée réservée aux plans Pro et Ultra + limite mensuelle d'analyses
+    if (!user) return; // adresse inconnue : impossible de rattacher à un compte
+
     const { hasMailInbound, affordAnalyse, analyseOverQuota, consumeJetons } = require('../utils/limits');
     const { JETON_COSTS } = require('../utils/plans');
-    if (!hasMailInbound(user)) return;
-    if (affordAnalyse(user)) return; // quota dépassé et pas assez de jetons → on ignore le mail
-    const mailOverQuota = analyseOverQuota(user);
-    const apiKey = getSetting('ANTHROPIC_API_KEY');
-    if (!apiKey) return;
-
-    const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
-    if (!stockDispo.length) return;
 
     const mailContent = `De : ${from}\nObjet : ${subject}\n\n${text}`.slice(0, 5000);
 
@@ -79,13 +70,29 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     ).get(user.id, mailContent);
     if (dup) return;
 
-    // Insérer une analyse "pending" visible immédiatement (optionnel — ne bloque pas si colonne absente)
+    // On crée TOUT DE SUITE une analyse visible (pending) : ainsi, même si le mail est refusé
+    // (plan, stock, quota…), l'utilisateur VOIT que le mail est bien arrivé + la raison du refus.
     try {
       const pendingRow = db.prepare(
         'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, status) VALUES (?,?,?,?,?,?)'
       ).run(user.id, mailContent, '', '{}', 'email', 'pending');
       pendingId = pendingRow.lastInsertRowid;
     } catch { /* colonne status pas encore migrée, on continue sans pending */ }
+
+    // Marque l'analyse en échec avec un message clair (visible dans l'historique)
+    const failItem = (msg) => {
+      if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run(msg, pendingId);
+    };
+
+    // Garde-fous — désormais VISIBLES (l'analyse apparaît en échec avec la raison au lieu de disparaître)
+    if (user.subscription_status !== 'active') { failItem('Abonnement inactif — réactive ton forfait pour recevoir les analyses par mail.'); return; }
+    if (!hasMailInbound(user)) { failItem('Adresse mail dédiée réservée aux forfaits Pro et supérieurs.'); return; }
+    const apiKey = getSetting('ANTHROPIC_API_KEY');
+    if (!apiKey) { failItem('Service momentanément indisponible (clé API non configurée côté admin).'); return; }
+    const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(user.id);
+    if (!stockDispo.length) { failItem('Aucun adhésif en stock disponible — ajoute des références dans ton stock avant d\'analyser.'); return; }
+    if (affordAnalyse(user)) { failItem('Quota d\'analyses atteint ce mois-ci et solde de jetons insuffisant.'); return; }
+    const mailOverQuota = analyseOverQuota(user);
 
     const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
     const stockDesc = Object.keys(CAT_LABELS).map(cat => {
@@ -129,11 +136,6 @@ MONTAGE : largeur_cm et hauteur_cm = dimensions EXPLICITEMENT données par le cl
 
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal","debord_mm":0,"quantite":1}}`;
-
-    // Échec visible : on garde l'analyse avec un message d'erreur au lieu de la supprimer
-    const failItem = (msg) => {
-      if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run(msg, pendingId);
-    };
 
     // Pièces jointes : images directes + PDFs convertis en PNG
     const files = req.files || [];
