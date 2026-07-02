@@ -21,12 +21,14 @@ router.post('/signup', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 12);
   // Adresse inbound : même préfixe que l'email, avec suffixe si déjà pris
+  // Domaine configurable (INBOUND_DOMAIN) ; par défaut le domaine racine ai-dhesif.fr
+  const INBOUND_DOMAIN = process.env.INBOUND_DOMAIN || 'ai-dhesif.fr';
   const baseLocal = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
-  let inbound_email = `${baseLocal}@mail.ai-dhesif.fr`;
+  let inbound_email = `${baseLocal}@${INBOUND_DOMAIN}`;
   const taken = db.prepare('SELECT id FROM users WHERE inbound_email = ?').get(inbound_email);
   if (taken) {
     const suffix = Math.random().toString(36).slice(2, 5);
-    inbound_email = `${baseLocal}${suffix}@mail.ai-dhesif.fr`;
+    inbound_email = `${baseLocal}${suffix}@${INBOUND_DOMAIN}`;
   }
   const result = db.prepare('INSERT INTO users (email, password_hash, subscription_status, inbound_email) VALUES (?, ?, ?, ?)').run(email.toLowerCase(), hash, 'trial', inbound_email);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
