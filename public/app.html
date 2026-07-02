@@ -2363,6 +2363,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const dao = isDemandeDAO(r);
   window._demandeDAO = dao;
   window._imgQualiteBasse = false; // recalculé par checkDPI ci-dessous
+  window._assemblageInconnu = !!(r.montage && r.montage.assemblage === 'inconnu'); // plusieurs fichiers : à assembler ou séparés ?
   const specsInner = `<div class="specs-grid">
         <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
         <div class="spec-box"><div class="spec-box-key">Durée</div><div class="spec-box-val">${r.specs.duree}</div></div>
@@ -3311,6 +3312,7 @@ function openTonChoice(id) {
     { id: 'devis', txt: 'Annoncer / joindre un devis chiffré', sub: 'donner une estimation de prix', on: true },
     { id: 'delai', txt: 'Indiquer le délai de réalisation', sub: '', on: false },
   ];
+  if (window._assemblageInconnu) pts.push({ id: 'assemblage', txt: 'Demander si les visuels sont à assembler côte à côte ou séparés', sub: 'plusieurs fichiers — clarifier avant production', on: true });
   if (window._imgQualiteBasse) pts.push({ id: 'upscale', txt: 'Signaler que le visuel est en basse résolution', sub: 'proposer une amélioration (upscaling) pour un rendu net', on: true });
   if (window._demandeDAO) pts.push({ id: 'vecto', txt: 'Proposer la vectorisation du fichier', sub: 'nécessaire pour une découpe propre (DAO)', on: true });
   if (!window._imgQualiteBasse) pts.push({ id: 'fichier_hd', txt: 'Demander un fichier HD ou vectoriel', sub: 'pour une qualité d\'impression optimale', on: false });
