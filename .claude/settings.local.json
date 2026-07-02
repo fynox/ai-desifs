@@ -29,7 +29,8 @@
       "Bash(git commit -q -m 'feat: vectorisation - agrandissement plein ecran de l apercu SVG \\(bouton Agrandir + clic\\) sur fond damier, original zoomable aussi *)",
       "Bash(git commit -q -m 'refonte DA onglet analyse: sections repliables \\(accordeon\\) - plan de les et preparation replies par defaut, plan de les masque pour les demandes DAO \\(decoupe sans impression\\), presentation plus aeree et moins lineaire *)",
       "Bash(git commit -q -m 'refonte DA \\(passe 1\\): palette plus profonde + degrade de fond, ombres douces, typo lissee, rayons coherents + zone de saisie simplifiee \\(mail en principal, consignes/fichier replies derriere un lien optionnel\\) *)",
-      "Bash(git commit -q -m 'refonte DA \\(passe 2\\): sidebar desencombree \\(Stock pleine largeur, Profil+Reglages sur une ligne compacte\\) + ecran connexion avec accroche et apercu des fonctions \\(premiere impression plus pro\\) *)"
+      "Bash(git commit -q -m 'refonte DA \\(passe 2\\): sidebar desencombree \\(Stock pleine largeur, Profil+Reglages sur une ligne compacte\\) + ecran connexion avec accroche et apercu des fonctions \\(premiere impression plus pro\\) *)",
+      "Bash(git commit -q -m 'feat devis: edition en direct \\(prix appliques immediatement, total live\\), croix de suppression par ligne, ajout de prestations \\(HD/vecto/libre\\) sans regenerer + garde-fou sur Regenerer. feat mail: fenetre de composition avec points a aborder cochables, propose upscaling si image basse resolution et vectorisation si DAO *)"
     ]
   }
 }

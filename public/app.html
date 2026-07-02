@@ -381,6 +381,14 @@ textarea:focus { border-color: var(--accent); }
 .acc-section.collapsed .acc-chevron{transform:rotate(-90deg);}
 .acc-section.collapsed .acc-body{display:none;}
 .acc-body{padding:2px 16px 15px;}
+.mail-ton{cursor:pointer;}
+.mail-ton-box{border:1px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;font-size:13px;font-weight:600;transition:all .15s;background:var(--surface2);}
+.mail-ton input:checked + .mail-ton-box{border-color:var(--accent);background:#141f03;color:var(--accent);}
+.mail-point{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;cursor:pointer;transition:all .12s;background:var(--surface);}
+.mail-point:hover{border-color:var(--accent-dim);}
+.mail-point input{margin-top:2px;accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;}
+.mail-point .mp-txt{font-size:12.5px;line-height:1.4;}
+.mail-point .mp-sub{font-size:10.5px;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -672,14 +680,24 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
-<!-- MODAL CHOIX TON -->
+<!-- MODAL COMPOSITION DU MAIL (ton + points à aborder) -->
 <div class="modal-overlay" id="modal-ton" style="z-index:600">
-  <div class="modal" style="max-width:340px;text-align:center">
-    <h3>Quel ton pour ce mail ?</h3>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
-      <button class="btn-submit" style="width:100%" onclick="choisirTon('pro')">👔 Professionnel<br><span style="font-size:10px;opacity:.7">Vouvoiement, formel</span></button>
-      <button class="btn-submit" style="width:100%" onclick="choisirTon('familier')">😊 Familier<br><span style="font-size:10px;opacity:.7">Client de longue date, tutoiement</span></button>
-      <button class="btn-cancel" style="width:100%" onclick="closeTonChoice()">Annuler</button>
+  <div class="modal" style="max-width:520px;">
+    <h3 style="margin:0 0 4px;">✉ Composer le mail au client</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Choisis le ton et coche les points à aborder — l'IA rédige le mail en conséquence.</div>
+
+    <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;">Ton</div>
+    <div style="display:flex;gap:10px;margin-bottom:18px;">
+      <label class="mail-ton" style="flex:1;"><input type="radio" name="mail-ton" value="pro" checked style="display:none;"><div class="mail-ton-box">👔 Professionnel<br><span style="font-size:10px;opacity:.7">Vouvoiement, formel</span></div></label>
+      <label class="mail-ton" style="flex:1;"><input type="radio" name="mail-ton" value="familier" style="display:none;"><div class="mail-ton-box">😊 Familier<br><span style="font-size:10px;opacity:.7">Client connu, tutoiement</span></div></label>
+    </div>
+
+    <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;">Points à aborder</div>
+    <div id="mail-points" style="display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;margin-bottom:8px;"></div>
+
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-cancel" style="flex:1;" onclick="closeTonChoice()">Annuler</button>
+      <button class="btn-submit" style="flex:2;" onclick="lancerRelanceDepuisModal()">✍ Rédiger le mail<span class="btn-cost">2🪙</span></button>
     </div>
   </div>
 </div>
@@ -2343,6 +2361,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   }
 
   const dao = isDemandeDAO(r);
+  window._demandeDAO = dao;
+  window._imgQualiteBasse = false; // recalculé par checkDPI ci-dessous
   const specsInner = `<div class="specs-grid">
         <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
         <div class="spec-box"><div class="spec-box-key">Durée</div><div class="spec-box-val">${r.specs.duree}</div></div>
@@ -2395,6 +2415,7 @@ function checkDPI(b64, type, largeurCm, hauteurCm) {
       dpi = img.naturalHeight / (hauteurCm / 2.54);
     }
     dpi = Math.round(dpi);
+    window._imgQualiteBasse = dpi < 100; // sert à proposer l'upscaling dans le mail client
     let html;
     if (dpi >= 100) {
       html = `<div style="margin-top:8px;font-size:11px;font-family:'DM Mono',monospace;color:var(--success,#3fcf6f);background:rgba(60,200,110,.08);border:1px solid rgba(60,200,110,.3);border-radius:8px;padding:8px 12px;">✓ Résolution : ${dpi} DPI à la taille demandée — excellente qualité d'impression (${img.naturalWidth}×${img.naturalHeight} px)</div>`;
@@ -3054,47 +3075,95 @@ async function genererDevis(id, force = false) {
 
 let _devisId = null;
 function afficherDevis(d, id) {
-  {
-    _devisData = d;
-    _devisId = id;
-    const fmtPrix = v => typeof v === 'number' ? v.toFixed(2) + ' €' : (v || '—');
-    const num = v => { const n = Number(v); return isFinite(n) ? n : null; };
-    const lignes = (d.lignes || []).map((l, i) => {
-      const pu = num(l.prix_unitaire);
-      const tot = num(l.total);
-      return `<tr>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.45;">${l.designation || ''}${l.details ? `<br><span style="font-size:10.5px;color:var(--muted);">${l.details}</span>` : ''}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;white-space:nowrap;">${l.quantite || '—'}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;color:var(--muted);white-space:nowrap;">${fmtPrix(l.prix_unitaire)}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-weight:600;white-space:nowrap;">${fmtPrix(l.total)}</td>
-      <td style="padding:9px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;">
-        <input class="dv-prix-perso" id="dv-perso-${i}" type="number" step="0.01" min="0" placeholder="${tot != null ? tot.toFixed(2) : ''}"
-               data-propose="${tot != null ? tot : ''}" title="Ton prix de vente pour cette ligne (laisser vide = prix conseillé)">
+  _devisData = d;
+  _devisId = id;
+  (d.lignes || []).forEach(l => { if (l.perso === undefined) l.perso = null; });
+  document.getElementById('devis-body').innerHTML = `
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:560px;">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Désignation</th>
+        <th style="text-align:center;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Qté</th>
+        <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Conseillé</th>
+        <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--accent);text-transform:uppercase;">Ton prix</th>
+        <th style="width:26px;"></th>
+      </tr></thead>
+      <tbody id="dv-lignes"></tbody>
+    </table>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('upscale')">＋ Amélioration HD</button>
+      <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('vecto')">＋ Vectorisation</button>
+      <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('libre')">＋ Ligne libre</button>
+    </div>
+    <div style="text-align:right;margin-top:14px;font-size:16px;font-weight:700;">Total : <span id="dv-total-live" style="color:var(--accent);">—</span> € HT</div>
+    ${d.marge_conseillee ? `<div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;">Repère IA — marge conseillée : ${d.marge_conseillee}</div>` : ''}
+    ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5;">💡 Modifie un prix dans « Ton prix » → le total s'ajuste <b>immédiatement</b>. La croix rouge retire une ligne. Pas besoin de régénérer (« Régénérer » relance l'IA et recalcule tout).</div>`;
+  renderDevisLignes();
+  document.getElementById('devis-error').textContent = '';
+  document.getElementById('devis-copied').style.display = 'none';
+  document.getElementById('btn-regen-devis').onclick = () => { if (confirm('Régénérer relance l\'IA et REMPLACE toutes tes modifications. Continuer ?')) { closeDevis(); genererDevis(id, true); } };
+  prefillDevisInfos();
+  document.getElementById('modal-devis').classList.add('open');
+}
+
+// (Re)dessine les lignes du devis depuis _devisData.lignes (source de vérité)
+function renderDevisLignes() {
+  const d = _devisData;
+  const fmt = v => { const n = Number(v); return isFinite(n) ? n.toFixed(2) + ' €' : '—'; };
+  const bd = 'border-bottom:1px solid var(--border);';
+  const rows = (d.lignes || []).map((l, i) => `<tr>
+      <td style="padding:9px 8px;${bd}font-size:12.5px;line-height:1.45;">${l.designation || ''}${l.details ? `<br><span style="font-size:10.5px;color:var(--muted);">${l.details}</span>` : ''}</td>
+      <td style="padding:9px 8px;${bd}font-size:12px;text-align:center;white-space:nowrap;">${l.quantite || '—'}</td>
+      <td style="padding:9px 8px;${bd}font-size:12px;text-align:right;color:var(--muted);white-space:nowrap;">${fmt(l.total)}</td>
+      <td style="padding:9px 8px;${bd}text-align:right;white-space:nowrap;">
+        <input class="dv-prix-perso" id="dv-perso-${i}" type="number" step="0.01" min="0" value="${l.perso != null ? l.perso : ''}" placeholder="${isFinite(Number(l.total)) ? Number(l.total).toFixed(2) : ''}" oninput="recomputeDevisTotal()" title="Ton prix de vente (vide = prix conseillé)">
       </td>
-    </tr>`;
-    }).join('');
-    document.getElementById('devis-body').innerHTML = `
-      <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;min-width:560px;">
-        <thead><tr>
-          <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Désignation</th>
-          <th style="text-align:center;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Qté</th>
-          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">P.U.</th>
-          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Conseillé</th>
-          <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--accent);text-transform:uppercase;">Ton prix</th>
-        </tr></thead>
-        <tbody>${lignes}</tbody>
-      </table>
-      </div>
-      <div style="text-align:right;margin-top:12px;font-size:15px;font-weight:700;">Total conseillé : ${typeof d.total_ht === 'number' ? d.total_ht.toFixed(2) : d.total_ht} € HT</div>
-      ${d.marge_conseillee ? `<div style="text-align:right;font-size:11px;color:var(--accent);margin-top:4px;">Marge conseillée : ${d.marge_conseillee}</div>` : ''}
-      ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}`;
-    document.getElementById('devis-error').textContent = '';
-    document.getElementById('devis-copied').style.display = 'none';
-    document.getElementById('btn-regen-devis').onclick = () => { closeDevis(); genererDevis(id, true); };
-    prefillDevisInfos();
-    document.getElementById('modal-devis').classList.add('open');
+      <td style="padding:9px 4px;${bd}text-align:center;">
+        <button onclick="deleteDevisLigne(${i})" title="Retirer cette ligne" style="background:none;border:none;color:var(--danger);font-size:17px;line-height:1;cursor:pointer;padding:2px 4px;">×</button>
+      </td>
+    </tr>`).join('');
+  document.getElementById('dv-lignes').innerHTML = rows || `<tr><td colspan="5" style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">Aucune ligne — ajoute une prestation ci-dessous.</td></tr>`;
+  recomputeDevisTotal();
+}
+
+// Recalcule le total en direct (prix perso s'il est saisi, sinon prix conseillé)
+function recomputeDevisTotal() {
+  const d = _devisData; if (!d) return;
+  let tot = 0;
+  (d.lignes || []).forEach((l, i) => {
+    const el = document.getElementById('dv-perso-' + i);
+    if (el) { const v = el.value.trim(); l.perso = (v !== '' && isFinite(Number(v))) ? Number(v) : null; }
+    tot += (l.perso != null) ? l.perso : (Number(l.total) || 0);
+  });
+  const t = document.getElementById('dv-total-live');
+  if (t) t.textContent = tot.toFixed(2);
+}
+
+function deleteDevisLigne(i) {
+  recomputeDevisTotal();                 // fige les prix saisis avant de re-render
+  _devisData.lignes.splice(i, 1);
+  renderDevisLignes();
+}
+
+function addDevisLigne(preset) {
+  recomputeDevisTotal();
+  const presets = {
+    upscale: { designation: 'Amélioration de la résolution (upscaling)', details: 'Traitement du fichier fourni pour l\'impression', quantite: '1', total: 15 },
+    vecto: { designation: 'Vectorisation pour découpe (DAO)', details: 'Mise en fichier vectoriel prêt pour le plotter', quantite: '1', total: 20 },
+    libre: { designation: 'Nouvelle prestation', details: '', quantite: '1', total: 0 },
+  };
+  const p = { ...(presets[preset] || presets.libre) };
+  if (preset === 'libre') {
+    const nom = prompt('Nom de la prestation :', 'Prestation');
+    if (nom === null) return;
+    p.designation = nom.trim() || 'Prestation';
   }
+  _devisData.lignes.push({ ...p, prix_unitaire: p.total, perso: null });
+  renderDevisLignes();
+  const idx = _devisData.lignes.length - 1;
+  setTimeout(() => { const el = document.getElementById('dv-perso-' + idx); if (el) el.focus(); }, 30);
 }
 
 // Pré-remplit les infos émetteur mémorisées précédemment
@@ -3107,17 +3176,15 @@ async function prefillDevisInfos() {
   } catch {}
 }
 
-// Lit les prix perso saisis ligne par ligne (vide = prix conseillé)
+// Lit les lignes finales (prix perso s'il est saisi, sinon prix conseillé)
 function lireDevisPerso() {
+  recomputeDevisTotal();                 // synchronise les perso depuis les champs
   const d = _devisData; if (!d) return [];
-  return (d.lignes || []).map((l, i) => {
-    const el = document.getElementById('dv-perso-' + i);
-    const propose = el ? Number(el.dataset.propose) : Number(l.total);
-    const persoRaw = el && el.value.trim() !== '' ? Number(el.value) : null;
-    const perso = (persoRaw != null && isFinite(persoRaw)) ? persoRaw : null;
+  return (d.lignes || []).map(l => {
+    const propose = Number(l.total);
     return { designation: l.designation, details: l.details, quantite: l.quantite,
              prix_unitaire: l.prix_unitaire, propose: isFinite(propose) ? propose : null,
-             perso, total: perso != null ? perso : (isFinite(propose) ? propose : l.total) };
+             perso: l.perso, total: (l.perso != null) ? l.perso : (isFinite(propose) ? propose : 0) };
   });
 }
 
@@ -3234,16 +3301,44 @@ async function copierDevis() {
 
 // ===================== RELANCE CLIENT =====================
 let _tonAnalyseId = null;
-function openTonChoice(id) { _tonAnalyseId = id; document.getElementById('modal-ton').classList.add('open'); }
+function openTonChoice(id) {
+  _tonAnalyseId = id;
+  // Construit la liste des points à aborder selon l'analyse (upscaling / vecto proposés si pertinents)
+  const pts = [
+    { id: 'infos', txt: 'Demander les informations manquantes', sub: 'cotes exactes, quantité, délai souhaité…', on: true },
+    { id: 'support', txt: 'Confirmer l\'adhésif / support recommandé', sub: 'valider la matière et la finition', on: true },
+    { id: 'pose', txt: 'Préciser le lieu et l\'environnement de pose', sub: 'intérieur/extérieur, surface, durée', on: false },
+    { id: 'devis', txt: 'Annoncer / joindre un devis chiffré', sub: 'donner une estimation de prix', on: true },
+    { id: 'delai', txt: 'Indiquer le délai de réalisation', sub: '', on: false },
+  ];
+  if (window._imgQualiteBasse) pts.push({ id: 'upscale', txt: 'Signaler que le visuel est en basse résolution', sub: 'proposer une amélioration (upscaling) pour un rendu net', on: true });
+  if (window._demandeDAO) pts.push({ id: 'vecto', txt: 'Proposer la vectorisation du fichier', sub: 'nécessaire pour une découpe propre (DAO)', on: true });
+  if (!window._imgQualiteBasse) pts.push({ id: 'fichier_hd', txt: 'Demander un fichier HD ou vectoriel', sub: 'pour une qualité d\'impression optimale', on: false });
+
+  document.getElementById('mail-points').innerHTML = pts.map(p => `
+    <label class="mail-point">
+      <input type="checkbox" value="${p.id}" data-txt="${p.txt.replace(/"/g, '&quot;')}"${p.on ? ' checked' : ''}>
+      <span class="mp-txt">${p.txt}${p.sub ? `<span class="mp-sub"><br>${p.sub}</span>` : ''}</span>
+    </label>`).join('');
+  const proRadio = document.querySelector('input[name="mail-ton"][value="pro"]');
+  if (proRadio) proRadio.checked = true;
+  document.getElementById('modal-ton').classList.add('open');
+}
 function closeTonChoice() { document.getElementById('modal-ton').classList.remove('open'); }
 document.getElementById('modal-ton').addEventListener('click', e => { if (e.target === document.getElementById('modal-ton')) closeTonChoice(); });
-function choisirTon(ton) { closeTonChoice(); genererRelance(_tonAnalyseId, ton); }
 
-async function genererRelance(id, ton = 'pro') {
+function lancerRelanceDepuisModal() {
+  const ton = (document.querySelector('input[name="mail-ton"]:checked') || {}).value || 'pro';
+  const points = Array.from(document.querySelectorAll('#mail-points input:checked')).map(c => c.dataset.txt);
+  closeTonChoice();
+  genererRelance(_tonAnalyseId, ton, points);
+}
+
+async function genererRelance(id, ton = 'pro', points = []) {
   const btn = document.getElementById('btn-relance');
   if (btn) { btn.disabled = true; btn.textContent = '✉ Rédaction du mail en cours…'; }
   try {
-    const mail = await api('POST', `/analyses/${id}/relance`, { ton });
+    const mail = await api('POST', `/analyses/${id}/relance`, { ton, points });
     document.getElementById('relance-to').value = mail.to || '';
     document.getElementById('relance-objet').value = mail.objet || '';
     document.getElementById('relance-corps').value = mail.corps || '';

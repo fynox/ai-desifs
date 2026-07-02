@@ -164,6 +164,12 @@ router.post('/:id/relance', async (req, res) => {
     || (item.mail_content || '').match(/([\w.+-]+@[\w.-]+\.\w{2,})/);
   const clientEmail = emailMatch ? emailMatch[1] : '';
 
+  // Points à aborder cochés par l'utilisateur dans la fenêtre de composition
+  const points = Array.isArray(req.body?.points) ? req.body.points.filter(p => typeof p === 'string' && p.trim()).slice(0, 12) : [];
+  const pointsBloc = points.length
+    ? `POINTS À ABORDER (imposés par l'imprimeur — traite CHACUN naturellement dans le mail, sans liste à puces sèche) :\n${points.map(p => '- ' + p).join('\n')}\n\nN'ajoute pas d'autres demandes que celles nécessaires à ces points.`
+    : `Demande uniquement les informations manquantes nécessaires pour finaliser le devis/la recommandation (dimensions, surface de pose, intérieur/extérieur, durée, quantité, fichier...).`;
+
   const prompt = `Tu es un imprimeur professionnel (signalétique / adhésifs). Un client a envoyé cette demande :
 
 ---
@@ -174,9 +180,11 @@ Analyse réalisée en interne :
 Résumé : ${result.resume || 'N/A'}
 ${result.attention ? `Point d'attention : ${result.attention}` : ''}
 
+${pointsBloc}
+
 ${req.body?.ton === 'familier'
-    ? `Rédige un mail de réponse chaleureux et décontracté en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). C'est un client de longue date : tutoiement autorisé, ton amical et direct, mais reste pro sur le fond. Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), termine par une formule sympa SANS signature nominative (l'expéditeur signera lui-même).`
-    : `Rédige un mail de réponse courtois et professionnel en français pour demander au client les informations manquantes nécessaires pour finaliser le devis/la recommandation (ex: dimensions exactes, surface de pose, intérieur/extérieur, durée souhaitée, quantité, fichier visuel, échéance...). Ne demande QUE ce qui manque réellement dans sa demande. Sois concis (5-10 lignes max), tutoiement interdit, termine par une formule de politesse SANS signature nominative (le client signera lui-même).`}
+    ? `Rédige un mail de réponse chaleureux et décontracté en français, en traitant les points à aborder ci-dessus. C'est un client de longue date : tutoiement autorisé, ton amical et direct, mais reste pro sur le fond. Sois concis (5-12 lignes max), termine par une formule sympa SANS signature nominative (l'expéditeur signera lui-même).`
+    : `Rédige un mail de réponse courtois et professionnel en français, en traitant les points à aborder ci-dessus. Sois concis (5-12 lignes max), vouvoiement, termine par une formule de politesse SANS signature nominative (l'expéditeur signera lui-même).`}
 
 Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
 
