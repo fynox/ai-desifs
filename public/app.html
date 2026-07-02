@@ -1856,8 +1856,8 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
       const wPct = (copyW / laize * 100).toFixed(3);
       const hPct = (copyH / leLen * 100).toFixed(3);
       cells += hasImg
-        ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;border:1px solid rgba(255,255,255,.25);${_lesCrop ? 'cursor:grab;touch-action:none;' : 'background:#fff;'}">`
-        : `<div style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;background:#2a2a2a;border:1px solid var(--border);"></div>`;
+        ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;border:1px solid rgba(0,0,0,.3);${_lesCrop ? 'cursor:grab;touch-action:none;' : 'background:#fff;'}">`
+        : `<div style="position:absolute;left:${leftPct}%;top:${topPct}%;width:${wPct}%;height:${hPct}%;background:#cdd3da;border:1px solid #b3b9c0;"></div>`;
       shown++;
     }
   }
@@ -1870,7 +1870,7 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
     ? `<b style="color:var(--accent)">1 lé</b> de ${Math.round(leLen)} mm`
     : `<b style="color:var(--accent)">${nbLes} lés</b> (${nbLes - 1} pleins de ${perLeFull} + 1 partiel)`;
   return `<div id="les-wrap">
-    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid var(--text);border-radius:4px;background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);overflow:hidden;">${cells}${shown >= maxCells ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu plafonné</div>` : ''}</div>
+    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid #444;border-radius:4px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);overflow:hidden;">${cells}${shown >= maxCells ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu plafonné</div>` : ''}</div>
     <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;text-align:center;line-height:1.7;">
       Visuel ${Math.round(copyW)} × ${Math.round(copyH)} mm · <b style="color:var(--text)">${across}/rangée × ${totalRows} rangée${totalRows > 1 ? 's' : ''}</b> (laize utile ${Math.round(laizeU)} mm)<br>
       ${lesTxt} · <b style="color:var(--text)">${N} visuel${N > 1 ? 's' : ''}</b>${rab > 0 ? ` (+${rab} en rab)` : ''} · ~${matiereM2} m² de rouleau
@@ -1927,25 +1927,43 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
       segs.push(Math.round(dernier));
     }
   }
-  // Traits de raccord + étiquette largeur de chaque lé (positions sur l'image = format avec débord)
+  // Découpe de la matière en lés : positions des coupes (le long de la dimension "totale")
+  const cuts = [];
+  {
+    let c = 0;
+    for (let k = 0; k < n - 1; k++) { c += segs[k] - RECOUVREMENT; cuts.push(c); }
+  }
+  const edges = [0, ...cuts, totale]; // bornes des bandes de lés
+
+  // Fond : bandes de lés en BLANC (l'adhésif), tint très léger alterné pour distinguer chaque lé
+  let bands = '';
+  for (let b = 0; b < edges.length - 1; b++) {
+    const s0 = edges[b], s1 = edges[b + 1];
+    const startPct = (s0 / totale * 100).toFixed(3);
+    const sizePct = ((s1 - s0) / totale * 100).toFixed(3);
+    const tint = b % 2 === 0 ? '#ffffff' : '#eef0f2';
+    bands += vert
+      ? `<div style="position:absolute;left:${startPct}%;top:0;width:${sizePct}%;height:100%;background:${tint};"></div>`
+      : `<div style="position:absolute;top:${startPct}%;left:0;height:${sizePct}%;width:100%;background:${tint};"></div>`;
+  }
+
+  // Étiquettes largeur de chaque lé + traits de coupe (pointillés) là où les lés se séparent
   let overlays = '';
-  let cursor = 0;
   for (let k = 0; k < n; k++) {
-    const start = cursor;
-    const width = segs[k];
+    const start = edges[k], width = segs[k];
     const centre = ((start + Math.min(width, totale - start) / 2) / totale * 100).toFixed(2);
     overlays += vert
-      ? `<div style="position:absolute;left:${centre}%;top:4px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width)} mm</div>`
-      : `<div style="position:absolute;top:${centre}%;left:4px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#fff;background:rgba(0,0,0,.65);padding:2px 6px;border-radius:4px;white-space:nowrap;">${Math.round(width)} mm</div>`;
-    if (k < n - 1) {
-      cursor += segs[k] - RECOUVREMENT;
-      const pos = (cursor / totale * 100).toFixed(2) + '%';
-      overlays += vert
-        ? `<div style="position:absolute;left:${pos};top:0;bottom:0;width:0;border-left:2px dashed #f03030;"></div>`
-        : `<div style="position:absolute;top:${pos};left:0;right:0;height:0;border-top:2px dashed #f03030;"></div>`;
-    }
+      ? `<div style="position:absolute;left:${centre}%;top:5px;transform:translateX(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#111;background:rgba(255,255,255,.9);border:1px solid #ccc;padding:1px 6px;border-radius:4px;white-space:nowrap;">Lé ${k + 1} · ${Math.round(width)} mm</div>`
+      : `<div style="position:absolute;top:${centre}%;left:5px;transform:translateY(-50%);font-size:10px;font-family:'DM Mono',monospace;color:#111;background:rgba(255,255,255,.9);border:1px solid #ccc;padding:1px 6px;border-radius:4px;white-space:nowrap;">Lé ${k + 1} · ${Math.round(width)} mm</div>`;
   }
-  // Position du format fini (zone imprimée utile) dans le conteneur, en % (le débord est autour)
+  for (const c of cuts) {
+    const pos = (c / totale * 100).toFixed(2) + '%';
+    overlays += vert
+      ? `<div title="coupe / raccord entre lés" style="position:absolute;left:${pos};top:0;bottom:0;width:0;border-left:2px dashed #d02a2a;"></div>`
+      : `<div title="coupe / raccord entre lés" style="position:absolute;top:${pos};left:0;right:0;height:0;border-top:2px dashed #d02a2a;"></div>`;
+  }
+
+  // Position du format fini (zone imprimée utile) dans le conteneur, en % (le débord est autour = marge blanche non imprimée)
   const dX = (DEBORD / largeurE * 100);
   const dY = (DEBORD / hauteurE * 100);
   const pctW = (largeur / largeurE * 100).toFixed(3);
@@ -1953,23 +1971,30 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const hasImg2 = previewB64 && previewType && previewType.startsWith('image/');
   // L'image occupe la zone format-fini. object-fit:cover = recadrée sans JAMAIS étirer ; contain = image entière
   const imgLayer = hasImg2
-    ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;${_lesCrop ? 'cursor:grab;touch-action:none;' : 'pointer-events:none;background:#fff;'}" alt="">`
-    : '';
-  // Trait de coupe du format fini (le débord au-delà est coupé au cutter après pose)
+    ? `<img src="data:${previewType};base64,${previewB64}" ${_lesCrop ? 'onpointerdown="startCropDrag(event)"' : ''} style="position:absolute;left:${dX.toFixed(3)}%;top:${dY.toFixed(3)}%;width:${pctW}%;height:${pctH}%;object-fit:${_lesCrop ? 'cover' : 'contain'};object-position:${_lesCropX}% ${_lesCropY}%;${_lesCrop ? 'cursor:grab;touch-action:none;' : 'pointer-events:none;'}" alt="">`
+    : `<div style="position:absolute;left:${dX.toFixed(2)}%;top:${dY.toFixed(2)}%;width:${pctW}%;height:${pctH}%;background:#dfe3e8;display:flex;align-items:center;justify-content:center;color:#888;font-size:11px;font-family:'DM Mono',monospace;">zone imprimée</div>`;
+  // Contour du format fini (au-delà = débord blanc coupé au cutter après pose)
   if (DEBORD > 0) {
-    overlays += `<div style="position:absolute;left:${dX.toFixed(2)}%;right:${dX.toFixed(2)}%;top:${dY.toFixed(2)}%;bottom:${dY.toFixed(2)}%;border:1.5px dashed #61d36d;pointer-events:none;"></div>`;
+    overlays += `<div style="position:absolute;left:${dX.toFixed(2)}%;right:${dX.toFixed(2)}%;top:${dY.toFixed(2)}%;bottom:${dY.toFixed(2)}%;border:1.5px dashed #2a9d4a;pointer-events:none;"></div>`;
   }
-  const bg = `background:repeating-linear-gradient(45deg,#1d1d1d,#1d1d1d 10px,#262626 10px,#262626 20px);`;
   // Conteneur aux proportions du format imprimé (avec débord) — visuel entier, jamais rogné
   const maxH = 340;
   const wPx = Math.round(maxH * largeurE / hauteurE);
-  const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${Math.round(largeur)}</span>` : Math.round(largeur)} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${Math.round(hauteur)}</span>` : Math.round(hauteur)} mm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#61d36d">+ ${DEBORD} mm de débord/côté</span>` : ''}`;
+  const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${Math.round(largeur)}</span>` : Math.round(largeur)} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${Math.round(hauteur)}</span>` : Math.round(hauteur)} mm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#2a9d4a">+ ${DEBORD} mm de débord/côté</span>` : ''}`;
   const hasImg = previewB64 && previewType && previewType.startsWith('image/');
   if (hasImg && n > 1) {
     window._lesParams = { vert, segs, totale, recouvrement: RECOUVREMENT, debord: DEBORD, largeur, hauteur, previewB64, previewType };
   }
+  // Légende de lecture du plan
+  const legende = `<div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">
+    <span><span style="display:inline-block;width:11px;height:11px;background:#fff;border:1px solid #ccc;vertical-align:-1px;"></span> adhésif (lé)</span>
+    <span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #2a9d4a;vertical-align:3px;"></span> format fini posé</span>
+    <span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #d02a2a;vertical-align:3px;"></span> coupe entre lés</span>
+    ${DEBORD > 0 ? `<span>bord blanc = débord non imprimé</span>` : ''}
+  </div>`;
   const inputStyle = `style="width:58px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
-  return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeurE}/${hauteurE};margin:0 auto;border:2px solid var(--text);border-radius:4px;overflow:hidden;${bg}">${imgLayer}${overlays}</div>
+  return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeurE}/${hauteurE};margin:0 auto;border:2px solid #444;border-radius:4px;overflow:hidden;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);">${bands}${imgLayer}${overlays}</div>
+  ${legende}
   <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:6px;text-align:center;">${dimTxt} — ${n} lé${n > 1 ? 's' : ''} ${vert ? 'verticaux' : 'horizontaux'} · laize utile ${Math.round(laizeU)} mm (rouleau ${Math.round(laize)} mm${MARGE_IMP > 0 ? ` − ${MARGE_IMP} mm de marge d'impression/côté` : ''})${n > 1 ? ` · raccords ${RECOUVREMENT} mm : ${segs.map(s => Math.round(s) + ' mm').join(' + ')}${equilibre ? ` <span style="color:var(--accent)">(lés des bords réduits pour équilibrer)</span>` : ''}${_lesMode === 'egalise' && n > 1 ? ` <span style="color:var(--accent)">(lés égalisés)</span>` : ''}` : ''}</div>
   <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">
     <span title="Nombre d'exemplaires identiques — passe en mode imposition (plusieurs visuels par lé) si > 1">Quantité <input type="number" value="${_nestQte}" min="1" step="1" onchange="changerQte(this.value)" ${inputStyle}></span>
