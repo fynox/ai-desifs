@@ -74,6 +74,12 @@ nav {
   .plans { grid-template-columns: 1fr; }
   nav { padding: 16px 20px; }
 }
+.jeton-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+@media(max-width:720px){.jeton-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:440px){.jeton-grid{grid-template-columns:1fr;}}
+.jeton-pack{position:relative;padding:22px 18px 20px;text-align:center;display:flex;flex-direction:column;gap:9px;align-items:center;}
+.jeton-eco{position:absolute;top:-11px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;background:var(--accent);color:#111;border-radius:20px;padding:3px 12px;}
+.jeton-eco.zero{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
 </style>
 </head>
 <body>
@@ -179,15 +185,15 @@ nav {
 <div class="note">Sans engagement — résiliable à tout moment depuis votre profil. Les jetons du forfait se renouvellent chaque mois.</div>
 
 <!-- JETONS -->
-<div style="max-width:1000px;margin:10px auto 70px;padding:0 24px;">
-  <h2 style="text-align:center;font-size:26px;font-weight:800;margin-bottom:6px;">🪙 Jetons</h2>
+<div id="jetons" style="max-width:1040px;margin:20px auto 80px;padding:36px 24px;scroll-margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:20px;">
+  <h2 style="text-align:center;font-size:28px;font-weight:800;margin-bottom:6px;">🪙 Recharge de jetons</h2>
   <p style="text-align:center;font-size:13px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.7;margin-bottom:8px;">
-    Les jetons servent aux actions premium. Chaque forfait en inclut un quota mensuel ; recharge à tout moment (les jetons achetés ne expirent pas).
+    Les jetons servent aux actions premium. Chaque forfait en inclut un quota mensuel ; recharge à tout moment — <b style="color:var(--text);">les jetons achetés n'expirent jamais</b>. Plus le pack est gros, moins le jeton coûte cher.
   </p>
   <p style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:26px;">
-    Devis auto : 2 · Mail auto : 2 · Amélioration HD : 5 · Vectorisation DAO (bêta) : 2 ·Import catalogue : 10 · +2 Go de stockage : 20 · Analyse au-delà du quota : 5
+    Devis auto : 2 · Mail auto : 2 · Amélioration HD : 5 · Vectorisation DAO (bêta) : 2 · Import catalogue : 10 · +2 Go de stockage : 20 · Analyse au-delà du quota : 5
   </p>
-  <div id="jeton-packs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;"></div>
+  <div id="jeton-packs" class="jeton-grid"></div>
 </div>
 
 <script>
@@ -228,14 +234,22 @@ const JETON_PACKS = [
   { jetons: 100, prix: 60 }, { jetons: 500, prix: 250 }, { jetons: 1000, prix: 400 },
 ];
 
-// Affiche les packs de jetons
-document.getElementById('jeton-packs').innerHTML = JETON_PACKS.map(p => `
-  <div class="plan-card" style="padding:20px;text-align:center;gap:10px;">
-    <div style="font-size:24px;font-weight:800;color:var(--accent);">${p.jetons}</div>
+// Affiche les packs de jetons avec le % d'économie (référence = le plus petit pack)
+const baseUnit = JETON_PACKS[0].prix / JETON_PACKS[0].jetons; // €/jeton du pack de base
+document.getElementById('jeton-packs').innerHTML = JETON_PACKS.map(p => {
+  const unit = p.prix / p.jetons;
+  const eco = Math.round((1 - unit / baseUnit) * 100);
+  const ecoLabel = eco > 0 ? `−${eco}% / jeton` : 'prix de base';
+  return `
+  <div class="plan-card jeton-pack">
+    <div class="jeton-eco${eco > 0 ? '' : ' zero'}">${ecoLabel}</div>
+    <div style="font-size:30px;font-weight:800;color:var(--accent);line-height:1;">${p.jetons}</div>
     <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">jetons</div>
-    <div style="font-size:18px;font-weight:700;">${p.prix}€</div>
-    <button class="btn-plan btn-plan-accent" style="padding:10px;font-size:13px;" onclick="buyJetons(${p.jetons})">Acheter</button>
-  </div>`).join('');
+    <div style="font-size:20px;font-weight:700;">${p.prix}€</div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">${unit.toFixed(2).replace('.', ',')} € / jeton</div>
+    <button class="btn-plan btn-plan-accent" style="padding:10px;font-size:13px;width:100%;margin-top:4px;" onclick="buyJetons(${p.jetons})">Acheter</button>
+  </div>`;
+}).join('');
 
 async function subscribe(plan) {
   if (!token) { window.location.href = '/app'; return; }

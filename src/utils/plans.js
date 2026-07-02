@@ -50,9 +50,17 @@ const STRIPE_PRICE_IDS = {
   entreprise: { monthly: process.env.STRIPE_PRICE_ENTREPRISE || 'price_1TnsBIP9wUBWfeABEOyu5BZk', annual: process.env.STRIPE_PRICE_ENTREPRISE_ANNUAL || null },
 };
 
-// Price IDs Stripe des packs de jetons : STRIPE_PRICE_JETON_10, _30, _50, _100, _500, _1000
+// Price IDs Stripe des packs de jetons (variable Railway STRIPE_PRICE_JETON_<n> prioritaire, sinon câblé en dur)
+const JETON_PRICE_IDS = {
+  10:   'price_1TorLtP9wUBWfeABC9Kizmky',
+  30:   'price_1TorMtP9wUBWfeABdNMkPoSd',
+  50:   'price_1TorN7P9wUBWfeABnvFqVUju',
+  100:  'price_1TorNiP9wUBWfeABNG0hRVPp',
+  500:  'price_1TorNvP9wUBWfeABGgTHD5U4',
+  1000: 'price_1TorO8P9wUBWfeABnStZt9GD',
+};
 function jetonPackPriceId(jetons) {
-  return process.env['STRIPE_PRICE_JETON_' + jetons] || null;
+  return process.env['STRIPE_PRICE_JETON_' + jetons] || JETON_PRICE_IDS[jetons] || null;
 }
 
 function planFromPriceId(priceId) {

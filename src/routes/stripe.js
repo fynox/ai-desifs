@@ -26,7 +26,7 @@ router.post('/checkout', async (req, res) => {
     // Forfaits mensuels ou annuels (price IDs dans utils/plans.js / variables Railway)
     const prices = STRIPE_PRICE_IDS[plan] || {};
     let priceId = period === 'annual' ? prices.annual : prices.monthly;
-    if (!priceId) priceId = prices.monthly || process.env.STRIPE_PRICE_ID; // repli mensuel si l'annuel n'est pas configuré
+    if (!priceId) priceId = prices.monthly; // repli sur le mensuel si l'annuel n'est pas encore configuré
     if (!priceId) return res.status(400).json({ error: 'Forfait non configuré côté Stripe (price ID manquant).' });
 
     // URL de retour : on prend l'origine réelle de la requête (le domaine sur lequel l'utilisateur navigue),
