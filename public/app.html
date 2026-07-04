@@ -2002,7 +2002,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const wPx = Math.round(maxH * largeurE / hauteurE);
   const dimTxt = `${deduite === 'largeur' ? `<span style="color:var(--accent)">${Math.round(largeur)}</span>` : Math.round(largeur)} × ${deduite === 'hauteur' ? `<span style="color:var(--accent)">${Math.round(hauteur)}</span>` : Math.round(hauteur)} mm${deduite ? ` <span style="color:var(--accent)">(${deduite} déduite du ratio du visuel)</span>` : ''}${DEBORD > 0 ? ` <span style="color:#2a9d4a">+ ${DEBORD} mm de débord/côté</span>` : ''}`;
   const hasImg = previewB64 && previewType && previewType.startsWith('image/');
-  if (hasImg && n > 1) {
+  if (hasImg) {
     window._lesParams = { vert, segs, totale, recouvrement: RECOUVREMENT, debord: DEBORD, largeur, hauteur, previewB64, previewType };
   }
   // Légende de lecture du plan
@@ -2028,7 +2028,7 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
     ${hasImg2 && _lesCrop ? `<span style="color:var(--accent-dim);">✋ glisse l'image pour cadrer</span>` : ''}
   </div>
   <div id="les-optim-note" style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);text-align:center;margin-top:6px;"></div>
-  ${hasImg && n > 1 ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ Exporter les ${n} lés (images séparées)</button></div>` : ''}</div>`;
+  ${hasImg ? `<div style="text-align:center;margin-top:10px;"><button class="btn-stock" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ ${n > 1 ? `Exporter les ${n} lés` : 'Exporter le lé'} (avec traits de coupe)</button></div>` : ''}</div>`;
 }
 
 // Génère le plan de lés à partir des dimensions saisies manuellement
@@ -2288,10 +2288,42 @@ async function exporterLes() {
           ctx2.drawImage(img, 0, srcY, img.naturalWidth, srcH, d * pxX, (ovStart - start) * pxY, img.naturalWidth, srcH);
         }
       }
+      // --- Traits de coupe au format fini (angles + milieux des grands côtés) ---
+      // Repère du format fini sur ce lé. Un côté n'est un VRAI bord de coupe que s'il correspond
+      // au bord du visuel (pas à un raccord entre lés).
+      let tTop, tBot, tLeft, tRight, sTop = true, sBot = true, sLeft = false, sRight = false;
+      if (p.vert) {
+        tTop = d * pxY; tBot = (d + p.hauteur) * pxY;
+        const leftMm = d, rightMm = d + p.largeur;
+        sLeft = start <= leftMm + 0.5;
+        sRight = (start + widthMm) >= rightMm - 0.5;
+        tLeft = sLeft ? (leftMm - start) * pxX : 0;
+        tRight = sRight ? (rightMm - start) * pxX : canvas.width;
+      } else {
+        tLeft = d * pxX; tRight = (d + p.largeur) * pxX;
+        const topMm = d, botMm = d + p.hauteur;
+        sTop = start <= topMm + 0.5;
+        sBot = (start + widthMm) >= botMm - 0.5;
+        tTop = sTop ? (topMm - start) * pxY : 0;
+        tBot = sBot ? (botMm - start) * pxY : canvas.height;
+      }
+      const markMm = d > 0 ? Math.min(d - 1, 10) : 5;   // longueur du trait (reste dans la marge de débord)
+      const gapMm = d > 0 ? Math.min(d * 0.2, 1.5) : 0; // léger retrait pour ne pas toucher le visuel
+      const mLenY = markMm * pxY, mLenX = markMm * pxX, gX = gapMm * pxX, gY = gapMm * pxY;
+      ctx2.strokeStyle = '#000';
+      ctx2.lineWidth = Math.max(1.5, Math.round(0.35 * pxX));
+      const vTick = (x, y, dir) => { const y0 = y + dir * gY; ctx2.beginPath(); ctx2.moveTo(x, y0); ctx2.lineTo(x, y0 + dir * mLenY); ctx2.stroke(); };
+      const hTick = (y, x, dir) => { const x0 = x + dir * gX; ctx2.beginPath(); ctx2.moveTo(x0, y); ctx2.lineTo(x0 + dir * mLenX, y); ctx2.stroke(); };
+      const LONG = 500; // mm : au-delà, on ajoute un repère au milieu du côté
+      if (sTop) { if (sLeft) vTick(tLeft, tTop, -1); if (sRight) vTick(tRight, tTop, -1); if ((tRight - tLeft) / pxX > LONG) vTick((tLeft + tRight) / 2, tTop, -1); }
+      if (sBot) { if (sLeft) vTick(tLeft, tBot, 1); if (sRight) vTick(tRight, tBot, 1); if ((tRight - tLeft) / pxX > LONG) vTick((tLeft + tRight) / 2, tBot, 1); }
+      if (sLeft) { if (sTop) hTick(tTop, tLeft, -1); if (sBot) hTick(tBot, tLeft, -1); if ((tBot - tTop) / pxY > LONG) hTick((tTop + tBot) / 2, tLeft, -1); }
+      if (sRight) { if (sTop) hTick(tTop, tRight, 1); if (sBot) hTick(tBot, tRight, 1); if ((tBot - tTop) / pxY > LONG) hTick((tTop + tBot) / 2, tRight, 1); }
+
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthMm)}mm.png`;
+      a.download = p.segs.length > 1 ? `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthMm)}mm.png` : `le_${Math.round(widthMm)}x${Math.round(p.vert ? p.hauteur + 2 * d : p.largeur + 2 * d)}mm.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       await new Promise(r => setTimeout(r, 400)); // laisser le navigateur enchaîner les téléchargements
@@ -2300,7 +2332,7 @@ async function exporterLes() {
   } catch (e) {
     alert('Erreur pendant la découpe : ' + (e.message || e));
   }
-  if (btn) { btn.disabled = false; btn.textContent = `⬇ Exporter les ${p.segs.length} lés (images séparées)`; }
+  if (btn) { btn.disabled = false; btn.textContent = `⬇ ${p.segs.length > 1 ? `Exporter les ${p.segs.length} lés` : 'Exporter le lé'} (avec traits de coupe)`; }
 }
 
 // Section repliable de l'analyse
