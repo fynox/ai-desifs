@@ -47,7 +47,8 @@
       "Bash(git commit -q -m 'feat plan de les: regroupement des visuels identiques + onglets par visuel distinct \\(fini le x3 errone quand les fichiers different\\). Exemplaires identiques imposes ensemble, grand visuel en plusieurs les = un seul plan, tailles differentes = onglets separes *)",
       "Bash(node -e \"require\\('./src/routes/analyses.js'\\); console.log\\('analyses OK'\\)\")",
       "Bash(git commit -q -m 'feat: relance d analyse avec hypothese d assemblage forcee \\(A assembler cote a cote / Visuels separes\\) - reutilise la route analyse \\(visuels stockes rejoues, consigne imperative, mise a jour en place\\) + banniere de choix dans le resultat multi-fichiers *)",
-      "Bash(git commit -q -m 'feat export les: export possible des 1 seul le \\(visuel modifie: debord/marges\\) + traits de coupe a l export - marques noires aux angles du format fini et au milieu des grands cotes \\(>500mm\\), uniquement sur les vrais bords \\(pas les raccords entre les\\) *)"
+      "Bash(git commit -q -m 'feat export les: export possible des 1 seul le \\(visuel modifie: debord/marges\\) + traits de coupe a l export - marques noires aux angles du format fini et au milieu des grands cotes \\(>500mm\\), uniquement sur les vrais bords \\(pas les raccords entre les\\) *)",
+      "Bash(git commit -q -m 'fix export les: traits de coupe visibles - epaisseur ~1mm \\(min 3px\\) et longueur sur toute la marge de debord \\(avant: 1,5px invisibles sur grands formats\\) *)"
     ]
   }
 }

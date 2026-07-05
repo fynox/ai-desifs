@@ -2307,11 +2307,12 @@ async function exporterLes() {
         tTop = sTop ? (topMm - start) * pxY : 0;
         tBot = sBot ? (botMm - start) * pxY : canvas.height;
       }
-      const markMm = d > 0 ? Math.min(d - 1, 10) : 5;   // longueur du trait (reste dans la marge de débord)
-      const gapMm = d > 0 ? Math.min(d * 0.2, 1.5) : 0; // léger retrait pour ne pas toucher le visuel
+      const gapMm = d > 0 ? Math.min(d * 0.15, 1) : 0;             // léger retrait pour ne pas toucher le visuel
+      const markMm = d > 0 ? Math.max(4, d - gapMm - 0.5) : 6;     // le trait occupe toute la marge de débord
       const mLenY = markMm * pxY, mLenX = markMm * pxX, gX = gapMm * pxX, gY = gapMm * pxY;
       ctx2.strokeStyle = '#000';
-      ctx2.lineWidth = Math.max(1.5, Math.round(0.35 * pxX));
+      // ~1 mm d'épaisseur (jamais moins de 3 px) pour rester bien visible même sur de très grands formats
+      ctx2.lineWidth = Math.max(3, Math.round(1 * Math.max(pxX, pxY)));
       const vTick = (x, y, dir) => { const y0 = y + dir * gY; ctx2.beginPath(); ctx2.moveTo(x, y0); ctx2.lineTo(x, y0 + dir * mLenY); ctx2.stroke(); };
       const hTick = (y, x, dir) => { const x0 = x + dir * gX; ctx2.beginPath(); ctx2.moveTo(x0, y); ctx2.lineTo(x0 + dir * mLenX, y); ctx2.stroke(); };
       const LONG = 500; // mm : au-delà, on ajoute un repère au milieu du côté
