@@ -48,7 +48,8 @@
       "Bash(node -e \"require\\('./src/routes/analyses.js'\\); console.log\\('analyses OK'\\)\")",
       "Bash(git commit -q -m 'feat: relance d analyse avec hypothese d assemblage forcee \\(A assembler cote a cote / Visuels separes\\) - reutilise la route analyse \\(visuels stockes rejoues, consigne imperative, mise a jour en place\\) + banniere de choix dans le resultat multi-fichiers *)",
       "Bash(git commit -q -m 'feat export les: export possible des 1 seul le \\(visuel modifie: debord/marges\\) + traits de coupe a l export - marques noires aux angles du format fini et au milieu des grands cotes \\(>500mm\\), uniquement sur les vrais bords \\(pas les raccords entre les\\) *)",
-      "Bash(git commit -q -m 'fix export les: traits de coupe visibles - epaisseur ~1mm \\(min 3px\\) et longueur sur toute la marge de debord \\(avant: 1,5px invisibles sur grands formats\\) *)"
+      "Bash(git commit -q -m 'fix export les: traits de coupe visibles - epaisseur ~1mm \\(min 3px\\) et longueur sur toute la marge de debord \\(avant: 1,5px invisibles sur grands formats\\) *)",
+      "Bash(git commit -q -m 'fix plan de les: les exemplaires identiques ouvrent le plan SIMPLE par defaut \\(comme un le seul, avec export/traits de coupe\\) - l imposition xN devient un bouton optionnel, fini le mode recadrage impose d office *)"
     ]
   }
 }

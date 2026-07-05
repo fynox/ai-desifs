@@ -2095,9 +2095,10 @@ function afficherPlanGroupe(gi) {
   });
   _lesSens = null; _lesMode = null; _lesCrop = true; _lesCropX = 50; _lesCropY = 50; _nestEgalise = false;
   window._lesCtx = null;
-  _nestQte = g.count > 1 ? g.count : 1;      // exemplaires identiques → imposition ×N
+  _nestQte = 1;                              // plan SIMPLE par défaut, même pour des exemplaires identiques
   if (g.w && g.h) {
-    host.innerHTML = buildMontageHTML(g.w, g.h, laize, window._planSensLes, g.b64, g.type, false);
+    host.innerHTML = buildMontageHTML(g.w, g.h, laize, window._planSensLes, g.b64, g.type, false)
+      + (g.count > 1 ? `<div style="text-align:center;margin-top:8px;"><button class="btn-stock" onclick="changerQte(${g.count})" style="font-size:11px;padding:6px 14px;margin:0;" title="Optimise la matière en plaçant les ${g.count} exemplaires sur le même rouleau">⧉ Imposer les ×${g.count} ensemble (optionnel)</button></div>` : '');
   } else {
     window._lesManuelCtx = { laize, previewB64: g.b64, previewType: g.type, sensLes: window._planSensLes, isImg: (g.type || '').startsWith('image/') };
     const inp = `background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:5px 8px;width:90px;text-align:center;`;
@@ -2453,8 +2454,9 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     window._lesGroups = groupes;
     const firstG = groupes[0] || null;
     if (firstG && firstG.w && firstG.h && laize) {
-      _nestQte = firstG.count > 1 ? firstG.count : 1;
-      lesHTML = buildMontageHTML(firstG.w, firstG.h, laize, m.sens_les, firstG.b64, firstG.type, false);
+      _nestQte = 1; // plan SIMPLE par défaut ; l'imposition des exemplaires identiques est proposée en option
+      lesHTML = buildMontageHTML(firstG.w, firstG.h, laize, m.sens_les, firstG.b64, firstG.type, false)
+        + (firstG.count > 1 ? `<div style="text-align:center;margin-top:8px;"><button class="btn-stock" onclick="changerQte(${firstG.count})" style="font-size:11px;padding:6px 14px;margin:0;" title="Optimise la matière en plaçant les ${firstG.count} exemplaires sur le même rouleau">⧉ Imposer les ×${firstG.count} ensemble (optionnel)</button></div>` : '');
     } else if (largeur && hauteur && laize) {
       lesHTML = buildMontageHTML(largeur, hauteur, laize, m.sens_les, previewB64, previewType, false);
     } else if ((largeur || hauteur) && laize && isImg) {
