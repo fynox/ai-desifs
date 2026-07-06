@@ -979,6 +979,7 @@ async function login() {
     const data = await api('POST', '/auth/login', { email, password });
     if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
     userRole = data.role || 'owner'; isEmploye = Boolean(data.is_employe);
+    userPlan = data.plan || 'free'; userPlanPeriod = data.plan_period || 'monthly';
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
