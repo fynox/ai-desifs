@@ -481,7 +481,8 @@ textarea:focus { border-color: var(--accent); }
         </div>
         <button onclick="openClear()" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:4px 0 0;text-decoration:underline;">🧹 Libérer de l'espace</button>
       </div>
-      <button class="btn-stock" onclick="openStock()" style="margin-bottom:8px;">⬡ Gérer le stock adhésifs</button>
+      <button class="btn-stock" id="btn-team" onclick="openTeam()" style="margin-bottom:8px;display:none;">👥 Mon équipe</button>
+      <button class="btn-stock" id="btn-stock-side" onclick="openStock()" style="margin-bottom:8px;">⬡ Gérer le stock adhésifs</button>
       <div style="display:flex;gap:8px;">
         <button class="btn-stock" onclick="openProfile()" style="flex:1;margin:0;">👤 Profil</button>
         <button class="btn-stock" onclick="openReglages()" style="flex:1;margin:0;">⚙ Réglages</button>
@@ -702,6 +703,31 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL ÉQUIPE (plan Entreprise) -->
+<div class="modal-overlay" id="modal-team" style="z-index:600">
+  <div class="modal" style="max-width:560px;width:94vw">
+    <h3 style="margin:0 0 4px;">👥 Mon équipe</h3>
+    <div id="team-quota" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:14px;"></div>
+    <div id="team-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;">Ajouter un employé</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="email" id="team-email" placeholder="email@employe.fr" style="flex:2;min-width:150px;" class="devis-inp">
+        <input type="password" id="team-pw" placeholder="mot de passe (8+ car.)" style="flex:2;min-width:130px;" class="devis-inp">
+        <select id="team-role" class="devis-inp" style="flex:1;min-width:110px;">
+          <option value="preparateur">🛠 Préparateur</option>
+          <option value="poseur">🚐 Poseur</option>
+        </select>
+      </div>
+      <div class="auth-error" id="team-error"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeTeam()">Fermer</button>
+        <button class="btn-submit" onclick="creerEmploye()">＋ Créer le compte</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CHOIX MESSAGERIE -->
 <div class="modal-overlay" id="modal-messagerie" style="z-index:600">
   <div class="modal" style="max-width:320px;text-align:center">
@@ -898,6 +924,9 @@ let userPlanPeriod = 'monthly';
 let userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20 };
 let trialUsed = 0;
 let inboundEmail = null;
+let userRole = 'owner';   // owner | preparateur | poseur
+let isEmploye = false;    // compte employé rattaché à un employeur (plan Entreprise)
+let teamList = [];        // employés du compte (employeur uniquement)
 
 async function api(method, path, body) {
   const opts = {
@@ -949,6 +978,7 @@ async function login() {
   try {
     const data = await api('POST', '/auth/login', { email, password });
     if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
+    userRole = data.role || 'owner'; isEmploye = Boolean(data.is_employe);
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
     err.textContent = e.message;
@@ -1012,7 +1042,107 @@ async function startSession(token, email, status, used, iEmail) {
   loadJetons();
   renderAll();
   renderTrialBanner();
+  applyRoleUI();
   startPolling();
+}
+
+// Adapte l'interface au rôle : employé = vue "missions" (pas de création d'analyse, pas de stock/jetons)
+function applyRoleUI() {
+  const teamBtn = document.getElementById('btn-team');
+  if (teamBtn) teamBtn.style.display = (!isEmploye && userPlan === 'entreprise' && subscriptionStatus === 'active') ? 'block' : 'none';
+  if (!isEmploye) { if (userPlan === 'entreprise') loadTeam(); return; }
+  // Compte employé : interface allégée
+  const inputPanel = document.querySelector('.analyse-input');
+  if (inputPanel) inputPanel.style.display = 'none';
+  const newBtn = document.querySelector('.btn-new-analyse');
+  if (newBtn) newBtn.style.display = 'none';
+  const stockBtn = document.getElementById('btn-stock-side');
+  if (stockBtn) stockBtn.style.display = 'none';
+  const jw = document.getElementById('jeton-wrap');
+  if (jw) jw.style.display = 'none';
+  const sw = document.getElementById('storage-wrap');
+  if (sw) sw.style.display = 'none';
+}
+
+// ===================== ÉQUIPE (plan Entreprise) =====================
+async function loadTeam() {
+  try { const r = await api('GET', '/team'); teamList = r.employes || []; window._teamMax = r.max_users; } catch { teamList = []; }
+}
+const ROLE_LABELS = { preparateur: '🛠 Préparateur', poseur: '🚐 Poseur' };
+function openTeam() {
+  renderTeamList();
+  document.getElementById('team-error').textContent = '';
+  document.getElementById('modal-team').classList.add('open');
+  loadTeam().then(renderTeamList);
+}
+function closeTeam() { document.getElementById('modal-team').classList.remove('open'); }
+document.getElementById('modal-team').addEventListener('click', e => { if (e.target === document.getElementById('modal-team')) closeTeam(); });
+
+function renderTeamList() {
+  const el = document.getElementById('team-list');
+  document.getElementById('team-quota').textContent = `${teamList.length + 1} / ${window._teamMax || 5} utilisateurs (toi inclus)`;
+  el.innerHTML = teamList.length ? teamList.map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);">
+      <span style="font-size:12px;flex:1;">${t.email}</span>
+      <select onchange="changerRoleEmploye(${t.id}, this.value)" class="devis-inp" style="width:auto;margin:0;font-size:11px;padding:4px 8px;">
+        <option value="preparateur"${t.role === 'preparateur' ? ' selected' : ''}>🛠 Préparateur</option>
+        <option value="poseur"${t.role === 'poseur' ? ' selected' : ''}>🚐 Poseur</option>
+      </select>
+      <button onclick="supprimerEmploye(${t.id})" title="Supprimer ce compte" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;">×</button>
+    </div>`).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px;">Aucun employé — crée un compte ci-dessous.</div>';
+}
+
+async function creerEmploye() {
+  const email = document.getElementById('team-email').value.trim();
+  const password = document.getElementById('team-pw').value;
+  const role = document.getElementById('team-role').value;
+  const err = document.getElementById('team-error');
+  err.textContent = '';
+  try {
+    await api('POST', '/team', { email, password, role });
+    document.getElementById('team-email').value = '';
+    document.getElementById('team-pw').value = '';
+    await loadTeam();
+    renderTeamList();
+  } catch (e) { err.textContent = e.message; }
+}
+async function changerRoleEmploye(id, role) {
+  try { await api('PATCH', `/team/${id}`, { role }); await loadTeam(); } catch (e) { alert(e.message); }
+}
+async function supprimerEmploye(id) {
+  const t = teamList.find(x => x.id === id);
+  if (!confirm(`Supprimer le compte de ${t ? t.email : 'cet employé'} ? Ses missions seront désaffectées.`)) return;
+  try { await api('DELETE', `/team/${id}`); await loadTeam(); renderTeamList(); } catch (e) { alert(e.message); }
+}
+
+// Affectation d'une mission depuis le résultat d'analyse
+async function enregistrerMission(id) {
+  const g = s => document.getElementById(s);
+  const body = {
+    prep_id: g('job-prep').value || null,
+    pose_id: g('job-pose').value || null,
+    date: g('job-date').value || '',
+    lieu: g('job-lieu').value.trim(),
+    status: g('job-status').value || null,
+  };
+  const btn = g('btn-save-job');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  try {
+    const r = await api('PATCH', `/analyses/${id}/job`, body);
+    const item = historique.find(h => h.id === id);
+    if (item) { item.assigned_prep_id = r.prep_id; item.assigned_pose_id = r.pose_id; item.job_date = r.date; item.job_lieu = r.lieu; item.job_status = r.status; }
+    btn.textContent = '✓ Mission enregistrée';
+    setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Enregistrer la mission'; }, 1800);
+  } catch (e) { btn.disabled = false; btn.textContent = '💾 Enregistrer la mission'; alert(e.message); }
+}
+
+// Employé : faire avancer le statut de sa mission
+async function avancerMission(id, status) {
+  try {
+    await api('PATCH', `/analyses/${id}/job-status`, { status });
+    const item = historique.find(h => h.id === id);
+    if (item) { item.job_status = status; openHisto(id); }
+  } catch (e) { alert(e.message); }
 }
 
 function showUpgradeWall(reason) {
@@ -1548,7 +1678,7 @@ function renderSidebarHisto() {
   const container = document.getElementById('sidebar-histo');
   const unread = historique.filter(h => !h.lu).length;
   let html = `<div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
-    <span>Historique ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
+    <span>${isEmploye ? 'Mes missions' : 'Historique'} ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
     <button id="btn-refresh-histo" onclick="refreshHisto()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Actualiser">↻</button>
   </div>`;
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
@@ -2381,7 +2511,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
       const hasOrig = (historique.find(a => a.id === analyseId) || {}).has_orig;
-      const visuelBtns = analyseId && analyseId !== '_pending'
+      const visuelBtns = analyseId && analyseId !== '_pending' && !isEmploye
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
@@ -2516,7 +2646,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   // Choix d'assemblage (plusieurs fichiers) : relance l'analyse avec l'hypothèse imposée
   const multiFichiers = Array.isArray(visuels) && visuels.length > 1;
   const asm = r.montage && r.montage.assemblage;
-  const assemblageBox = (multiFichiers && analyseId && analyseId !== '_pending')
+  const assemblageBox = (multiFichiers && analyseId && analyseId !== '_pending' && !isEmploye)
     ? `<div style="margin-top:6px;padding:12px 14px;border:1px solid ${asm === 'inconnu' ? 'var(--accent)' : 'var(--border)'};border-radius:12px;background:var(--surface);">
          <div style="font-size:12px;margin-bottom:8px;">🧩 Plusieurs fichiers — ${asm === 'assemble' ? 'traités comme <b>un seul visuel à assembler côte à côte</b>.' : asm === 'separe' ? 'traités comme <b>des visuels séparés</b>.' : '<b style="color:var(--accent)">à confirmer :</b> à assembler côte à côte ou séparés ?'}</div>
          <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -2526,17 +2656,59 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
          <div style="font-size:10px;color:var(--muted);margin-top:6px;">Change le choix → relance l'analyse avec cette hypothèse (compte comme une analyse).</div>
        </div>`
     : '';
-  const actionsBar = (analyseId && analyseId !== '_pending')
+  const actionsBar = (analyseId && analyseId !== '_pending' && !isEmploye)
     ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
          <button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button>
          <button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif<span class="btn-cost" title="2 jetons. Rouvrir un devis déjà généré est gratuit.">2🪙</span></button>
        </div>`
     : '';
 
+  // ===== Mission (plan Entreprise) =====
+  const jobItem = historique.find(h => h.id === analyseId) || {};
+  const JOB_LABELS = { a_preparer: '🛠 À préparer', pret_a_poser: '📦 Prêt à poser', termine: '✅ Terminé' };
+  let missionSection = '';
+  if (analyseId && analyseId !== '_pending' && !isEmploye && userPlan === 'entreprise' && subscriptionStatus === 'active') {
+    const optFor = role => teamList.filter(t => t.role === role).map(t => `<option value="${t.id}">${t.email}</option>`).join('');
+    const selPrep = teamList.filter(t => t.role === 'preparateur').map(t => `<option value="${t.id}"${jobItem.assigned_prep_id === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
+    const selPose = teamList.filter(t => t.role === 'poseur').map(t => `<option value="${t.id}"${jobItem.assigned_pose_id === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
+    missionSection = accSection('Mission — transfert à l\'équipe', `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+        <label style="font-size:11px;color:var(--muted);">🛠 Préparation<select id="job-prep" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selPrep}</select></label>
+        <label style="font-size:11px;color:var(--muted);">🚐 Pose<select id="job-pose" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selPose}</select></label>
+        <label style="font-size:11px;color:var(--muted);">📅 Date<input type="date" id="job-date" class="devis-inp" style="margin-top:4px;" value="${jobItem.job_date || ''}"></label>
+        <label style="font-size:11px;color:var(--muted);">📍 Lieu<input type="text" id="job-lieu" class="devis-inp" style="margin-top:4px;" placeholder="adresse / chantier" value="${(jobItem.job_lieu || '').replace(/"/g, '&quot;')}"></label>
+        <label style="font-size:11px;color:var(--muted);">Statut<select id="job-status" class="devis-inp" style="margin-top:4px;">
+          <option value="a_preparer"${(jobItem.job_status || 'a_preparer') === 'a_preparer' ? ' selected' : ''}>🛠 À préparer</option>
+          <option value="pret_a_poser"${jobItem.job_status === 'pret_a_poser' ? ' selected' : ''}>📦 Prêt à poser</option>
+          <option value="termine"${jobItem.job_status === 'termine' ? ' selected' : ''}>✅ Terminé</option>
+        </select></label>
+      </div>
+      ${!teamList.length ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Aucun employé — crée les comptes dans <b>👥 Mon équipe</b> (barre latérale).</div>` : ''}
+      <button class="btn-submit" id="btn-save-job" onclick="enregistrerMission(${analyseId})" style="margin-top:12px;font-size:12px;">💾 Enregistrer la mission</button>`,
+      { icon: '🗂', open: Boolean(jobItem.assigned_prep_id || jobItem.assigned_pose_id), hint: jobItem.job_status ? (JOB_LABELS[jobItem.job_status] || '') : '' });
+  }
+  // Bannière mission pour l'employé (avec avancement du statut)
+  let missionBanner = '';
+  if (isEmploye && analyseId && analyseId !== '_pending') {
+    const monRole = jobItem.assigned_prep_id && jobItem.assigned_pose_id ? 'Préparation + Pose' : (userRole === 'poseur' ? 'Pose' : 'Préparation');
+    const st = jobItem.job_status || 'a_preparer';
+    const nextBtn = st === 'a_preparer'
+      ? `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'pret_a_poser')">→ Marquer prêt à poser</button>`
+      : (st === 'pret_a_poser' ? `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'termine')">✅ Marquer terminé</button>` : '');
+    missionBanner = `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid var(--accent);border-radius:12px;background:#141f03;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:700;color:var(--accent);">🗂 Ta mission : ${monRole}</span>
+      ${jobItem.job_date ? `<span style="font-size:12px;">📅 ${jobItem.job_date}</span>` : ''}
+      ${jobItem.job_lieu ? `<span style="font-size:12px;">📍 ${jobItem.job_lieu}</span>` : ''}
+      <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">${JOB_LABELS[st] || ''}</span>
+      ${nextBtn}
+    </div>`;
+  }
+
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
-      <div class="result-top"><h2>Analyse${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      <div class="result-top"><h2>${isEmploye ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      ${missionBanner}
       ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
       ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
       ${accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true })}
@@ -2544,6 +2716,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${montageSection}
       ${accSection('Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' })}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
+      ${missionSection}
       ${assemblageBox}
       ${actionsBar}
     </div>`;
@@ -2937,6 +3110,7 @@ function stopPolling() {
         userPlan = profile.plan || 'free';
         userPlanPeriod = profile.plan_period || 'monthly';
         if (profile.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(profile.settings) }; } catch {}
+        userRole = profile.role || 'owner'; isEmploye = Boolean(profile.is_employe);
         await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
         return;
       }

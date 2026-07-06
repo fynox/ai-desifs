@@ -31,19 +31,38 @@ async function pdfFirstPage(buffer) {
 const router = express.Router();
 router.use(requireAuth);
 
+// Employé : accès en lecture aux analyses de l'employeur qui lui sont affectées
+function employeScope(req) {
+  const me = db.prepare('SELECT id, parent_user_id, role FROM users WHERE id = ?').get(req.user.id);
+  if (me && me.parent_user_id) return { ownerId: me.parent_user_id, empId: me.id, role: me.role };
+  return { ownerId: req.user.id, empId: null, role: 'owner' };
+}
+// Une analyse est-elle accessible (propriétaire, ou employé affecté dessus) ?
+function canAccessAnalyse(req, item) {
+  if (!item) return false;
+  const sc = employeScope(req);
+  if (!sc.empId) return item.user_id === req.user.id;
+  return item.user_id === sc.ownerId && (item.assigned_prep_id === sc.empId || item.assigned_pose_id === sc.empId);
+}
+
 router.get('/', (req, res) => {
+  const sc = employeScope(req);
   // Nettoyer les analyses "en cours" zombies (webhook qui a échoué sans supprimer le pending)
-  db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(req.user.id);
+  db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(sc.ownerId);
   // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
+  // Employé : uniquement les missions qui lui sont affectées
+  const filtre = sc.empId ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ?)' : 'user_id = ?';
+  const args = sc.empId ? [sc.ownerId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
+      assigned_prep_id, assigned_pose_id, job_date, job_lieu, job_status,
       (visuel_b64 IS NOT NULL) as has_visuel,
       (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
       (visuel_hd_b64 IS NOT NULL) as has_hd,
       visuels_json,
       (COALESCE(LENGTH(visuel_b64),0) + COALESCE(LENGTH(visuel_orig_b64),0) + COALESCE(LENGTH(visuel_hd_b64),0) + COALESCE(LENGTH(visuels_json),0)) as taille_b64
-    FROM analyses WHERE user_id = ? ORDER BY created_at DESC
-  `).all(req.user.id);
+    FROM analyses WHERE ${filtre} ORDER BY created_at DESC
+  `).all(...args);
   res.json(rows.map(r => {
     const isPending = r.status === 'pending';
     const isFailed = r.status === 'failed';
@@ -69,11 +88,45 @@ router.get('/', (req, res) => {
 
 // Visuel(s) d'une analyse (chargé à la demande pour ne pas alourdir l'historique)
 router.get('/:id/visuel', (req, res) => {
-  const item = db.prepare('SELECT visuel_b64, visuel_type, visuels_json FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, visuel_b64, visuel_type, visuels_json FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   let visuels = null;
   if (item.visuels_json) { try { visuels = JSON.parse(item.visuels_json); } catch {} }
   res.json({ visuel_b64: item.visuel_b64 || null, visuel_type: item.visuel_type || null, visuels });
+});
+
+// Affectation d'une analyse en mission (préparateur / poseur / date / lieu) — employeur uniquement
+router.patch('/:id/job', (req, res) => {
+  const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (me.parent_user_id) return res.status(403).json({ error: 'Réservé au compte principal (employeur).' });
+  const ftM = checkFeature(me, 'multi_user'); if (ftM) return res.status(403).json(ftM);
+  const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+
+  const empOk = id => {
+    if (id == null || id === '' || id === 0) return null;
+    const e = db.prepare('SELECT id FROM users WHERE id = ? AND parent_user_id = ?').get(Number(id), req.user.id);
+    return e ? e.id : null;
+  };
+  const prep = empOk(req.body.prep_id);
+  const pose = empOk(req.body.pose_id);
+  const date = (req.body.date || '').slice(0, 30) || null;
+  const lieu = (req.body.lieu || '').slice(0, 200) || null;
+  const statuts = ['a_preparer', 'pret_a_poser', 'termine'];
+  const status = statuts.includes(req.body.status) ? req.body.status : (prep || pose ? 'a_preparer' : null);
+  db.prepare('UPDATE analyses SET assigned_prep_id=?, assigned_pose_id=?, job_date=?, job_lieu=?, job_status=? WHERE id=?')
+    .run(prep, pose, date, lieu, status, item.id);
+  res.json({ ok: true, prep_id: prep, pose_id: pose, date, lieu, status });
+});
+
+// Un employé (ou l'employeur) fait avancer le statut d'une mission
+router.patch('/:id/job-status', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const statuts = ['a_preparer', 'pret_a_poser', 'termine'];
+  if (!statuts.includes(req.body.status)) return res.status(400).json({ error: 'Statut invalide.' });
+  db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(req.body.status, item.id);
+  res.json({ ok: true, status: req.body.status });
 });
 
 // Espace de stockage occupé / quota du compte

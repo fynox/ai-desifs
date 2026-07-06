@@ -45,7 +45,8 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe incorrect.' });
 
-  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email, settings: user.settings || '{}' });
+  // Employé : statut effectif hérité de l'employeur (compte actif tant que l'abonnement Entreprise l'est)
+  res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email, settings: user.settings || '{}', role: user.role || 'owner', is_employe: Boolean(user.parent_user_id) });
 });
 
 router.get('/profile', requireAuth, async (req, res) => {
@@ -85,7 +86,7 @@ router.get('/profile', requireAuth, async (req, res) => {
   } catch (e) { console.error('profile extras error:', e.message); }
 
   const { id, stripe_customer_id, ...pub } = user;
-  res.json({ ...pub, jetons, storage, plan_info: planInfo });
+  res.json({ ...pub, jetons, storage, plan_info: planInfo, role: full.role || 'owner', is_employe: Boolean(full.parent_user_id) });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

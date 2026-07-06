@@ -45,6 +45,7 @@ app.use('/api/analyses', require('./src/routes/analyses'));
 app.use('/api/stripe', require('./src/routes/stripe'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/bugs', require('./src/routes/bugs'));
+app.use('/api/team', require('./src/routes/team'));
 
 // SendGrid inbound (pas rate limité)
 app.use('/webhooks', require('./src/routes/webhook'));

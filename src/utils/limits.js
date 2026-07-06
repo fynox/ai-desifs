@@ -10,7 +10,13 @@ const FEATURE_NAMES = {
 };
 
 // Plan effectif. Abonné → son plan (s'il est valide) ; sinon 'free' (0 jeton) ; essai gratuit → 'smart'.
+// Employé (parent_user_id) → hérite du plan de son employeur.
 function planKey(user) {
+  if (user.parent_user_id) {
+    const parent = db.prepare('SELECT subscription_status, plan, parent_user_id FROM users WHERE id = ?').get(user.parent_user_id);
+    if (parent && !parent.parent_user_id) return planKey(parent);
+    return 'free';
+  }
   if (user.subscription_status === 'active') return PLAN_INFO[user.plan] ? user.plan : 'free';
   if (user.subscription_status === 'trial') return 'smart';
   return 'free';

@@ -110,6 +110,15 @@ const migrations = [
   'ALTER TABLE usage_log ADD COLUMN jetons INTEGER DEFAULT 0', // jetons consommés depuis l\'allocation mensuelle du forfait
   'ALTER TABLE users ADD COLUMN devis_pref TEXT DEFAULT \'\'',  // apprentissage des prix : JSON {ratio, n} (prix perso / prix proposé)
   'ALTER TABLE users ADD COLUMN devis_infos TEXT DEFAULT \'\'', // infos émetteur mémorisées pour le PDF de devis (JSON)
+  // Comptes employés (plan Entreprise) : rattachés à l'employeur, avec un rôle métier
+  'ALTER TABLE users ADD COLUMN parent_user_id INTEGER',        // id de l'employeur (null = compte principal)
+  'ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'owner\'',   // owner | preparateur | poseur
+  // Affectation d'une analyse en mission (préparation / pose)
+  'ALTER TABLE analyses ADD COLUMN assigned_prep_id INTEGER',   // employé chargé de la préparation
+  'ALTER TABLE analyses ADD COLUMN assigned_pose_id INTEGER',   // employé chargé de la pose
+  'ALTER TABLE analyses ADD COLUMN job_date TEXT',              // date d intervention
+  'ALTER TABLE analyses ADD COLUMN job_lieu TEXT',              // lieu de pose
+  'ALTER TABLE analyses ADD COLUMN job_status TEXT',            // a_preparer | pret_a_poser | termine
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
