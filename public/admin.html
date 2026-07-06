@@ -508,7 +508,15 @@ function renderUsers(users) {
   document.getElementById('users-table').innerHTML = `
     <table>
       <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Jetons</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
-      <tbody>${users.map(u => `
+      <tbody>${users.map(u => u.parent_user_id ? `
+        <tr id="user-row-${u.id}" style="background:rgba(200,240,74,.03);">
+          <td style="padding-left:22px;"><span style="color:var(--muted);">↳</span> ${u.email} <span style="font-size:9px;font-weight:700;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:1px 8px;margin-left:4px;">EMPLOYÉ${u.role ? ' · ' + u.role.split(',').map(r => ({preparateur:'🛠',poseur:'🚐',secretariat:'📋',designer:'🎨'}[r] || r)).join(' ') : ''}</span></td>
+          <td colspan="4" style="font-size:10px;color:var(--muted);">Sous-compte rattaché au compte #${u.parent_user_id} — hérite de son plan et de ses jetons</td>
+          <td>${u.analyses_count}</td>
+          <td>${u.stock_count}</td>
+          <td>${fmtDate(u.created_at)}</td>
+          <td><button class="action-btn danger" onclick="openDeleteModal(${u.id}, '${u.email}')">✕ suppr.</button></td>
+        </tr>` : `
         <tr id="user-row-${u.id}">
           <td>${u.email}</td>
           <td>

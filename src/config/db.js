@@ -120,6 +120,8 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN job_lieu TEXT',              // lieu de pose
   'ALTER TABLE analyses ADD COLUMN job_status TEXT',            // a_preparer | pret_a_poser | termine
   'ALTER TABLE analyses ADD COLUMN job_photos_json TEXT',       // photos du résultat posé (jointes par le poseur)
+  'ALTER TABLE analyses ADD COLUMN assigned_design_id INTEGER', // employé designer (création du visuel)
+  'ALTER TABLE analyses ADD COLUMN assigned_secr_id INTEGER',   // employé secrétariat (devis / retours client)
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

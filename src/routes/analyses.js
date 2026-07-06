@@ -37,13 +37,19 @@ function employeScope(req) {
   if (me && me.parent_user_id) return { ownerId: me.parent_user_id, empId: me.id, role: me.role };
   return { ownerId: req.user.id, empId: null, role: 'owner' };
 }
-// Une analyse est-elle accessible (propriétaire, ou employé affecté dessus) ?
+// Une analyse est-elle accessible (propriétaire, ou employé affecté dessus, quel que soit le poste) ?
 function canAccessAnalyse(req, item) {
   if (!item) return false;
   const sc = employeScope(req);
   if (!sc.empId) return item.user_id === req.user.id;
-  return item.user_id === sc.ownerId && (item.assigned_prep_id === sc.empId || item.assigned_pose_id === sc.empId);
+  return item.user_id === sc.ownerId &&
+    (item.assigned_prep_id === sc.empId || item.assigned_pose_id === sc.empId ||
+     item.assigned_design_id === sc.empId || item.assigned_secr_id === sc.empId);
 }
+// L'employé a-t-il ce rôle (rôles cumulables : "preparateur,poseur") ?
+function hasRoleServ(roleStr, role) { return String(roleStr || '').split(',').includes(role); }
+// Slot d'affectation correspondant à chaque étape du flux
+const STAGE_SLOT = { a_creer: 'assigned_design_id', a_preparer: 'assigned_prep_id', pret_a_poser: 'assigned_pose_id', retour_client: 'assigned_secr_id' };
 
 router.get('/', (req, res) => {
   const sc = employeScope(req);
@@ -51,11 +57,11 @@ router.get('/', (req, res) => {
   db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(sc.ownerId);
   // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
   // Employé : uniquement les missions qui lui sont affectées
-  const filtre = sc.empId ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ?)' : 'user_id = ?';
-  const args = sc.empId ? [sc.ownerId, sc.empId, sc.empId] : [sc.ownerId];
+  const filtre = sc.empId ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ? OR assigned_design_id = ? OR assigned_secr_id = ?)' : 'user_id = ?';
+  const args = sc.empId ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
-      assigned_prep_id, assigned_pose_id, job_date, job_lieu, job_status,
+      assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
       (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
@@ -69,7 +75,12 @@ router.get('/', (req, res) => {
     const isFailed = r.status === 'failed';
     let nbVisuels = 1;
     if (r.visuels_json) { try { nbVisuels = JSON.parse(r.visuels_json).length; } catch {} }
+    // Pour un employé : liste des étapes du flux qui lui sont affectées (sert au tri "à faire / en attente")
+    const mySlots = sc.empId
+      ? Object.entries(STAGE_SLOT).filter(([, slot]) => r[slot] === sc.empId).map(([stage]) => stage)
+      : undefined;
     return {
+      my_stages: mySlots,
       ...r,
       visuels_json: undefined,
       result: (isPending || isFailed) ? null : JSON.parse(r.result_json),
@@ -109,38 +120,49 @@ router.patch('/:id/job', (req, res) => {
     const e = db.prepare('SELECT id FROM users WHERE id = ? AND parent_user_id = ?').get(Number(id), req.user.id);
     return e ? e.id : null;
   };
+  const design = empOk(req.body.design_id);
+  const secr = empOk(req.body.secr_id);
   const prep = empOk(req.body.prep_id);
   const pose = empOk(req.body.pose_id);
   const date = (req.body.date || '').slice(0, 30) || null;
   const lieu = (req.body.lieu || '').slice(0, 200) || null;
-  const statuts = ['a_preparer', 'pret_a_poser', 'termine'];
-  const status = statuts.includes(req.body.status) ? req.body.status : (prep || pose ? 'a_preparer' : null);
-  db.prepare('UPDATE analyses SET assigned_prep_id=?, assigned_pose_id=?, job_date=?, job_lieu=?, job_status=? WHERE id=?')
-    .run(prep, pose, date, lieu, status, item.id);
-  res.json({ ok: true, prep_id: prep, pose_id: pose, date, lieu, status });
+  const statuts = ['a_creer', 'a_preparer', 'pret_a_poser', 'retour_client', 'termine'];
+  // Étape par défaut : la première du flux qui a quelqu'un d'affecté
+  const defaut = design ? 'a_creer' : (prep ? 'a_preparer' : (pose ? 'pret_a_poser' : (secr ? 'retour_client' : null)));
+  const status = statuts.includes(req.body.status) ? req.body.status : defaut;
+  db.prepare('UPDATE analyses SET assigned_design_id=?, assigned_secr_id=?, assigned_prep_id=?, assigned_pose_id=?, job_date=?, job_lieu=?, job_status=? WHERE id=?')
+    .run(design, secr, prep, pose, date, lieu, status, item.id);
+  res.json({ ok: true, design_id: design, secr_id: secr, prep_id: prep, pose_id: pose, date, lieu, status });
 });
 
-// Un employé (ou l'employeur) fait avancer le statut d'une mission.
-// Règles : "prêt à poser" = préparateur affecté (ou patron) ; "terminé" = poseur affecté (ou patron).
+// Un employé (ou l'employeur) termine SON étape et transfère la mission à l'étape suivante.
+// Règle : seul celui qui TIENT l'étape courante (ou le patron) peut la faire avancer.
+// body : { status: nouvelle étape, to_emp_id?: employé affecté à cette étape, photos?: fin de pose }
 router.patch('/:id/job-status', (req, res) => {
-  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id FROM analyses WHERE id = ?').get(req.params.id);
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_status FROM analyses WHERE id = ?').get(req.params.id);
   if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
-  const statuts = ['a_preparer', 'pret_a_poser', 'termine'];
+  const statuts = ['a_creer', 'a_preparer', 'pret_a_poser', 'retour_client', 'termine'];
   const status = req.body.status;
   if (!statuts.includes(status)) return res.status(400).json({ error: 'Statut invalide.' });
 
   const sc = employeScope(req);
   if (sc.empId) {
-    if (status === 'pret_a_poser' && item.assigned_prep_id !== sc.empId) {
-      return res.status(403).json({ error: 'Seul le préparateur affecté peut marquer la préparation finie.' });
-    }
-    if (status === 'termine' && item.assigned_pose_id !== sc.empId) {
-      return res.status(403).json({ error: 'Seul le poseur affecté peut marquer la pose terminée.' });
+    const curSlot = STAGE_SLOT[item.job_status || 'a_preparer'];
+    if (!curSlot || item[curSlot] !== sc.empId) {
+      return res.status(403).json({ error: 'Cette étape n\'est pas la tienne — seul l\'employé en charge de l\'étape en cours peut la terminer.' });
     }
   }
 
+  // Transfert : affecter un employé sur l'étape suivante (l'employé qui finit choisit à qui il transmet)
+  if (status !== 'termine' && req.body.to_emp_id) {
+    const target = db.prepare('SELECT id, role FROM users WHERE id = ? AND parent_user_id = ?').get(Number(req.body.to_emp_id), sc.ownerId);
+    if (!target) return res.status(400).json({ error: 'Destinataire introuvable dans l\'équipe.' });
+    const slot = STAGE_SLOT[status];
+    if (slot) db.prepare(`UPDATE analyses SET ${slot} = ? WHERE id = ?`).run(target.id, item.id);
+  }
+
   // Photos du résultat posé (jointes à la fin de pose) — max 6, ~2 Mo chacune
-  if (status === 'termine' && Array.isArray(req.body.photos) && req.body.photos.length) {
+  if (Array.isArray(req.body.photos) && req.body.photos.length) {
     const photos = req.body.photos
       .filter(p => typeof p === 'string' && p.startsWith('data:image/') && p.length < 2.8e6)
       .slice(0, 6);
@@ -230,11 +252,15 @@ router.delete('/:id', (req, res) => {
 });
 
 // Génère un mail de relance au client pour demander les infos manquantes
+// Accessible au patron et aux employés Secrétariat affectés sur l'analyse.
 router.post('/:id/relance', async (req, res) => {
-  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.parent_user_id && !hasRoleServ(user.role, 'secretariat')) {
+    return res.status(403).json({ error: 'Le mail client est réservé au patron et au secrétariat.' });
+  }
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
   const ftR = checkFeature(user, 'relance'); if (ftR) return res.status(403).json(ftR);
@@ -304,11 +330,15 @@ Réponds UNIQUEMENT en JSON valide : {"objet":"...","corps":"..."}`;
 });
 
 // Génère un devis automatique approximatif basé sur le stock (prix m², encre)
+// Accessible au patron et aux employés Secrétariat affectés sur l'analyse.
 router.post('/:id/devis', async (req, res) => {
-  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.parent_user_id && !hasRoleServ(user.role, 'secretariat')) {
+    return res.status(403).json({ error: 'Le devis est réservé au patron et au secrétariat.' });
+  }
   const apiKey = getSetting('ANTHROPIC_API_KEY');
   if (!apiKey) return res.status(400).json({ error: 'Clé API Anthropic non configurée.' });
   const ftD = checkFeature(user, 'devis'); if (ftD) return res.status(403).json(ftD);
@@ -317,7 +347,9 @@ router.post('/:id/devis', async (req, res) => {
   let result = {};
   try { result = JSON.parse(item.result_json || '{}'); } catch {}
 
-  const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
+  // Employé secrétariat : le stock et la préférence tarifaire sont ceux du PATRON
+  const compte = user.parent_user_id ? db.prepare('SELECT * FROM users WHERE id = ?').get(user.parent_user_id) : user;
+  const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(compte.id);
   const encres = stockDispo.filter(i => i.cat === 'encre');
   const adhesifs = stockDispo.filter(i => i.cat !== 'encre');
 
@@ -336,7 +368,7 @@ router.post('/:id/devis', async (req, res) => {
   // on pousse l'IA à se rapprocher de SA tarification plutôt que du coût brut calculé.
   let devisPrefHint = '';
   try {
-    const pref = JSON.parse(user.devis_pref || '{}');
+    const pref = JSON.parse(compte.devis_pref || '{}');
     if (pref && pref.ratio && pref.n >= 1) {
       const pct = Math.round(pref.ratio * 100);
       devisPrefHint = `PRÉFÉRENCE TARIFAIRE DE L'UTILISATEUR (apprise sur ${pref.n} devis précédents) :
@@ -414,9 +446,11 @@ Réponds UNIQUEMENT en JSON valide :
 // On apprend le ratio (prix perso / prix proposé) pour rapprocher les prochains devis de SA tarification.
 // On mémorise aussi ses infos émetteur pour le PDF. Ne consomme aucun jeton.
 router.post('/:id/devis/feedback', (req, res) => {
-  const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
-  const user = db.prepare('SELECT devis_pref FROM users WHERE id = ?').get(req.user.id);
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  // L'apprentissage tarifaire et les infos émetteur sont TOUJOURS ceux du patron
+  const compteId = employeScope(req).ownerId;
+  const user = db.prepare('SELECT devis_pref FROM users WHERE id = ?').get(compteId);
 
   const lignes = Array.isArray(req.body.lignes) ? req.body.lignes : [];
   const ratios = [];
@@ -434,19 +468,19 @@ router.post('/:id/devis/feedback', (req, res) => {
     // moyenne mobile pondérée : on lisse pour ne pas réagir trop fort à un seul devis
     const newRatio = n > 0 ? (pref.ratio * n + moy) / (n + 1) : moy;
     pref = { ratio: Math.max(0.2, Math.min(10, newRatio)), n: n + 1 };
-    db.prepare('UPDATE users SET devis_pref = ? WHERE id = ?').run(JSON.stringify(pref), req.user.id);
+    db.prepare('UPDATE users SET devis_pref = ? WHERE id = ?').run(JSON.stringify(pref), compteId);
   }
 
   if (req.body.infos && typeof req.body.infos === 'object') {
-    db.prepare('UPDATE users SET devis_infos = ? WHERE id = ?').run(JSON.stringify(req.body.infos), req.user.id);
+    db.prepare('UPDATE users SET devis_infos = ? WHERE id = ?').run(JSON.stringify(req.body.infos), compteId);
   }
 
   res.json({ ok: true });
 });
 
-// Renvoie les infos émetteur mémorisées (pré-remplissage du PDF de devis)
+// Renvoie les infos émetteur mémorisées (pré-remplissage du PDF de devis) — celles du patron
 router.get('/devis-infos', (req, res) => {
-  const user = db.prepare('SELECT devis_infos FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT devis_infos FROM users WHERE id = ?').get(employeScope(req).ownerId);
   let infos = {};
   try { infos = JSON.parse(user.devis_infos || '{}'); } catch {}
   res.json(infos || {});
@@ -455,13 +489,16 @@ router.get('/devis-infos', (req, res) => {
 // Vectorisation (bêta) : le tracé est fait côté navigateur (gratuit en calcul).
 // Cet endpoint vérifie l'accès et débite les jetons au moment du téléchargement du SVG.
 router.post('/:id/vectoriser', (req, res) => {
-  const item = db.prepare('SELECT id, visuel_b64, visuel_type FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, visuel_b64, visuel_type FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   if (!item.visuel_b64 || !(item.visuel_type || '').startsWith('image/')) {
     return res.status(400).json({ error: 'Aucun visuel image à vectoriser sur cette analyse.' });
   }
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.parent_user_id && !hasRoleServ(user.role, 'preparateur') && !hasRoleServ(user.role, 'designer')) {
+    return res.status(403).json({ error: 'La vectorisation est réservée au patron, au préparateur et au designer.' });
+  }
   const ftV = checkFeature(user, 'vectorisation'); if (ftV) return res.status(403).json(ftV);
   const affV = affordJetons(user, JETON_COSTS.vectorisation); if (affV) return res.status(403).json(affV);
 
@@ -475,8 +512,8 @@ router.post('/:id/upscale', async (req, res) => {
   const replicateToken = getSetting('REPLICATE_API_TOKEN');
   if (!replicateToken) return res.status(503).json({ error: 'dev' }); // fonction en cours de dev tant que le compte Replicate n'est pas créé
 
-  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   if (!item.visuel_b64 || !item.visuel_type || !item.visuel_type.startsWith('image/')) {
     return res.status(400).json({ error: 'Aucun visuel image sur cette analyse.' });
   }
@@ -489,10 +526,13 @@ router.post('/:id/upscale', async (req, res) => {
   if (item.visuel_b64.length > 8_000_000) {
     return res.status(400).json({ error: 'Le visuel est déjà en haute résolution — pas besoin de l\'améliorer à nouveau.' });
   }
-  if (isStorageFull(req.user.id)) {
+  if (isStorageFull(employeScope(req).ownerId)) {
     return res.status(403).json({ error: 'storage_full' });
   }
   const upUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (upUser.parent_user_id && !hasRoleServ(upUser.role, 'preparateur') && !hasRoleServ(upUser.role, 'designer')) {
+    return res.status(403).json({ error: 'L\'amélioration HD est réservée au patron, au préparateur et au designer.' });
+  }
   const ftU = checkFeature(upUser, 'upscale'); if (ftU) return res.status(403).json(ftU);
   // Réactivation d'une HD déjà générée = gratuit (pas de nouveau coût)
   const alreadyHd = Boolean(item.visuel_hd_b64);
@@ -559,16 +599,16 @@ router.post('/:id/upscale', async (req, res) => {
 
 // Récupérer le visuel d'origine (pour la comparaison avant/après)
 router.get('/:id/visuel-orig', (req, res) => {
-  const item = db.prepare('SELECT visuel_orig_b64, visuel_orig_type FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, visuel_orig_b64, visuel_orig_type FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   if (!item.visuel_orig_b64) return res.status(400).json({ error: 'Pas d\'image d\'origine sauvegardée.' });
   res.json({ visuel_b64: item.visuel_orig_b64, visuel_type: item.visuel_orig_type });
 });
 
 // Restaurer le visuel d'origine (avant upscale)
 router.post('/:id/restore-visuel', (req, res) => {
-  const item = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   if (!item.visuel_orig_b64) return res.status(400).json({ error: 'Pas d\'image d\'origine sauvegardée.' });
   // La version HD reste en base : on bascule simplement l'image active (réamélioration gratuite ensuite)
   db.prepare('UPDATE analyses SET visuel_b64=?, visuel_type=? WHERE id=?')

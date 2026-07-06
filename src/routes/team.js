@@ -8,7 +8,13 @@ const { PLAN_INFO } = require('../utils/plans');
 const router = express.Router();
 router.use(requireAuth);
 
-const ROLES = ['preparateur', 'poseur'];
+const ROLES = ['preparateur', 'poseur', 'secretariat', 'designer'];
+// Un employé peut cumuler plusieurs rôles ("preparateur,poseur"). Valide et normalise la liste.
+function normRoles(input) {
+  const parts = String(input || '').split(',').map(s => s.trim()).filter(Boolean);
+  const valid = [...new Set(parts.filter(p => ROLES.includes(p)))];
+  return valid.length ? valid.join(',') : null;
+}
 
 // L'utilisateur est-il un employeur avec le multi-utilisateurs (plan Entreprise) ?
 function requireOwner(req, res, next) {
@@ -19,6 +25,14 @@ function requireOwner(req, res, next) {
   req.owner = user;
   next();
 }
+
+// Collègues (accessible aux employés) : pour choisir à qui transférer une mission
+router.get('/coworkers', (req, res) => {
+  const me = db.prepare('SELECT id, parent_user_id FROM users WHERE id = ?').get(req.user.id);
+  const ownerId = me.parent_user_id || me.id;
+  const rows = db.prepare('SELECT id, email, role FROM users WHERE parent_user_id = ? AND id != ? ORDER BY email').all(ownerId, req.user.id);
+  res.json({ coworkers: rows });
+});
 
 // Liste des employés du compte
 router.get('/', requireOwner, (req, res) => {
@@ -31,10 +45,10 @@ router.get('/', requireOwner, (req, res) => {
 router.post('/', requireOwner, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
-  const role = String(req.body.role || '');
+  const role = normRoles(req.body.role);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'Email invalide.' });
   if (password.length < 8) return res.status(400).json({ error: 'Mot de passe : 8 caractères minimum.' });
-  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Rôle invalide (preparateur ou poseur).' });
+  if (!role) return res.status(400).json({ error: 'Choisis au moins un rôle (préparateur, poseur, secrétariat, designer).' });
 
   const max = PLAN_INFO[planKey(req.owner)] ? PLAN_INFO[planKey(req.owner)].users : 1;
   const count = db.prepare('SELECT COUNT(*) as c FROM users WHERE parent_user_id = ?').get(req.owner.id).c;
@@ -55,8 +69,10 @@ router.post('/', requireOwner, async (req, res) => {
 router.patch('/:id', requireOwner, async (req, res) => {
   const emp = db.prepare('SELECT * FROM users WHERE id = ? AND parent_user_id = ?').get(req.params.id, req.owner.id);
   if (!emp) return res.status(404).json({ error: 'Employé introuvable.' });
-  if (req.body.role && ROLES.includes(req.body.role)) {
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(req.body.role, emp.id);
+  if (req.body.role !== undefined) {
+    const role = normRoles(req.body.role);
+    if (!role) return res.status(400).json({ error: 'Choisis au moins un rôle.' });
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, emp.id);
   }
   if (req.body.password) {
     if (String(req.body.password).length < 8) return res.status(400).json({ error: 'Mot de passe : 8 caractères minimum.' });

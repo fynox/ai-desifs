@@ -389,6 +389,9 @@ textarea:focus { border-color: var(--accent); }
 .mail-point input{margin-top:2px;accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;}
 .mail-point .mp-txt{font-size:12.5px;line-height:1.4;}
 .mail-point .mp-sub{font-size:10.5px;color:var(--muted);}
+.role-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:6px 11px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:var(--surface2);user-select:none;transition:all .12s;}
+.role-chip:has(input:checked){border-color:var(--accent);color:var(--accent);background:#141f03;}
+.role-chip input{accent-color:var(--accent);width:13px;height:13px;margin:0;}
 </style>
 </head>
 <body>
@@ -714,10 +717,12 @@ textarea:focus { border-color: var(--accent); }
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="email" id="team-email" placeholder="email@employe.fr" style="flex:2;min-width:150px;" class="devis-inp">
         <input type="password" id="team-pw" placeholder="mot de passe (8+ car.)" style="flex:2;min-width:130px;" class="devis-inp">
-        <select id="team-role" class="devis-inp" style="flex:1;min-width:110px;">
-          <option value="preparateur">🛠 Préparateur</option>
-          <option value="poseur">🚐 Poseur</option>
-        </select>
+      </div>
+      <div id="team-roles-add" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <label class="role-chip"><input type="checkbox" value="preparateur">🛠 Préparateur</label>
+        <label class="role-chip"><input type="checkbox" value="poseur">🚐 Poseur</label>
+        <label class="role-chip"><input type="checkbox" value="secretariat">📋 Secrétariat</label>
+        <label class="role-chip"><input type="checkbox" value="designer">🎨 Designer</label>
       </div>
       <div class="auth-error" id="team-error"></div>
       <div class="modal-actions">
@@ -728,18 +733,22 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
-<!-- MODAL FIN DE POSE (photos du résultat) -->
+<!-- MODAL FIN D'ÉTAPE / TRANSFERT DE MISSION -->
 <div class="modal-overlay" id="modal-pose-fini" style="z-index:650">
-  <div class="modal" style="max-width:460px;width:94vw">
-    <h3 style="margin:0 0 4px;">✅ Pose terminée</h3>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Joins des photos du résultat posé (optionnel, jusqu'à 6) — le patron pourra les voir sur la mission.</div>
-    <input type="file" id="pose-photos-input" accept="image/*" multiple style="display:none" onchange="onPosePhotosSelected(this.files)">
-    <button class="btn-cancel" style="width:100%;font-size:12px;" onclick="document.getElementById('pose-photos-input').click()">📷 Ajouter des photos</button>
-    <div id="pose-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+  <div class="modal" style="max-width:480px;width:94vw">
+    <h3 style="margin:0 0 4px;">✓ Étape terminée — et ensuite ?</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Choisis à qui transférer la suite de la mission, ou termine-la.</div>
+    <div id="transfert-options" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto;"></div>
+    <div style="margin-top:12px;">
+      <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:6px;">📷 Photos du résultat <span style="text-transform:none;letter-spacing:0;">(optionnel — ex. photos de la pose finie, visibles par le patron)</span></div>
+      <input type="file" id="pose-photos-input" accept="image/*" multiple style="display:none" onchange="onPosePhotosSelected(this.files)">
+      <button class="btn-cancel" style="width:100%;font-size:12px;" onclick="document.getElementById('pose-photos-input').click()">📷 Ajouter des photos</button>
+      <div id="pose-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+    </div>
     <div class="auth-error" id="pose-fini-error"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closePoseFini()">Annuler</button>
-      <button class="btn-submit" id="btn-pose-fini" onclick="validerPoseFini()">✅ Marquer la pose terminée</button>
+      <button class="btn-submit" id="btn-pose-fini" onclick="validerTransfert()">✓ Valider</button>
     </div>
   </div>
 </div>
@@ -1085,7 +1094,19 @@ function applyRoleUI() {
 async function loadTeam() {
   try { const r = await api('GET', '/team'); teamList = r.employes || []; window._teamMax = r.max_users; } catch { teamList = []; }
 }
-const ROLE_LABELS = { preparateur: '🛠 Préparateur', poseur: '🚐 Poseur' };
+const ROLE_LABELS = { preparateur: '🛠 Préparateur', poseur: '🚐 Poseur', secretariat: '📋 Secrétariat', designer: '🎨 Designer' };
+const ALL_ROLES = ['preparateur', 'poseur', 'secretariat', 'designer'];
+// Rôles cumulables ("preparateur,poseur")
+function hasRole(r) { return String(userRole || '').split(',').includes(r); }
+function roleLabels(roleStr) { return String(roleStr || '').split(',').filter(Boolean).map(r => ROLE_LABELS[r] || r).join(' · '); }
+// Étapes du flux de mission : étape → rôle qui la traite
+const JOB_STAGES = {
+  a_creer:      { label: '🎨 Création visuel', role: 'designer', short: 'Création' },
+  a_preparer:   { label: '🛠 À préparer', role: 'preparateur', short: 'Préparation' },
+  pret_a_poser: { label: '📦 Prêt à poser', role: 'poseur', short: 'Pose' },
+  retour_client:{ label: '✉ Retour client', role: 'secretariat', short: 'Retour client' },
+  termine:      { label: '✅ Terminé', role: null, short: 'Terminé' },
+};
 function openTeam() {
   renderTeamList();
   document.getElementById('team-error').textContent = '';
@@ -1098,32 +1119,39 @@ document.getElementById('modal-team').addEventListener('click', e => { if (e.tar
 function renderTeamList() {
   const el = document.getElementById('team-list');
   document.getElementById('team-quota').textContent = `${teamList.length + 1} / ${window._teamMax || 5} utilisateurs (toi inclus)`;
-  el.innerHTML = teamList.length ? teamList.map(t => `
-    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);">
-      <span style="font-size:12px;flex:1;">${t.email}</span>
-      <select onchange="changerRoleEmploye(${t.id}, this.value)" class="devis-inp" style="width:auto;margin:0;font-size:11px;padding:4px 8px;">
-        <option value="preparateur"${t.role === 'preparateur' ? ' selected' : ''}>🛠 Préparateur</option>
-        <option value="poseur"${t.role === 'poseur' ? ' selected' : ''}>🚐 Poseur</option>
-      </select>
-      <button onclick="supprimerEmploye(${t.id})" title="Supprimer ce compte" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;">×</button>
-    </div>`).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px;">Aucun employé — crée un compte ci-dessous.</div>';
+  el.innerHTML = teamList.length ? teamList.map(t => {
+    const roles = String(t.role || '').split(',').filter(Boolean);
+    const chips = ALL_ROLES.map(r => `<label class="role-chip" style="font-size:10px;padding:4px 8px;"><input type="checkbox" value="${r}"${roles.includes(r) ? ' checked' : ''} onchange="changerRolesEmploye(${t.id}, this)">${ROLE_LABELS[r]}</label>`).join('');
+    return `
+    <div style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;flex:1;">${t.email}</span>
+        <button onclick="supprimerEmploye(${t.id})" title="Supprimer ce compte" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;">×</button>
+      </div>
+      <div id="team-roles-${t.id}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${chips}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px;">Aucun employé — crée un compte ci-dessous.</div>';
 }
 
 async function creerEmploye() {
   const email = document.getElementById('team-email').value.trim();
   const password = document.getElementById('team-pw').value;
-  const role = document.getElementById('team-role').value;
+  const role = Array.from(document.querySelectorAll('#team-roles-add input:checked')).map(c => c.value).join(',');
   const err = document.getElementById('team-error');
   err.textContent = '';
+  if (!role) { err.textContent = 'Coche au moins un rôle.'; return; }
   try {
     await api('POST', '/team', { email, password, role });
     document.getElementById('team-email').value = '';
     document.getElementById('team-pw').value = '';
+    document.querySelectorAll('#team-roles-add input').forEach(c => c.checked = false);
     await loadTeam();
     renderTeamList();
   } catch (e) { err.textContent = e.message; }
 }
-async function changerRoleEmploye(id, role) {
+async function changerRolesEmploye(id, cb) {
+  const role = Array.from(document.querySelectorAll(`#team-roles-${id} input:checked`)).map(c => c.value).join(',');
+  if (!role) { cb.checked = true; alert('Un employé doit garder au moins un rôle.'); return; }
   try { await api('PATCH', `/team/${id}`, { role }); await loadTeam(); } catch (e) { alert(e.message); }
 }
 async function supprimerEmploye(id) {
@@ -1136,6 +1164,8 @@ async function supprimerEmploye(id) {
 async function enregistrerMission(id) {
   const g = s => document.getElementById(s);
   const body = {
+    design_id: g('job-design').value || null,
+    secr_id: g('job-secr').value || null,
     prep_id: g('job-prep').value || null,
     pose_id: g('job-pose').value || null,
     date: g('job-date').value || '',
@@ -1147,7 +1177,8 @@ async function enregistrerMission(id) {
   try {
     const r = await api('PATCH', `/analyses/${id}/job`, body);
     const item = historique.find(h => h.id === id);
-    if (item) { item.assigned_prep_id = r.prep_id; item.assigned_pose_id = r.pose_id; item.job_date = r.date; item.job_lieu = r.lieu; item.job_status = r.status; }
+    if (item) { item.assigned_design_id = r.design_id; item.assigned_secr_id = r.secr_id; item.assigned_prep_id = r.prep_id; item.assigned_pose_id = r.pose_id; item.job_date = r.date; item.job_lieu = r.lieu; item.job_status = r.status; }
+    renderSidebarHisto();
     btn.textContent = '✓ Mission enregistrée';
     setTimeout(() => { btn.disabled = false; btn.textContent = '💾 Enregistrer la mission'; }, 1800);
   } catch (e) { btn.disabled = false; btn.textContent = '💾 Enregistrer la mission'; alert(e.message); }
@@ -1162,14 +1193,31 @@ async function avancerMission(id, status) {
   } catch (e) { alert(e.message); }
 }
 
-// ===== Fin de pose avec photos du résultat (poseur) =====
-let _poseFiniId = null, _posePhotos = [];
-function openPoseFini(id) {
+// ===== Fin d'étape : transfert de la mission au suivant (avec photos optionnelles) =====
+let _poseFiniId = null, _posePhotos = [], _coworkers = null;
+const ROLE_TO_STAGE = { designer: 'a_creer', preparateur: 'a_preparer', poseur: 'pret_a_poser', secretariat: 'retour_client' };
+async function openTransfert(id) {
   _poseFiniId = id; _posePhotos = [];
   renderPosePhotos();
   document.getElementById('pose-fini-error').textContent = '';
   document.getElementById('pose-photos-input').value = '';
+  const host = document.getElementById('transfert-options');
+  host.innerHTML = '<span style="font-size:11px;color:var(--muted);">Chargement de l\'équipe…</span>';
   document.getElementById('modal-pose-fini').classList.add('open');
+  try {
+    if (!_coworkers) { const r = await api('GET', '/team/coworkers'); _coworkers = r.coworkers || []; }
+  } catch { _coworkers = []; }
+  // Une option par collègue × rôle (un collègue multi-rôles apparaît pour chacun de ses postes)
+  let opts = '';
+  for (const c of _coworkers) {
+    for (const r of String(c.role || '').split(',').filter(Boolean)) {
+      const stage = ROLE_TO_STAGE[r];
+      if (!stage) continue;
+      opts += `<label class="mail-point"><input type="radio" name="transfert-choice" value="${stage}:${c.id}"><span class="mp-txt">→ ${JOB_STAGES[stage].label}<span class="mp-sub"><br>${ROLE_LABELS[r]} — ${c.email}</span></span></label>`;
+    }
+  }
+  opts += `<label class="mail-point"><input type="radio" name="transfert-choice" value="termine:" checked><span class="mp-txt">✅ Terminer la mission<span class="mp-sub"><br>fin de la chaîne — plus rien à faire</span></span></label>`;
+  host.innerHTML = opts;
 }
 function closePoseFini() { document.getElementById('modal-pose-fini').classList.remove('open'); }
 document.getElementById('modal-pose-fini').addEventListener('click', e => { if (e.target === document.getElementById('modal-pose-fini')) closePoseFini(); });
@@ -1190,19 +1238,23 @@ function renderPosePhotos() {
     `<div style="position:relative"><img src="${src}" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)"><button type="button" onclick="removePosePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--danger,#f06060);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button></div>`
   ).join('');
 }
-async function validerPoseFini() {
+async function validerTransfert() {
+  const sel = document.querySelector('input[name="transfert-choice"]:checked');
+  if (!sel) { document.getElementById('pose-fini-error').textContent = 'Choisis une destination.'; return; }
+  const [status, empId] = sel.value.split(':');
   const btn = document.getElementById('btn-pose-fini');
   btn.disabled = true; btn.textContent = 'Envoi…';
   try {
-    await api('PATCH', `/analyses/${_poseFiniId}/job-status`, { status: 'termine', photos: _posePhotos });
+    await api('PATCH', `/analyses/${_poseFiniId}/job-status`, { status, to_emp_id: empId || null, photos: _posePhotos });
     const item = historique.find(h => h.id === _poseFiniId);
-    if (item) { item.job_status = 'termine'; if (_posePhotos.length) item.has_job_photos = 1; }
+    if (item) { item.job_status = status; if (_posePhotos.length) item.has_job_photos = 1; }
     closePoseFini();
+    renderSidebarHisto();
     openHisto(_poseFiniId);
   } catch (e) {
     document.getElementById('pose-fini-error').textContent = e.message;
   }
-  btn.disabled = false; btn.textContent = '✅ Marquer la pose terminée';
+  btn.disabled = false; btn.textContent = '✓ Valider';
 }
 
 // Photos de fin de pose : chargées à la demande dans la section dédiée
@@ -1754,25 +1806,24 @@ function renderMissionsList() {
   const fmtDate = d => { if (!d) return ''; try { const [y, m, j] = d.split('-'); return `${j}/${m}`; } catch { return d; } };
   const byDeadline = (a, b) => (a.job_date || '9999') < (b.job_date || '9999') ? -1 : 1;
   const st = h => h.job_status || 'a_preparer';
-  const isPoseur = userRole === 'poseur';
 
+  // À MON TOUR = l'étape en cours est une des miennes ; sinon "en cours ailleurs" ; terminé en bas
   const todo = [], waiting = [], done = [];
   for (const h of historique) {
     const s = st(h);
     if (s === 'termine') { done.push(h); continue; }
-    if (isPoseur) { (s === 'pret_a_poser' ? todo : waiting).push(h); }
-    else { (s === 'a_preparer' ? todo : done).push(h); } // préparateur : une fois "prêt à poser", c'est fait pour lui
+    ((h.my_stages || []).includes(s) ? todo : waiting).push(h);
   }
   todo.sort(byDeadline); waiting.sort(byDeadline); done.sort(byDeadline);
 
   const card = (h, kind) => {
     const titre = (h.result && (h.result.titre || (h.result.resume || '').slice(0, 26) + '…')) || 'Mission';
+    const s = st(h);
     const badge = kind === 'todo'
-      ? (isPoseur ? '<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">📦 PRÊTE À POSER</span>'
-                  : '<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">🛠 À PRÉPARER</span>')
+      ? `<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">${(JOB_STAGES[s] ? JOB_STAGES[s].label : s).toUpperCase()} — À TOI</span>`
       : kind === 'waiting'
-        ? '<span style="background:rgba(240,160,40,.18);color:#f0a030;border:1px solid #f0a03055;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">⏳ EN PRÉPARATION</span>'
-        : '<span style="color:var(--muted);border:1px solid var(--border);font-size:9px;font-weight:600;border-radius:20px;padding:2px 8px;">✅ Faite</span>';
+        ? `<span style="background:rgba(240,160,40,.18);color:#f0a030;border:1px solid #f0a03055;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">⏳ ${JOB_STAGES[s] ? JOB_STAGES[s].label : s}</span>`
+        : '<span style="color:var(--muted);border:1px solid var(--border);font-size:9px;font-weight:600;border-radius:20px;padding:2px 8px;">✅ Terminée</span>';
     const hl = kind === 'todo' ? 'border:1px solid var(--accent);background:#141f03;' : (kind === 'done' ? 'opacity:.55;' : 'border:1px solid #f0a03044;');
     return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${hl}border-radius:9px;margin-bottom:6px;">
       <div style="display:flex;flex-direction:column;gap:4px;padding:2px 0;">
@@ -1787,8 +1838,8 @@ function renderMissionsList() {
     : '';
 
   if (!historique.length) return '<div class="histo-empty">Aucune mission affectée pour le moment</div>';
-  return section(isPoseur ? '📦 À poser' : '🛠 À préparer', todo, 'todo')
-    + (isPoseur ? section('⏳ En préparation', waiting, 'waiting') : '')
+  return section('🔥 À faire', todo, 'todo')
+    + section('⏳ En cours chez d\'autres', waiting, 'waiting')
     + section('✅ Terminées', done, 'done');
 }
 
@@ -1831,12 +1882,16 @@ function renderSidebarHisto() {
         </div>`;
       }
       const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
+      // Badge d'étape mission (patron) : où en est la demande dans l'équipe
+      const stBadge = h.job_status
+        ? `<span style="font-size:8px;font-weight:700;border-radius:20px;padding:1px 7px;white-space:nowrap;${h.job_status === 'termine' ? 'background:rgba(80,200,120,.15);color:#4ecd7b;border:1px solid #4ecd7b44;' : 'background:rgba(200,240,74,.12);color:var(--accent);border:1px solid var(--accent-dim);'}">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:10px;">📷</span>' : ''}`
+        : '';
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
             <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:9px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
-            <div class="histo-item-sub">${date}</div>
+            <div class="histo-item-sub">${date}${stBadge ? ' · ' + stBadge : ''}</div>
           </div>
         </div>
         <button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>
@@ -2613,6 +2668,18 @@ function isDemandeDAO(r) {
 }
 
 function renderResult(r, previewB64, previewType, analyseId, visuels) {
+  // Chaque type de compte ne voit QUE ce qui lui est utile (rôles cumulables = union des vues)
+  const vOwner = !isEmploye;
+  const vPrep = isEmploye && hasRole('preparateur');
+  const vPose = isEmploye && hasRole('poseur');
+  const vSecr = isEmploye && hasRole('secretariat');
+  const vDesign = isEmploye && hasRole('designer');
+  const showTools = vOwner || vPrep || vDesign;            // upscale / vectorisation
+  const showAdhesif = vOwner || vPrep || vSecr;            // choix matière
+  const showSpecs = vOwner || vSecr || vPrep;              // grille de specs (réduite pour le préparateur)
+  const showPlan = vOwner || vPrep || vPose;               // plan de lés
+  const showChecklist = vOwner || vPrep || vPose;          // étapes de préparation / pose
+  const showActions = vOwner || vSecr;                     // mail client + devis
   const adhesifsHTML = r.adhesifs.map(a => {
     const principal = a.priorite === 'principal';
     return `<div class="adhesif-result-card${principal ? ' adhesif-principal' : ''}" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')" style="${principal ? 'border-color:var(--accent);background:#141f03;' : 'opacity:.82;'}">
@@ -2631,7 +2698,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
       const hasOrig = (historique.find(a => a.id === analyseId) || {}).has_orig;
-      const visuelBtns = analyseId && analyseId !== '_pending'
+      const visuelBtns = analyseId && analyseId !== '_pending' && showTools
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
@@ -2753,14 +2820,25 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   window._demandeDAO = dao;
   window._imgQualiteBasse = false; // recalculé par checkDPI ci-dessous
   window._assemblageInconnu = !!(r.montage && r.montage.assemblage === 'inconnu'); // plusieurs fichiers : à assembler ou séparés ?
-  const specsInner = `<div class="specs-grid">
-        <div class="spec-box"><div class="spec-box-key">Finition</div><div class="spec-box-val">${r.specs.finition}</div></div>
-        <div class="spec-box"><div class="spec-box-key">Durée</div><div class="spec-box-val">${r.specs.duree}</div></div>
-        <div class="spec-box"><div class="spec-box-key">Environnement</div><div class="spec-box-val">${r.specs.pose}</div></div>
-        <div class="spec-box"><div class="spec-box-key">Retrait</div><div class="spec-box-val">${r.specs.retrait}</div></div>
-      </div>`;
+  // Specs : complètes pour patron/secrétariat, réduites (matière) pour le préparateur
+  const specBoxes = [
+    { k: 'Finition', v: r.specs.finition, for: vOwner || vSecr || vPrep },
+    { k: 'Durée', v: r.specs.duree, for: vOwner || vSecr || vPrep },
+    { k: 'Environnement', v: r.specs.pose, for: vOwner || vSecr },
+    { k: 'Retrait', v: r.specs.retrait, for: vOwner || vSecr },
+  ].filter(b => b.for && b.v);
+  const specsInner = `<div class="specs-grid">${specBoxes.map(b => `<div class="spec-box"><div class="spec-box-key">${b.k}</div><div class="spec-box-val">${b.v}</div></div>`).join('')}</div>`;
+  // Infos de pose dédiées au poseur : la colle/adhérence (coller-décoller ou pose en 1 fois), l'environnement, le retrait
+  const principal = (r.adhesifs || []).find(a => a.priorite === 'principal') || (r.adhesifs || [])[0];
+  const poseInfosInner = `
+    ${principal ? `<div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:10px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Adhésif utilisé</div><b style="color:var(--accent);">${principal.nom}</b><div style="font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5;">${principal.raison || ''}</div></div>` : ''}
+    <div class="specs-grid">
+      ${r.specs.pose ? `<div class="spec-box"><div class="spec-box-key">Environnement de pose</div><div class="spec-box-val">${r.specs.pose}</div></div>` : ''}
+      ${r.specs.retrait ? `<div class="spec-box"><div class="spec-box-key">Adhérence / retrait</div><div class="spec-box-val">${r.specs.retrait}</div></div>` : ''}
+      ${r.specs.duree ? `<div class="spec-box"><div class="spec-box-key">Tenue</div><div class="spec-box-val">${r.specs.duree}</div></div>` : ''}
+    </div>`;
   // Plan de lés : masqué pour une DAO (découpe, pas d'impression), sinon présent mais replié par défaut
-  const montageSection = (montageInner && !dao)
+  const montageSection = (montageInner && !dao && showPlan)
     ? accSection('Plan de lés / impression', montageInner, { icon: '📐', open: false, hint: 'replié — clique pour ouvrir' })
     : '';
   // Choix d'assemblage (plusieurs fichiers) : relance l'analyse avec l'hypothèse imposée
@@ -2776,7 +2854,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
          <div style="font-size:10px;color:var(--muted);margin-top:6px;">Change le choix → relance l'analyse avec cette hypothèse (compte comme une analyse).</div>
        </div>`
     : '';
-  const actionsBar = (analyseId && analyseId !== '_pending' && !isEmploye)
+  const actionsBar = (analyseId && analyseId !== '_pending' && showActions)
     ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
          <button class="btn-submit" id="btn-relance" style="flex:1;min-width:140px;font-size:12px;" onclick="openTonChoice(${analyseId})">✉ Mail au client<span class="btn-cost">2🪙</span></button>
          <button class="btn-submit" id="btn-devis" style="flex:1;min-width:140px;font-size:12px;" onclick="genererDevis(${analyseId})">📋 Devis approximatif<span class="btn-cost" title="2 jetons. Rouvrir un devis déjà généré est gratuit.">2🪙</span></button>
@@ -2785,41 +2863,42 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
 
   // ===== Mission (plan Entreprise) =====
   const jobItem = historique.find(h => h.id === analyseId) || {};
-  const JOB_LABELS = { a_preparer: '🛠 À préparer', pret_a_poser: '📦 Prêt à poser', termine: '✅ Terminé' };
+  const JOB_LABELS = Object.fromEntries(Object.entries(JOB_STAGES).map(([k, v]) => [k, v.label]));
   let missionSection = '';
   if (analyseId && analyseId !== '_pending' && !isEmploye && userPlan === 'entreprise' && subscriptionStatus === 'active') {
-    const optFor = role => teamList.filter(t => t.role === role).map(t => `<option value="${t.id}">${t.email}</option>`).join('');
-    const selPrep = teamList.filter(t => t.role === 'preparateur').map(t => `<option value="${t.id}"${jobItem.assigned_prep_id === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
-    const selPose = teamList.filter(t => t.role === 'poseur').map(t => `<option value="${t.id}"${jobItem.assigned_pose_id === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
+    // Un employé apparaît dans un poste s'il a le rôle correspondant (rôles cumulables)
+    const selFor = (role, curId) => teamList.filter(t => String(t.role || '').split(',').includes(role))
+      .map(t => `<option value="${t.id}"${curId === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
+    const anyAssigned = jobItem.assigned_design_id || jobItem.assigned_secr_id || jobItem.assigned_prep_id || jobItem.assigned_pose_id;
     missionSection = accSection('Mission — transfert à l\'équipe', `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-        <label style="font-size:11px;color:var(--muted);">🛠 Préparation<select id="job-prep" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selPrep}</select></label>
-        <label style="font-size:11px;color:var(--muted);">🚐 Pose<select id="job-pose" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selPose}</select></label>
+        <label style="font-size:11px;color:var(--muted);">🎨 Création visuel<select id="job-design" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('designer', jobItem.assigned_design_id)}</select></label>
+        <label style="font-size:11px;color:var(--muted);">🛠 Préparation<select id="job-prep" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('preparateur', jobItem.assigned_prep_id)}</select></label>
+        <label style="font-size:11px;color:var(--muted);">🚐 Pose<select id="job-pose" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('poseur', jobItem.assigned_pose_id)}</select></label>
+        <label style="font-size:11px;color:var(--muted);">📋 Secrétariat<select id="job-secr" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('secretariat', jobItem.assigned_secr_id)}</select></label>
         <label style="font-size:11px;color:var(--muted);">📅 Date<input type="date" id="job-date" class="devis-inp" style="margin-top:4px;" value="${jobItem.job_date || ''}"></label>
         <label style="font-size:11px;color:var(--muted);">📍 Lieu<input type="text" id="job-lieu" class="devis-inp" style="margin-top:4px;" placeholder="adresse / chantier" value="${(jobItem.job_lieu || '').replace(/"/g, '&quot;')}"></label>
-        <label style="font-size:11px;color:var(--muted);">Statut<select id="job-status" class="devis-inp" style="margin-top:4px;">
-          <option value="a_preparer"${(jobItem.job_status || 'a_preparer') === 'a_preparer' ? ' selected' : ''}>🛠 À préparer</option>
-          <option value="pret_a_poser"${jobItem.job_status === 'pret_a_poser' ? ' selected' : ''}>📦 Prêt à poser</option>
-          <option value="termine"${jobItem.job_status === 'termine' ? ' selected' : ''}>✅ Terminé</option>
+        <label style="font-size:11px;color:var(--muted);">Étape en cours<select id="job-status" class="devis-inp" style="margin-top:4px;">
+          ${Object.entries(JOB_STAGES).map(([k, v]) => `<option value="${k}"${(jobItem.job_status || 'a_preparer') === k ? ' selected' : ''}>${v.label}</option>`).join('')}
         </select></label>
       </div>
       ${!teamList.length ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Aucun employé — crée les comptes dans <b>👥 Mon équipe</b> (barre latérale).</div>` : ''}
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;">Affecte les postes utiles (tous ne sont pas obligatoires). Chaque employé, quand il finit son étape, choisit à qui transférer la suite — tu vois toujours tout ici.</div>
       <button class="btn-submit" id="btn-save-job" onclick="enregistrerMission(${analyseId})" style="margin-top:12px;font-size:12px;">💾 Enregistrer la mission</button>`,
-      { icon: '🗂', open: Boolean(jobItem.assigned_prep_id || jobItem.assigned_pose_id), hint: jobItem.job_status ? (JOB_LABELS[jobItem.job_status] || '') : '' });
+      { icon: '🗂', open: Boolean(anyAssigned), hint: jobItem.job_status ? (JOB_LABELS[jobItem.job_status] || '') : '' });
   }
   // Bannière mission pour l'employé (avec avancement du statut)
   let missionBanner = '';
   if (isEmploye && analyseId && analyseId !== '_pending') {
-    const monRole = userRole === 'poseur' ? 'Pose' : 'Préparation';
     const st = jobItem.job_status || 'a_preparer';
-    // Chacun ne valide QUE son étape : le préparateur finit la préparation, le poseur finit la pose (avec photos)
+    const myStages = jobItem.my_stages || [];
+    const myTurn = myStages.includes(st);
+    const monRole = (JOB_STAGES[st] && myTurn) ? JOB_STAGES[st].short : (myStages.map(s => JOB_STAGES[s]?.short).filter(Boolean).join(' + ') || 'Mission');
+    // Mon tour → je termine MON étape et je choisis à qui transférer la suite ; sinon j'attends
     let nextBtn = '';
-    if (userRole === 'preparateur' && st === 'a_preparer') {
-      nextBtn = `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'pret_a_poser')">→ Préparation finie (prêt à poser)</button>`;
-    } else if (userRole === 'poseur') {
-      if (st === 'a_preparer') nextBtn = `<span style="font-size:11px;color:#f0a030;">⏳ En attente de la préparation</span>`;
-      else if (st === 'pret_a_poser') nextBtn = `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="openPoseFini(${analyseId})">✅ Pose terminée (+ photos)</button>`;
-    }
+    if (st === 'termine') nextBtn = '';
+    else if (myTurn) nextBtn = `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="openTransfert(${analyseId})">✓ Mon étape est finie — transférer</button>`;
+    else nextBtn = `<span style="font-size:11px;color:#f0a030;">⏳ En cours : ${JOB_STAGES[st] ? JOB_STAGES[st].label : st} (pas ton tour)</span>`;
     missionBanner = `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid var(--accent);border-radius:12px;background:#141f03;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="font-size:12px;font-weight:700;color:var(--accent);">🗂 Ta mission : ${monRole}</span>
       ${jobItem.job_date ? `<span style="font-size:12px;">📅 ${jobItem.job_date}</span>` : ''}
@@ -2836,10 +2915,11 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${missionBanner}
       ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
       ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
-      ${accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true })}
-      ${accSection('Spécifications', specsInner, { icon: '📋', open: true })}
+      ${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}
+      ${showAdhesif ? accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true }) : ''}
+      ${(showSpecs && specBoxes.length) ? accSection('Spécifications', specsInner, { icon: '📋', open: true }) : ''}
       ${montageSection}
-      ${accSection('Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' })}
+      ${showChecklist ? accSection(vPose && !vPrep && !vOwner ? 'Conseils de pose' : 'Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' }) : ''}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
       ${missionSection}
       ${(analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : ''}

@@ -34,12 +34,14 @@ router.get('/stats', (req, res) => {
 // Liste des utilisateurs
 router.get('/users', (req, res) => {
   const { getJetonState } = require('../utils/limits');
+  // Les comptes employés sont regroupés juste sous leur employeur
   const users = db.prepare(`
     SELECT u.id, u.email, u.subscription_status, u.plan, u.plan_period, u.plan_override, u.jetons, u.bonus_go, u.trial_analyses_used, u.inbound_email, u.stripe_customer_id, u.created_at,
+      u.parent_user_id, u.role,
       (SELECT COUNT(*) FROM analyses WHERE user_id=u.id) as analyses_count,
       (SELECT COUNT(*) FROM stock WHERE user_id=u.id) as stock_count
     FROM users u
-    ORDER BY u.created_at DESC
+    ORDER BY COALESCE(u.parent_user_id, u.id), (u.parent_user_id IS NOT NULL), u.created_at DESC
   `).all();
   // Ajoute l'état jetons (alloc forfait restante + achetés)
   for (const u of users) {
@@ -67,7 +69,9 @@ router.patch('/users/:id/plan', (req, res) => {
   const valid = ['free', 'smart', 'pro', 'ultra', 'entreprise'];
   if (!valid.includes(plan)) return res.status(400).json({ error: 'Plan invalide.' });
   const validPeriod = ['monthly', 'annual'].includes(period) ? period : 'monthly';
-  db.prepare('UPDATE users SET plan=?, plan_period=?, plan_override=1 WHERE id=?').run(plan, validPeriod, req.params.id);
+  // Forcer un plan payant active aussi le compte (sinon l'app affichait "free" malgré l'override)
+  const status = plan === 'free' ? 'inactive' : 'active';
+  db.prepare('UPDATE users SET plan=?, plan_period=?, plan_override=1, subscription_status=? WHERE id=?').run(plan, validPeriod, status, req.params.id);
   res.json({ ok: true, mode: 'override' });
 });
 
