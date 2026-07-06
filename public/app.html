@@ -1674,6 +1674,51 @@ async function refreshHisto() {
   if (btn) { btn.style.opacity = '1'; }
 }
 
+// Vue missions de l'employé : tri par date d'échéance, "à faire" en haut, "faites" en bas.
+// Préparateur : à faire = à préparer. Poseur : à faire = prête à poser (mise en évidence),
+// les missions encore en préparation restent visibles avec un badge clair.
+function renderMissionsList() {
+  const fmtDate = d => { if (!d) return ''; try { const [y, m, j] = d.split('-'); return `${j}/${m}`; } catch { return d; } };
+  const byDeadline = (a, b) => (a.job_date || '9999') < (b.job_date || '9999') ? -1 : 1;
+  const st = h => h.job_status || 'a_preparer';
+  const isPoseur = userRole === 'poseur';
+
+  const todo = [], waiting = [], done = [];
+  for (const h of historique) {
+    const s = st(h);
+    if (s === 'termine') { done.push(h); continue; }
+    if (isPoseur) { (s === 'pret_a_poser' ? todo : waiting).push(h); }
+    else { (s === 'a_preparer' ? todo : done).push(h); } // préparateur : une fois "prêt à poser", c'est fait pour lui
+  }
+  todo.sort(byDeadline); waiting.sort(byDeadline); done.sort(byDeadline);
+
+  const card = (h, kind) => {
+    const titre = (h.result && (h.result.titre || (h.result.resume || '').slice(0, 26) + '…')) || 'Mission';
+    const badge = kind === 'todo'
+      ? (isPoseur ? '<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">📦 PRÊTE À POSER</span>'
+                  : '<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">🛠 À PRÉPARER</span>')
+      : kind === 'waiting'
+        ? '<span style="background:rgba(240,160,40,.18);color:#f0a030;border:1px solid #f0a03055;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">⏳ EN PRÉPARATION</span>'
+        : '<span style="color:var(--muted);border:1px solid var(--border);font-size:9px;font-weight:600;border-radius:20px;padding:2px 8px;">✅ Faite</span>';
+    const hl = kind === 'todo' ? 'border:1px solid var(--accent);background:#141f03;' : (kind === 'done' ? 'opacity:.55;' : 'border:1px solid #f0a03044;');
+    return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${hl}border-radius:9px;margin-bottom:6px;">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:2px 0;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${badge}${h.job_date ? `<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text);">📅 ${fmtDate(h.job_date)}</span>` : ''}</div>
+        <div class="histo-item-title">${titre}</div>
+        ${h.job_lieu ? `<div style="font-size:10px;color:var(--muted);">📍 ${h.job_lieu}</div>` : ''}
+      </div>
+    </div>`;
+  };
+  const section = (label, arr, kind) => arr.length
+    ? `<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:10px 2px 6px;">${label} (${arr.length})</div>` + arr.map(h => card(h, kind)).join('')
+    : '';
+
+  if (!historique.length) return '<div class="histo-empty">Aucune mission affectée pour le moment</div>';
+  return section(isPoseur ? '📦 À poser' : '🛠 À préparer', todo, 'todo')
+    + (isPoseur ? section('⏳ En préparation', waiting, 'waiting') : '')
+    + section('✅ Terminées', done, 'done');
+}
+
 function renderSidebarHisto() {
   const container = document.getElementById('sidebar-histo');
   const unread = historique.filter(h => !h.lu).length;
@@ -1681,6 +1726,8 @@ function renderSidebarHisto() {
     <span>${isEmploye ? 'Mes missions' : 'Historique'} ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
     <button id="btn-refresh-histo" onclick="refreshHisto()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Actualiser">↻</button>
   </div>`;
+  // Employé : vue missions dédiée (tri par échéance, à faire en haut, faites en bas)
+  if (isEmploye) { container.innerHTML = html + renderMissionsList(); return; }
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
   else {
     html += historique.map(h => {
