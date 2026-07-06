@@ -38,13 +38,23 @@ function monthlyPlanJetons(userId) {
   return row.j;
 }
 
-// État complet des jetons d'un utilisateur
+// Compte de facturation effectif : un employé consomme les jetons de son EMPLOYEUR
+function billingUser(user) {
+  if (user.parent_user_id) {
+    const parent = db.prepare('SELECT * FROM users WHERE id = ?').get(user.parent_user_id);
+    if (parent) return parent;
+  }
+  return user;
+}
+
+// État complet des jetons d'un utilisateur (employé → pot commun de l'employeur)
 function getJetonState(user) {
+  const bu = billingUser(user);
   const plan = planKey(user);
   const allotment = PLAN_INFO[plan] ? PLAN_INFO[plan].jetons : 0;
-  const planUsed = monthlyPlanJetons(user.id);
+  const planUsed = monthlyPlanJetons(bu.id);
   const planRestant = Math.max(0, allotment - planUsed);
-  const achetes = user.jetons || 0;            // portefeuille acheté (cumulable, peut être négatif si l'admin a retiré des jetons)
+  const achetes = bu.jetons || 0;              // portefeuille acheté (cumulable, peut être négatif si l'admin a retiré des jetons)
   return { plan, allotment, planUsed, planRestant, achetes, total: Math.max(0, planRestant + achetes) };
 }
 
@@ -70,17 +80,19 @@ function affordJetons(user, cost) {
 }
 
 // Débite `cost` jetons (allocation mensuelle d'abord, puis portefeuille acheté). À appeler APRÈS succès.
+// Employé → tout est débité sur le compte de l'employeur.
 function consumeJetons(user, cost, logType) {
   if (!cost || cost <= 0) return;
+  const bu = billingUser(user);
   const st = getJetonState(user);
   const fromPlan = Math.min(cost, st.planRestant);
   const fromWallet = cost - fromPlan;
   if (fromPlan > 0) {
     db.prepare("INSERT INTO usage_log (user_id, type, model, input_tokens, output_tokens, cost_usd, own_key, jetons) VALUES (?,?,?,0,0,0,0,?)")
-      .run(user.id, logType || 'jetons', 'jetons', fromPlan);
+      .run(bu.id, logType || 'jetons', 'jetons', fromPlan);
   }
   if (fromWallet > 0) {
-    db.prepare('UPDATE users SET jetons = jetons - ? WHERE id = ?').run(fromWallet, user.id);
+    db.prepare('UPDATE users SET jetons = jetons - ? WHERE id = ?').run(fromWallet, bu.id);
   }
 }
 

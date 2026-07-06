@@ -55,7 +55,9 @@
       "Bash(node -c server.js)",
       "Bash(git commit -q -m 'feat entreprise: comptes employes \\(preparateur/poseur\\) rattaches a l employeur - panel Mon equipe \\(creation/role/suppression, quota du plan\\), affectation de mission par analyse \\(prep, poseur, date, lieu, statut\\), vue missions dediee pour l employe \\(banniere mission + avancement statut, interface allegee sans actions payantes\\) *)",
       "Bash(git commit -q -m 'feat missions employes: sidebar dediee triee par echeance - a faire en haut \\(badge accentue\\), en preparation visible cote poseur \\(badge orange\\), missions faites/terminees en bas estompees, date et lieu affiches sur chaque carte *)",
-      "Bash(git commit -q -m 'fix: le login renvoie le plan \\(userPlan etait '\\\\''free'\\\\'' apres une connexion classique\\) - la section Mission et le bouton Mon equipe reapparaissent sur le compte employeur *)"
+      "Bash(git commit -q -m 'fix: le login renvoie le plan \\(userPlan etait '\\\\''free'\\\\'' apres une connexion classique\\) - la section Mission et le bouton Mon equipe reapparaissent sur le compte employeur *)",
+      "Bash(node -e \"require\\('./src/routes/analyses.js'\\);console.log\\('backend OK'\\)\")",
+      "Bash(git commit -q -m 'feat missions: statuts verrouilles par role \\(preparateur = preparation finie uniquement, poseur = pose terminee uniquement, verifie cote serveur\\) + photos du resultat pose \\(jusqu a 6, jointes par le poseur a la fin, visibles par le patron dans une section dediee\\) + outils visuels \\(upscale/vectorisation\\) reactives pour les employes, jetons debites sur le pot commun de l employeur *)"
     ]
   }
 }

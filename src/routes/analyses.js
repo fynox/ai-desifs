@@ -56,6 +56,7 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       assigned_prep_id, assigned_pose_id, job_date, job_lieu, job_status,
+      (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
       (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
       (visuel_hd_b64 IS NOT NULL) as has_hd,
@@ -119,14 +120,44 @@ router.patch('/:id/job', (req, res) => {
   res.json({ ok: true, prep_id: prep, pose_id: pose, date, lieu, status });
 });
 
-// Un employé (ou l'employeur) fait avancer le statut d'une mission
+// Un employé (ou l'employeur) fait avancer le statut d'une mission.
+// Règles : "prêt à poser" = préparateur affecté (ou patron) ; "terminé" = poseur affecté (ou patron).
 router.patch('/:id/job-status', (req, res) => {
   const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id FROM analyses WHERE id = ?').get(req.params.id);
   if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   const statuts = ['a_preparer', 'pret_a_poser', 'termine'];
-  if (!statuts.includes(req.body.status)) return res.status(400).json({ error: 'Statut invalide.' });
-  db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(req.body.status, item.id);
-  res.json({ ok: true, status: req.body.status });
+  const status = req.body.status;
+  if (!statuts.includes(status)) return res.status(400).json({ error: 'Statut invalide.' });
+
+  const sc = employeScope(req);
+  if (sc.empId) {
+    if (status === 'pret_a_poser' && item.assigned_prep_id !== sc.empId) {
+      return res.status(403).json({ error: 'Seul le préparateur affecté peut marquer la préparation finie.' });
+    }
+    if (status === 'termine' && item.assigned_pose_id !== sc.empId) {
+      return res.status(403).json({ error: 'Seul le poseur affecté peut marquer la pose terminée.' });
+    }
+  }
+
+  // Photos du résultat posé (jointes à la fin de pose) — max 6, ~2 Mo chacune
+  if (status === 'termine' && Array.isArray(req.body.photos) && req.body.photos.length) {
+    const photos = req.body.photos
+      .filter(p => typeof p === 'string' && p.startsWith('data:image/') && p.length < 2.8e6)
+      .slice(0, 6);
+    if (photos.length) db.prepare('UPDATE analyses SET job_photos_json=? WHERE id=?').run(JSON.stringify(photos), item.id);
+  }
+
+  db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(status, item.id);
+  res.json({ ok: true, status });
+});
+
+// Photos de fin de pose (patron + employés affectés)
+router.get('/:id/job-photos', (req, res) => {
+  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, job_photos_json FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  let photos = [];
+  try { photos = item.job_photos_json ? JSON.parse(item.job_photos_json) : []; } catch {}
+  res.json({ photos });
 });
 
 // Espace de stockage occupé / quota du compte

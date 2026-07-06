@@ -119,6 +119,7 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN job_date TEXT',              // date d intervention
   'ALTER TABLE analyses ADD COLUMN job_lieu TEXT',              // lieu de pose
   'ALTER TABLE analyses ADD COLUMN job_status TEXT',            // a_preparer | pret_a_poser | termine
+  'ALTER TABLE analyses ADD COLUMN job_photos_json TEXT',       // photos du résultat posé (jointes par le poseur)
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

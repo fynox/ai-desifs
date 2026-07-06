@@ -728,6 +728,22 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL FIN DE POSE (photos du résultat) -->
+<div class="modal-overlay" id="modal-pose-fini" style="z-index:650">
+  <div class="modal" style="max-width:460px;width:94vw">
+    <h3 style="margin:0 0 4px;">✅ Pose terminée</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Joins des photos du résultat posé (optionnel, jusqu'à 6) — le patron pourra les voir sur la mission.</div>
+    <input type="file" id="pose-photos-input" accept="image/*" multiple style="display:none" onchange="onPosePhotosSelected(this.files)">
+    <button class="btn-cancel" style="width:100%;font-size:12px;" onclick="document.getElementById('pose-photos-input').click()">📷 Ajouter des photos</button>
+    <div id="pose-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+    <div class="auth-error" id="pose-fini-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePoseFini()">Annuler</button>
+      <button class="btn-submit" id="btn-pose-fini" onclick="validerPoseFini()">✅ Marquer la pose terminée</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CHOIX MESSAGERIE -->
 <div class="modal-overlay" id="modal-messagerie" style="z-index:600">
   <div class="modal" style="max-width:320px;text-align:center">
@@ -1144,6 +1160,62 @@ async function avancerMission(id, status) {
     const item = historique.find(h => h.id === id);
     if (item) { item.job_status = status; openHisto(id); }
   } catch (e) { alert(e.message); }
+}
+
+// ===== Fin de pose avec photos du résultat (poseur) =====
+let _poseFiniId = null, _posePhotos = [];
+function openPoseFini(id) {
+  _poseFiniId = id; _posePhotos = [];
+  renderPosePhotos();
+  document.getElementById('pose-fini-error').textContent = '';
+  document.getElementById('pose-photos-input').value = '';
+  document.getElementById('modal-pose-fini').classList.add('open');
+}
+function closePoseFini() { document.getElementById('modal-pose-fini').classList.remove('open'); }
+document.getElementById('modal-pose-fini').addEventListener('click', e => { if (e.target === document.getElementById('modal-pose-fini')) closePoseFini(); });
+
+async function onPosePhotosSelected(files) {
+  for (const f of Array.from(files)) {
+    if (_posePhotos.length >= 6) break;
+    if (!f.type.startsWith('image/')) continue;
+    const dataUrl = await resizeImageToDataURL(f);
+    if (dataUrl) _posePhotos.push(dataUrl);
+  }
+  document.getElementById('pose-photos-input').value = '';
+  renderPosePhotos();
+}
+function removePosePhoto(i) { _posePhotos.splice(i, 1); renderPosePhotos(); }
+function renderPosePhotos() {
+  document.getElementById('pose-photos-preview').innerHTML = _posePhotos.map((src, i) =>
+    `<div style="position:relative"><img src="${src}" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)"><button type="button" onclick="removePosePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--danger,#f06060);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button></div>`
+  ).join('');
+}
+async function validerPoseFini() {
+  const btn = document.getElementById('btn-pose-fini');
+  btn.disabled = true; btn.textContent = 'Envoi…';
+  try {
+    await api('PATCH', `/analyses/${_poseFiniId}/job-status`, { status: 'termine', photos: _posePhotos });
+    const item = historique.find(h => h.id === _poseFiniId);
+    if (item) { item.job_status = 'termine'; if (_posePhotos.length) item.has_job_photos = 1; }
+    closePoseFini();
+    openHisto(_poseFiniId);
+  } catch (e) {
+    document.getElementById('pose-fini-error').textContent = e.message;
+  }
+  btn.disabled = false; btn.textContent = '✅ Marquer la pose terminée';
+}
+
+// Photos de fin de pose : chargées à la demande dans la section dédiée
+async function loadJobPhotos(id) {
+  const host = document.getElementById('job-photos-host');
+  if (!host) return;
+  host.innerHTML = '<span style="font-size:11px;color:var(--muted);">Chargement…</span>';
+  try {
+    const r = await api('GET', `/analyses/${id}/job-photos`);
+    host.innerHTML = (r.photos || []).length
+      ? r.photos.map(p => `<img src="${p}" style="width:130px;height:130px;object-fit:cover;border-radius:9px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`).join('')
+      : '<span style="font-size:11px;color:var(--muted);">Aucune photo jointe.</span>';
+  } catch (e) { host.innerHTML = `<span style="font-size:11px;color:var(--danger);">${e.message}</span>`; }
 }
 
 function showUpgradeWall(reason) {
@@ -2559,7 +2631,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
       const hasOrig = (historique.find(a => a.id === analyseId) || {}).has_orig;
-      const visuelBtns = analyseId && analyseId !== '_pending' && !isEmploye
+      const visuelBtns = analyseId && analyseId !== '_pending'
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
@@ -2738,11 +2810,16 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   // Bannière mission pour l'employé (avec avancement du statut)
   let missionBanner = '';
   if (isEmploye && analyseId && analyseId !== '_pending') {
-    const monRole = jobItem.assigned_prep_id && jobItem.assigned_pose_id ? 'Préparation + Pose' : (userRole === 'poseur' ? 'Pose' : 'Préparation');
+    const monRole = userRole === 'poseur' ? 'Pose' : 'Préparation';
     const st = jobItem.job_status || 'a_preparer';
-    const nextBtn = st === 'a_preparer'
-      ? `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'pret_a_poser')">→ Marquer prêt à poser</button>`
-      : (st === 'pret_a_poser' ? `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'termine')">✅ Marquer terminé</button>` : '');
+    // Chacun ne valide QUE son étape : le préparateur finit la préparation, le poseur finit la pose (avec photos)
+    let nextBtn = '';
+    if (userRole === 'preparateur' && st === 'a_preparer') {
+      nextBtn = `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="avancerMission(${analyseId},'pret_a_poser')">→ Préparation finie (prêt à poser)</button>`;
+    } else if (userRole === 'poseur') {
+      if (st === 'a_preparer') nextBtn = `<span style="font-size:11px;color:#f0a030;">⏳ En attente de la préparation</span>`;
+      else if (st === 'pret_a_poser') nextBtn = `<button class="btn-submit" style="font-size:11px;padding:6px 14px;" onclick="openPoseFini(${analyseId})">✅ Pose terminée (+ photos)</button>`;
+    }
     missionBanner = `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid var(--accent);border-radius:12px;background:#141f03;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="font-size:12px;font-weight:700;color:var(--accent);">🗂 Ta mission : ${monRole}</span>
       ${jobItem.job_date ? `<span style="font-size:12px;">📅 ${jobItem.job_date}</span>` : ''}
@@ -2765,9 +2842,11 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${accSection('Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' })}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
       ${missionSection}
+      ${(analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : ''}
       ${assemblageBox}
       ${actionsBar}
     </div>`;
+  if (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) loadJobPhotos(analyseId);
   panel.classList.add('open');
   panel.scrollTop = 0;
   // Contrôle de résolution du visuel pour la taille d'impression demandée
