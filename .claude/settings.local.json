@@ -61,7 +61,8 @@
       "Bash(node -e \"require\\('./src/routes/analyses.js'\\);require\\('./src/routes/team.js'\\);console.log\\('backend OK'\\)\")",
       "Bash(node -e \"require\\('./src/routes/analyses.js'\\);require\\('./src/routes/team.js'\\);require\\('./src/routes/admin.js'\\);console.log\\('backend OK'\\)\")",
       "Bash(git commit -q -m 'feat entreprise v2: roles secretariat \\(devis+mail client\\) et designer \\(creation visuel\\), roles cumulables par employe \\(chips\\), vues par role \\(poseur = infos pose/colle uniquement, preparateur = matiere+plan de les+outils, secretariat = devis/mail, designer = visuel+outils\\), transfert de mission en chaine \\(chacun finit SON etape et choisit le suivant, photos optionnelles\\), badges d etape+photos dans l historique patron, fix admin: plan force active le compte, sous-comptes employes visibles dans le panel admin *)",
-      "Bash(git commit -q -m 'fix vues par role: l IA separe desormais les etapes atelier \\(preparation\\) des conseils d application sur site \\(pose\\) - le poseur ne voit QUE les conseils de pose \\(nettoyage surface, marouflage, repositionnable ou pose en 1 fois...\\), le preparateur QUE l atelier, le patron voit les deux *)"
+      "Bash(git commit -q -m 'fix vues par role: l IA separe desormais les etapes atelier \\(preparation\\) des conseils d application sur site \\(pose\\) - le poseur ne voit QUE les conseils de pose \\(nettoyage surface, marouflage, repositionnable ou pose en 1 fois...\\), le preparateur QUE l atelier, le patron voit les deux *)",
+      "Bash(git commit -q -m 'refonte DA \\(passe 3 - desencombrement\\): plan de les simplifie - par defaut seulement le plan + resume 1 ligne + bouton Exporter, tous les reglages \\(quantite/raccord/marges/debord/optimiser/egaliser/recadrage/legende\\) derriere un bouton unique '\\\\''Reglages'\\\\'' replie, idem mode imposition, specs repliees par defaut *)"
     ]
   }
 }
