@@ -2691,7 +2691,9 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div>
     </div>`;
   }).join('');
-  const prepHTML = r.preparation.map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
+  const prepHTML = (r.preparation || []).map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
+  // Conseils de POSE séparés (analyses récentes) — le poseur ne voit que ça, jamais les étapes d'atelier
+  const poseStepsHTML = (r.pose || []).map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
   let previewInner = '', previewTitle = 'Aperçu du visuel';
   const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
@@ -2919,7 +2921,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${showAdhesif ? accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true }) : ''}
       ${(showSpecs && specBoxes.length) ? accSection('Spécifications', specsInner, { icon: '📋', open: true }) : ''}
       ${montageSection}
-      ${showChecklist ? accSection(vPose && !vPrep && !vOwner ? 'Conseils de pose' : 'Préparation & pose', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' }) : ''}
+      ${(prepHTML && (vOwner || vPrep)) ? accSection('Préparation (atelier)', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' }) : ''}
+      ${(poseStepsHTML && (vOwner || vPose)) ? accSection('Conseils de pose', `<div class="checklist">${poseStepsHTML}</div>`, { icon: '🚐', open: vPose && !vOwner, hint: vPose && !vOwner ? '' : 'replié' }) : ''}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
       ${missionSection}
       ${(analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : ''}
