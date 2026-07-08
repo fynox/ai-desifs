@@ -31,17 +31,22 @@ async function pdfFirstPage(buffer) {
 const router = express.Router();
 router.use(requireAuth);
 
-// Employé : accès en lecture aux analyses de l'employeur qui lui sont affectées
+// Employé : accès en lecture aux analyses de l'employeur qui lui sont affectées.
+// Exception : le SECRÉTARIAT voit toutes les analyses du compte (comme le patron) — il n'est pas dans
+// le parcours de production, il intervient à la demande (retour client, devis).
 function employeScope(req) {
   const me = db.prepare('SELECT id, parent_user_id, role FROM users WHERE id = ?').get(req.user.id);
-  if (me && me.parent_user_id) return { ownerId: me.parent_user_id, empId: me.id, role: me.role };
-  return { ownerId: req.user.id, empId: null, role: 'owner' };
+  if (me && me.parent_user_id) {
+    return { ownerId: me.parent_user_id, empId: me.id, role: me.role, secr: hasRoleServ(me.role, 'secretariat') };
+  }
+  return { ownerId: req.user.id, empId: null, role: 'owner', secr: false };
 }
-// Une analyse est-elle accessible (propriétaire, ou employé affecté dessus, quel que soit le poste) ?
+// Une analyse est-elle accessible (propriétaire, secrétariat, ou employé affecté dessus) ?
 function canAccessAnalyse(req, item) {
   if (!item) return false;
   const sc = employeScope(req);
   if (!sc.empId) return item.user_id === req.user.id;
+  if (sc.secr) return item.user_id === sc.ownerId;
   return item.user_id === sc.ownerId &&
     (item.assigned_prep_id === sc.empId || item.assigned_pose_id === sc.empId ||
      item.assigned_design_id === sc.empId || item.assigned_secr_id === sc.empId);
@@ -57,8 +62,9 @@ router.get('/', (req, res) => {
   db.prepare("DELETE FROM analyses WHERE user_id = ? AND status = 'pending' AND created_at < datetime('now','-15 minutes')").run(sc.ownerId);
   // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
   // Employé : uniquement les missions qui lui sont affectées
-  const filtre = sc.empId ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ? OR assigned_design_id = ? OR assigned_secr_id = ?)' : 'user_id = ?';
-  const args = sc.empId ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
+  // Secrétariat = vision globale (toutes les analyses du compte) ; autres employés = seulement leurs missions
+  const filtre = (sc.empId && !sc.secr) ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ? OR assigned_design_id = ? OR assigned_secr_id = ?)' : 'user_id = ?';
+  const args = (sc.empId && !sc.secr) ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status,
@@ -153,12 +159,18 @@ router.patch('/:id/job-status', (req, res) => {
     }
   }
 
-  // Transfert : affecter un employé sur l'étape suivante (l'employé qui finit choisit à qui il transmet)
+  // Transfert : la mission passe à l'étape suivante. Si le patron a attitré quelqu'un sur cette étape,
+  // SEUL cet employé peut la recevoir (un employé ne peut pas re-router vers quelqu'un d'autre).
   if (status !== 'termine' && req.body.to_emp_id) {
     const target = db.prepare('SELECT id, role FROM users WHERE id = ? AND parent_user_id = ?').get(Number(req.body.to_emp_id), sc.ownerId);
     if (!target) return res.status(400).json({ error: 'Destinataire introuvable dans l\'équipe.' });
     const slot = STAGE_SLOT[status];
-    if (slot) db.prepare(`UPDATE analyses SET ${slot} = ? WHERE id = ?`).run(target.id, item.id);
+    if (slot) {
+      if (sc.empId && item[slot] && item[slot] !== target.id) {
+        return res.status(403).json({ error: 'Le patron a déjà attitré quelqu\'un à cette étape — transfert possible uniquement vers cette personne.' });
+      }
+      db.prepare(`UPDATE analyses SET ${slot} = ? WHERE id = ?`).run(target.id, item.id);
+    }
   }
 
   // Photos du résultat posé (jointes à la fin de pose) — max 6, ~2 Mo chacune

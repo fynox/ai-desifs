@@ -1099,13 +1099,14 @@ const ALL_ROLES = ['preparateur', 'poseur', 'secretariat', 'designer'];
 // Rôles cumulables ("preparateur,poseur")
 function hasRole(r) { return String(userRole || '').split(',').includes(r); }
 function roleLabels(roleStr) { return String(roleStr || '').split(',').filter(Boolean).map(r => ROLE_LABELS[r] || r).join(' · '); }
-// Étapes du flux de mission : étape → rôle qui la traite
+// Étapes du flux de mission : étape → rôle qui la traite.
+// flow:false = hors parcours de production (le secrétariat voit tout et intervient à la demande).
 const JOB_STAGES = {
-  a_creer:      { label: '🎨 Création visuel', role: 'designer', short: 'Création' },
-  a_preparer:   { label: '🛠 À préparer', role: 'preparateur', short: 'Préparation' },
-  pret_a_poser: { label: '📦 Prêt à poser', role: 'poseur', short: 'Pose' },
-  retour_client:{ label: '✉ Retour client', role: 'secretariat', short: 'Retour client' },
-  termine:      { label: '✅ Terminé', role: null, short: 'Terminé' },
+  a_creer:      { label: '🎨 Création visuel', role: 'designer', short: 'Création', flow: true },
+  a_preparer:   { label: '🛠 À préparer', role: 'preparateur', short: 'Préparation', flow: true },
+  pret_a_poser: { label: '📦 Prêt à poser', role: 'poseur', short: 'Pose', flow: true },
+  retour_client:{ label: '✉ Retour client', role: 'secretariat', short: 'Retour client', flow: false },
+  termine:      { label: '✅ Terminé', role: null, short: 'Terminé', flow: true },
 };
 function openTeam() {
   renderTeamList();
@@ -1165,7 +1166,6 @@ async function enregistrerMission(id) {
   const g = s => document.getElementById(s);
   const body = {
     design_id: g('job-design').value || null,
-    secr_id: g('job-secr').value || null,
     prep_id: g('job-prep').value || null,
     pose_id: g('job-pose').value || null,
     date: g('job-date').value || '',
@@ -1207,15 +1207,20 @@ async function openTransfert(id) {
   try {
     if (!_coworkers) { const r = await api('GET', '/team/coworkers'); _coworkers = r.coworkers || []; }
   } catch { _coworkers = []; }
-  // Une option par collègue × rôle (un collègue multi-rôles apparaît pour chacun de ses postes)
+  // SEULES les étapes ATTITRÉES PAR LE PATRON sur cette mission sont proposées (pas de re-routage libre)
+  const item = historique.find(h => h.id === id) || {};
+  const cur = item.job_status || 'a_preparer';
+  const myStages = item.my_stages || [];
+  const emailOf = eid => { const c = _coworkers.find(x => x.id === eid); return c ? c.email : null; };
+  const slots = [['a_creer', item.assigned_design_id], ['a_preparer', item.assigned_prep_id], ['pret_a_poser', item.assigned_pose_id]];
   let opts = '';
-  for (const c of _coworkers) {
-    for (const r of String(c.role || '').split(',').filter(Boolean)) {
-      const stage = ROLE_TO_STAGE[r];
-      if (!stage) continue;
-      opts += `<label class="mail-point"><input type="radio" name="transfert-choice" value="${stage}:${c.id}"><span class="mp-txt">→ ${JOB_STAGES[stage].label}<span class="mp-sub"><br>${ROLE_LABELS[r]} — ${c.email}</span></span></label>`;
-    }
+  for (const [stage, eid] of slots) {
+    if (stage === cur || !eid) continue;
+    const mine = myStages.includes(stage);
+    const who = mine ? 'toi — tu enchaînes cette étape' : (emailOf(eid) || 'employé attitré');
+    opts += `<label class="mail-point"><input type="radio" name="transfert-choice" value="${stage}:${eid}"><span class="mp-txt">→ ${JOB_STAGES[stage].label}<span class="mp-sub"><br>attitré par le patron : ${who}</span></span></label>`;
   }
+  if (!opts) opts = `<div style="font-size:11px;color:var(--muted);padding:4px 2px;">Aucune autre étape attitrée sur cette mission — il ne reste qu'à la terminer.</div>`;
   opts += `<label class="mail-point"><input type="radio" name="transfert-choice" value="termine:" checked><span class="mp-txt">✅ Terminer la mission<span class="mp-sub"><br>fin de la chaîne — plus rien à faire</span></span></label>`;
   host.innerHTML = opts;
 }
@@ -1846,12 +1851,14 @@ function renderMissionsList() {
 function renderSidebarHisto() {
   const container = document.getElementById('sidebar-histo');
   const unread = historique.filter(h => !h.lu).length;
+  // Le secrétariat a la vision globale (toutes les analyses, comme le patron) ; les autres employés une vue missions
+  const vueMissions = isEmploye && !hasRole('secretariat');
   let html = `<div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
-    <span>${isEmploye ? 'Mes missions' : 'Historique'} ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
+    <span>${vueMissions ? 'Mes missions' : 'Historique'} ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
     <button id="btn-refresh-histo" onclick="refreshHisto()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Actualiser">↻</button>
   </div>`;
   // Employé : vue missions dédiée (tri par échéance, à faire en haut, faites en bas)
-  if (isEmploye) { container.innerHTML = html + renderMissionsList(); return; }
+  if (vueMissions) { container.innerHTML = html + renderMissionsList(); return; }
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
   else {
     html += historique.map(h => {
@@ -1878,7 +1885,7 @@ function renderSidebarHisto() {
               <div class="histo-item-sub">${date}</div>
             </div>
           </div>
-          <button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>
+          ${!isEmploye ? `<button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>` : ``}
         </div>`;
       }
       const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
@@ -1894,7 +1901,7 @@ function renderSidebarHisto() {
             <div class="histo-item-sub">${date}${stBadge ? ' · ' + stBadge : ''}</div>
           </div>
         </div>
-        <button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>
+        ${!isEmploye ? `<button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>` : ``}
       </div>`;
     }).join('');
   }
@@ -2896,29 +2903,30 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     // Un employé apparaît dans un poste s'il a le rôle correspondant (rôles cumulables)
     const selFor = (role, curId) => teamList.filter(t => String(t.role || '').split(',').includes(role))
       .map(t => `<option value="${t.id}"${curId === t.id ? ' selected' : ''}>${t.email}</option>`).join('');
-    const anyAssigned = jobItem.assigned_design_id || jobItem.assigned_secr_id || jobItem.assigned_prep_id || jobItem.assigned_pose_id;
+    const anyAssigned = jobItem.assigned_design_id || jobItem.assigned_prep_id || jobItem.assigned_pose_id;
     missionSection = accSection('Mission — transfert à l\'équipe', `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
         <label style="font-size:11px;color:var(--muted);">🎨 Création visuel<select id="job-design" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('designer', jobItem.assigned_design_id)}</select></label>
         <label style="font-size:11px;color:var(--muted);">🛠 Préparation<select id="job-prep" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('preparateur', jobItem.assigned_prep_id)}</select></label>
         <label style="font-size:11px;color:var(--muted);">🚐 Pose<select id="job-pose" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('poseur', jobItem.assigned_pose_id)}</select></label>
-        <label style="font-size:11px;color:var(--muted);">📋 Secrétariat<select id="job-secr" class="devis-inp" style="margin-top:4px;"><option value="">— personne —</option>${selFor('secretariat', jobItem.assigned_secr_id)}</select></label>
         <label style="font-size:11px;color:var(--muted);">📅 Date<input type="date" id="job-date" class="devis-inp" style="margin-top:4px;" value="${jobItem.job_date || ''}"></label>
         <label style="font-size:11px;color:var(--muted);">📍 Lieu<input type="text" id="job-lieu" class="devis-inp" style="margin-top:4px;" placeholder="adresse / chantier" value="${(jobItem.job_lieu || '').replace(/"/g, '&quot;')}"></label>
         <label style="font-size:11px;color:var(--muted);">Étape en cours<select id="job-status" class="devis-inp" style="margin-top:4px;">
-          ${Object.entries(JOB_STAGES).map(([k, v]) => `<option value="${k}"${(jobItem.job_status || 'a_preparer') === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+          ${Object.entries(JOB_STAGES).filter(([, v]) => v.flow).map(([k, v]) => `<option value="${k}"${(jobItem.job_status || 'a_preparer') === k ? ' selected' : ''}>${v.label}</option>`).join('')}
         </select></label>
       </div>
       ${!teamList.length ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Aucun employé — crée les comptes dans <b>👥 Mon équipe</b> (barre latérale).</div>` : ''}
-      <div style="font-size:10px;color:var(--muted);margin-top:8px;">Affecte les postes utiles (tous ne sont pas obligatoires). Chaque employé, quand il finit son étape, choisit à qui transférer la suite — tu vois toujours tout ici.</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;">Le parcours suit les personnes attitrées ci-dessus : chacun finit son étape et la transmet au suivant que TU as choisi. Le 📋 secrétariat n'est pas dans le parcours — il voit toutes les analyses et intervient à la demande (mail client, devis).</div>
       <button class="btn-submit" id="btn-save-job" onclick="enregistrerMission(${analyseId})" style="margin-top:12px;font-size:12px;">💾 Enregistrer la mission</button>`,
       { icon: '🗂', open: Boolean(anyAssigned), hint: jobItem.job_status ? (JOB_LABELS[jobItem.job_status] || '') : '' });
   }
   // Bannière mission pour l'employé (avec avancement du statut)
   let missionBanner = '';
-  if (isEmploye && analyseId && analyseId !== '_pending') {
+  // Secrétariat non affecté sur cette mission : vision libre (comme le patron), pas de bandeau d'étape
+  const _empStages = jobItem.my_stages || [];
+  if (isEmploye && analyseId && analyseId !== '_pending' && !(hasRole('secretariat') && !_empStages.length)) {
     const st = jobItem.job_status || 'a_preparer';
-    const myStages = jobItem.my_stages || [];
+    const myStages = _empStages;
     const myTurn = myStages.includes(st);
     const monRole = (JOB_STAGES[st] && myTurn) ? JOB_STAGES[st].short : (myStages.map(s => JOB_STAGES[s]?.short).filter(Boolean).join(' + ') || 'Mission');
     // Mon tour → je termine MON étape et je choisis à qui transférer la suite ; sinon j'attends
@@ -2938,7 +2946,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
-      <div class="result-top"><h2>${isEmploye ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       ${missionBanner}
       ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
       ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
