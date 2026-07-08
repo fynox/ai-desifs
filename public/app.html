@@ -392,6 +392,22 @@ textarea:focus { border-color: var(--accent); }
 .role-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:6px 11px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:var(--surface2);user-select:none;transition:all .12s;}
 .role-chip:has(input:checked){border-color:var(--accent);color:var(--accent);background:#141f03;}
 .role-chip input{accent-color:var(--accent);width:13px;height:13px;margin:0;}
+.reg-card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:var(--surface);}
+.reg-title{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.reg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+.reg-field{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--text);}
+.reg-field .devis-inp{margin:0;}
+.reg-unit{font-size:9.5px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.4;}
+/* ===== Visite guidée ===== */
+.tour-overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:900;}
+.tour-highlight{position:relative !important;z-index:901 !important;box-shadow:0 0 0 3px var(--accent),0 0 26px rgba(200,240,74,.35) !important;border-radius:10px;}
+.tour-bubble{position:fixed;z-index:902;max-width:320px;background:var(--surface);border:1px solid var(--accent-dim);border-radius:14px;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.6);}
+.tour-bubble h4{margin:0 0 6px;font-size:14px;}
+.tour-bubble p{margin:0;font-size:12px;color:var(--muted);line-height:1.6;}
+.tour-bubble .tour-x{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 5px;}
+.tour-bubble .tour-x:hover{color:var(--danger);}
+.tour-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;}
+.tour-step{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -870,36 +886,48 @@ textarea:focus { border-color: var(--accent); }
 
 <!-- MODAL RÉGLAGES -->
 <div class="modal-overlay" id="modal-reglages" onclick="if(event.target===this)closeReglages()">
-  <div class="modal" style="max-width:440px">
-    <h3>⚙ Réglages</h3>
+  <div class="modal" style="max-width:560px;width:94vw">
+    <h3 style="margin:0 0 4px;">⚙ Réglages</h3>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Tes valeurs par défaut — tout reste ajustable au cas par cas dans l'app.</div>
 
-    <div style="border-bottom:1px solid var(--border);margin:18px 0 16px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Préférences</div>
-    <div class="form-group">
-      <label>Marge de raccord par défaut (mm)</label>
-      <input type="number" id="reglage-marge" min="0" max="100" step="5" style="width:100px;text-align:center;">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Chevauchement entre les lés pour les raccords.</div>
+    <div class="reg-card">
+      <div class="reg-title">📐 Production — plan de lés</div>
+      <div class="reg-grid">
+        <label class="reg-field">Raccord entre lés<input type="number" id="reglage-marge" min="0" max="100" step="5" class="devis-inp"><span class="reg-unit">mm de chevauchement</span></label>
+        <label class="reg-field">Marge d'impression<input type="number" id="reglage-marge-imp" min="0" max="50" step="1" class="devis-inp"><span class="reg-unit">mm/côté non imprimables</span></label>
+        <label class="reg-field">Débord de pose<input type="number" id="reglage-debord" min="0" max="100" step="5" class="devis-inp"><span class="reg-unit">mm/côté, coupé après pose</span></label>
+        <label class="reg-field">Longueur de lé (imposition)<input type="number" id="reglage-nest-len" min="100" step="50" class="devis-inp"><span class="reg-unit">mm — séries multi-copies</span></label>
+        <label class="reg-field">Espacement (imposition)<input type="number" id="reglage-nest-esp" min="0" max="100" step="1" class="devis-inp"><span class="reg-unit">mm entre visuels</span></label>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Marge d'impression par défaut (mm/côté)</label>
-      <input type="number" id="reglage-marge-imp" min="0" max="50" step="1" style="width:100px;text-align:center;">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Bords du rouleau non imprimables — réduit la laize utile (ex : rouleau 1520 mm − 5 mm/côté = 1510 mm imprimables).</div>
-    </div>
-    <div class="form-group">
-      <label>Débord de pose par défaut (mm/côté)</label>
-      <input type="number" id="reglage-debord" min="0" max="100" step="5" style="width:100px;text-align:center;">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">L'image est imprimée plus grande que le format fini, l'excédent est coupé au cutter après la pose.</div>
-    </div>
-    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:-4px;">Toutes ces valeurs restent ajustables au cas par cas sous le plan de lés.</div>
-    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="reglages-success">✓ Réglages enregistrés</div>
 
-    <div style="border-bottom:1px solid var(--border);margin:20px 0 16px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Compte</div>
-    <button class="btn-stock" onclick="closeReglages();openProfile()" style="width:100%;margin-top:0;">👤 Mon profil</button>
-    <button class="btn-stock" onclick="startCheckout()" style="width:100%;margin-top:8px;">💎 Abonnements</button>
-    <button class="btn-stock" onclick="closeReglages();openBugReport()" style="width:100%;margin-top:8px;color:var(--muted);">🐛 Signaler un bug</button>
+    <div class="reg-card">
+      <div class="reg-title">📋 Devis</div>
+      <div class="reg-grid">
+        <label class="reg-field">TVA<input type="number" id="reglage-tva" min="0" max="30" step="0.1" class="devis-inp"><span class="reg-unit">% — ajoutée au PDF (0 = HT seul)</span></label>
+        <label class="reg-field">Validité du devis<input type="number" id="reglage-validite" min="1" max="365" step="1" class="devis-inp"><span class="reg-unit">jours (affiché sur le PDF)</span></label>
+      </div>
+    </div>
+
+    <div class="reg-card">
+      <div class="reg-title">✉ Mails clients</div>
+      <div class="reg-grid">
+        <label class="reg-field">Ton par défaut<select id="reglage-ton" class="devis-inp"><option value="pro">👔 Professionnel</option><option value="familier">😊 Familier</option></select><span class="reg-unit">présélectionné à chaque mail</span></label>
+      </div>
+      <label class="reg-field" style="margin-top:8px;">Signature ajoutée aux mails<textarea id="reglage-signature" placeholder="Ex :&#10;Jean Dupont — Adhésif Pro&#10;06 12 34 56 78" style="width:100%;min-height:54px;box-sizing:border-box;padding:8px 10px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea><span class="reg-unit">collée automatiquement à la fin des mails générés (vide = aucune)</span></label>
+    </div>
+
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin:6px 0;" id="reglages-success">✓ Réglages enregistrés</div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+      <button class="btn-stock" onclick="closeReglages();openProfile()" style="flex:1;min-width:120px;margin:0;">👤 Mon profil</button>
+      <button class="btn-stock" onclick="closeReglages();startTour()" style="flex:1;min-width:120px;margin:0;">🎓 Visite guidée</button>
+      <button class="btn-stock" onclick="closeReglages();openBugReport()" style="flex:1;min-width:120px;margin:0;color:var(--muted);">🐛 Signaler un bug</button>
+    </div>
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeReglages()">Fermer</button>
-      <button class="btn-submit" onclick="saveReglages()">Enregistrer</button>
+      <button class="btn-submit" onclick="saveReglages()">💾 Enregistrer</button>
     </div>
   </div>
 </div>
@@ -1086,6 +1114,10 @@ async function startSession(token, email, status, used, iEmail) {
   renderTrialBanner();
   applyRoleUI();
   startPolling();
+  // Première connexion (compte principal) → visite guidée avec analyse de démonstration gratuite
+  if (!isEmploye && !localStorage.getItem('aidesif_tour_done')) {
+    setTimeout(() => { try { startTour(); } catch {} }, 900);
+  }
 }
 
 // Adapte l'interface au rôle : employé = vue "missions" (pas de création d'analyse, pas de stock/jetons)
@@ -1406,26 +1438,140 @@ function openReglages() {
   document.getElementById('reglage-marge').value = userSettings.marge_raccord_mm ?? 10;
   document.getElementById('reglage-marge-imp').value = userSettings.marge_impression_mm ?? 5;
   document.getElementById('reglage-debord').value = userSettings.debord_pose_mm ?? 20;
+  document.getElementById('reglage-nest-len').value = userSettings.nest_le_len_mm ?? 1000;
+  document.getElementById('reglage-nest-esp').value = userSettings.nest_espace_mm ?? (userSettings.marge_impression_mm ?? 5);
+  document.getElementById('reglage-tva').value = userSettings.tva_pct ?? 20;
+  document.getElementById('reglage-validite').value = userSettings.devis_validite_jours ?? 30;
+  document.getElementById('reglage-ton').value = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
+  document.getElementById('reglage-signature').value = userSettings.mail_signature || '';
   document.getElementById('reglages-success').style.display = 'none';
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
 
 async function saveReglages() {
-  const lire = (id, def, max) => {
+  const lire = (id, def, max, min = 0) => {
     let v = parseFloat(String(document.getElementById(id).value).replace(',', '.'));
-    if (isNaN(v) || v < 0) v = def;
+    if (isNaN(v) || v < min) v = def;
     if (v > max) v = max;
     return v;
   };
   userSettings.marge_raccord_mm = lire('reglage-marge', 10, 100);
   userSettings.marge_impression_mm = lire('reglage-marge-imp', 5, 50);
   userSettings.debord_pose_mm = lire('reglage-debord', 20, 100);
+  userSettings.nest_le_len_mm = lire('reglage-nest-len', 1000, 20000, 100);
+  userSettings.nest_espace_mm = lire('reglage-nest-esp', 5, 100);
+  userSettings.tva_pct = lire('reglage-tva', 20, 30);
+  userSettings.devis_validite_jours = Math.round(lire('reglage-validite', 30, 365, 1));
+  userSettings.mail_ton_defaut = document.getElementById('reglage-ton').value === 'familier' ? 'familier' : 'pro';
+  userSettings.mail_signature = document.getElementById('reglage-signature').value.trim().slice(0, 400);
   try {
     await api('PUT', '/auth/profile', { settings: userSettings });
     document.getElementById('reglages-success').style.display = 'block';
     setTimeout(closeReglages, 800);
   } catch (e) { alert('Erreur : ' + e.message); }
+}
+
+// ===================== VISITE GUIDÉE (première connexion) =====================
+// Bulles explicatives + analyse de DÉMONSTRATION entièrement locale : aucun appel IA,
+// aucune analyse décomptée, aucun jeton débité. Quittable à tout moment (✕).
+const DEMO_RESULT = {
+  titre: 'Démo — logo vitrine',
+  resume: "Exemple : le client veut un logo imprimé pour sa vitrine, 120 × 80 cm, pose intérieure côté vitre. L'IA lit le mail, comprend la demande et choisit l'adhésif adapté dans TON stock.",
+  adhesifs: [{ nom: 'Vinyle blanc imprimable (exemple)', raison: "Vinyle imprimable adapté à une vitrine intérieure — dans la vraie vie, l'IA choisit parmi TES références de stock, avec la raison du choix.", priorite: 'principal' }],
+  specs: { finition: 'Mat', duree: 'Moyenne durée (1-3 ans)', pose: 'Vitrine intérieure', retrait: 'Retrait facile sans résidu' },
+  preparation: ['Imprimer le visuel sur le vinyle blanc (exemple)', 'Découper au format 120 × 80 cm'],
+  pose: ['Nettoyer la vitre au produit dégraissant', 'Pose humide recommandée — maroufler du centre vers les bords'],
+  attention: null,
+  montage: { largeur_cm: 120, hauteur_cm: 80, laize_cm: 137, nb_les: 1, sens_les: 'vertical', debord_mm: 20, quantite: 1, assemblage: 'separe' },
+};
+
+async function runDemoAnalyse() {
+  const inp = document.getElementById('mail-input');
+  if (inp) inp.value = "Bonjour,\nJ'aimerais un logo imprimé pour ma vitrine, environ 120 x 80 cm, à poser à l'intérieur contre la vitre.\nMerci !";
+  showAnalyseLoader('Analyse de démonstration — gratuite 😉');
+  await new Promise(r => setTimeout(r, 2000));
+  clearInterval(window._iaLoaderTimer);
+  renderResult(DEMO_RESULT, null, null, '_pending'); // '_pending' = boutons d'action masqués (démo sans coût)
+  window._tourDemoRan = true;
+}
+
+const TOUR_STEPS = [
+  { target: '.analyse-input', title: '📩 La demande client', text: 'Tout part d\'ici : colle le mail de ton client (consignes et fichier joint en option), et l\'IA s\'occupe du reste.' },
+  { target: '#btn-analyze', title: '⚡ Analyser la demande', text: 'L\'IA choisit l\'adhésif dans TON stock, calcule le plan de lés et prépare devis et mails. On lance une démo — gratuite, promis !' },
+  { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat', text: 'Résumé, adhésif recommandé, spécifications… chaque bloc se déplie ou se replie d\'un clic pour garder l\'écran simple.' },
+  { target: () => document.querySelectorAll('#output-panel .acc-section')[1], title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Clique dessus pour voir la fiche dans ton stock.' },
+  { target: () => [...document.querySelectorAll('#output-panel .acc-section')].find(s => s.textContent.includes('Plan de lés')), title: '📐 Le plan de lés', text: 'Nombre de lés, raccords, débord de pose… et l\'export des lés avec traits de coupe (PNG, PDF taille réelle, AI). Les réglages fins sont sous ⚙.' },
+  { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses sont là. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
+  { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
+  { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment dans ⚙ Réglages → 🎓 Visite guidée. Bonne découverte !' },
+];
+let _tourIdx = -1, _tourEl = null;
+
+function startTour() {
+  localStorage.setItem('aidesif_tour_done', '1'); // vue (ou passée) = on ne la relance plus automatiquement
+  if (!document.getElementById('tour-overlay')) {
+    const ov = document.createElement('div');
+    ov.id = 'tour-overlay'; ov.className = 'tour-overlay';
+    document.body.appendChild(ov);
+    const bb = document.createElement('div');
+    bb.id = 'tour-bubble'; bb.className = 'tour-bubble';
+    document.body.appendChild(bb);
+  }
+  _tourIdx = -1;
+  nextTourStep();
+}
+
+async function nextTourStep() {
+  _tourIdx++;
+  if (_tourIdx >= TOUR_STEPS.length) return endTour();
+  const step = TOUR_STEPS[_tourIdx];
+  if (_tourEl) { _tourEl.classList.remove('tour-highlight'); _tourEl = null; }
+  if (step.before) { document.getElementById('tour-bubble').style.display = 'none'; try { await step.before(); } catch {} }
+  let el = null;
+  if (step.target) el = typeof step.target === 'function' ? step.target() : document.querySelector(step.target);
+  if (step.target && !el) return nextTourStep(); // cible absente (ex : section masquée) → étape suivante
+  const bb = document.getElementById('tour-bubble');
+  const last = _tourIdx === TOUR_STEPS.length - 1;
+  bb.innerHTML = `
+    <button class="tour-x" onclick="endTour()" title="Quitter la visite">✕</button>
+    <h4>${step.title}</h4><p>${step.text}</p>
+    <div class="tour-foot">
+      <span class="tour-step">${_tourIdx + 1} / ${TOUR_STEPS.length}</span>
+      <div style="display:flex;gap:8px;">
+        ${last ? '' : `<button class="btn-cancel" style="font-size:11px;padding:5px 12px;" onclick="endTour()">Passer</button>`}
+        <button class="btn-submit" style="font-size:11px;padding:5px 14px;" onclick="nextTourStep()">${last ? 'Terminer 🎉' : 'Suivant →'}</button>
+      </div>
+    </div>`;
+  bb.style.display = 'block';
+  if (el) {
+    _tourEl = el;
+    el.classList.add('tour-highlight');
+    el.scrollIntoView({ block: 'center' });
+    setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      const bw = Math.min(320, window.innerWidth - 24), bh = bb.offsetHeight || 180;
+      let top = r.bottom + 12;
+      if (top + bh > window.innerHeight - 12) top = Math.max(12, r.top - bh - 12);
+      let left = Math.min(Math.max(12, r.left), window.innerWidth - bw - 12);
+      bb.style.top = top + 'px'; bb.style.left = left + 'px'; bb.style.transform = 'none';
+    }, 60);
+  } else {
+    bb.style.top = '50%'; bb.style.left = '50%'; bb.style.transform = 'translate(-50%,-50%)';
+  }
+}
+
+function endTour() {
+  if (_tourEl) { _tourEl.classList.remove('tour-highlight'); _tourEl = null; }
+  document.getElementById('tour-overlay')?.remove();
+  document.getElementById('tour-bubble')?.remove();
+  if (window._tourDemoRan) {
+    window._tourDemoRan = false;
+    closeResult();
+    const inp = document.getElementById('mail-input');
+    if (inp) inp.value = '';
+  }
+  _tourIdx = -1;
 }
 
 const PLAN_LABELS = { free:['Free','#8a8f98'], trial:['Essai','#8a8f98'], smart:['Smart','#4a9eff'], pro:['Pro','#b06af0'], ultra:['Ultra','#f0b43c'], entreprise:['Entreprise','#3fcf6f'] };
@@ -2829,8 +2975,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const m = r.montage;
   // Imposition multi-copies : quantité lue depuis l'IA (réinitialisée à chaque analyse)
   _nestQte = (m && Number(m.quantite) > 1) ? Math.round(Number(m.quantite)) : 1;
-  _nestEspace = Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5;
-  _nestLeLen = 1000;
+  _nestEspace = Number(userSettings.nest_espace_mm) >= 0 ? Number(userSettings.nest_espace_mm) : (Number(userSettings.marge_impression_mm) >= 0 ? Number(userSettings.marge_impression_mm) : 5);
+  _nestLeLen = Number(userSettings.nest_le_len_mm) >= 100 ? Number(userSettings.nest_le_len_mm) : 1000;
   _nestEgalise = false;
   // Débord décidé par l'IA (0 si "pas de bords tournants" / "échelle 1" / repères de découpe présents)
   if (m && typeof m.debord_mm === 'number') _lesDebord = m.debord_mm;
@@ -3959,6 +4105,10 @@ function exporterDevisPDF(lignes, infos) {
   const fmt = v => typeof v === 'number' && isFinite(v) ? v.toFixed(2).replace('.', ',') + ' €' : '—';
   const total = lignes.reduce((s, l) => s + (Number(l.total) || 0), 0);
   const today = new Date().toLocaleDateString('fr-FR');
+  // TVA et validité depuis les réglages du compte
+  const tvaPct = Number(userSettings.tva_pct);
+  const tva = (isFinite(tvaPct) && tvaPct > 0) ? total * tvaPct / 100 : 0;
+  const validite = Number(userSettings.devis_validite_jours) >= 1 ? Math.round(Number(userSettings.devis_validite_jours)) : 30;
   const rows = lignes.map(l => `<tr>
       <td class="d">${esc(l.designation)}${l.details ? `<div class="sub">${esc(l.details)}</div>` : ''}</td>
       <td class="c">${esc(l.quantite || '')}</td>
@@ -3993,7 +4143,7 @@ td.d .sub{font-size:11px;color:#888;margin-top:2px;}
   <div class="meta">
     <div><strong>N° ${esc(infos.ref || '—')}</strong></div>
     <div>Date : ${esc(today)}</div>
-    <div>Valable 30 jours</div>
+    <div>Valable ${validite} jours</div>
   </div>
 </div>
 <div class="parties">
@@ -4006,10 +4156,11 @@ td.d .sub{font-size:11px;color:#888;margin-top:2px;}
 </table>
 <div class="tot"><table>
   <tr><td>Total HT</td><td class="r">${fmt(total)}</td></tr>
-  <tr class="grand"><td>TOTAL</td><td class="r">${fmt(total)} HT</td></tr>
+  ${tva > 0 ? `<tr><td>TVA ${String(tvaPct).replace('.', ',')} %</td><td class="r">${fmt(tva)}</td></tr>
+  <tr class="grand"><td>TOTAL TTC</td><td class="r">${fmt(total + tva)}</td></tr>` : `<tr class="grand"><td>TOTAL</td><td class="r">${fmt(total)} HT</td></tr>`}
 </table></div>
 <div class="foot">
-  Devis établi le ${esc(today)} — TVA non applicable / à adapter selon votre régime. Bon pour accord : signature et date du client.
+  Devis établi le ${esc(today)}${tva > 0 ? '' : ' — TVA non applicable / à adapter selon votre régime'}. Bon pour accord : signature et date du client.
   <div style="height:46px;"></div>
   <div>Signature client (précédée de « Bon pour accord ») :</div>
 </div>
@@ -4062,8 +4213,10 @@ function openTonChoice(id) {
       <input type="checkbox" value="${p.id}" data-txt="${p.txt.replace(/"/g, '&quot;')}"${p.on ? ' checked' : ''}>
       <span class="mp-txt">${p.txt}${p.sub ? `<span class="mp-sub"><br>${p.sub}</span>` : ''}</span>
     </label>`).join('');
-  const proRadio = document.querySelector('input[name="mail-ton"][value="pro"]');
-  if (proRadio) proRadio.checked = true;
+  // Ton présélectionné selon les réglages du compte
+  const tonDefaut = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
+  const radio = document.querySelector(`input[name="mail-ton"][value="${tonDefaut}"]`);
+  if (radio) radio.checked = true;
   document.getElementById('modal-ton').classList.add('open');
 }
 function closeTonChoice() { document.getElementById('modal-ton').classList.remove('open'); }
@@ -4083,7 +4236,9 @@ async function genererRelance(id, ton = 'pro', points = []) {
     const mail = await api('POST', `/analyses/${id}/relance`, { ton, points });
     document.getElementById('relance-to').value = mail.to || '';
     document.getElementById('relance-objet').value = mail.objet || '';
-    document.getElementById('relance-corps').value = mail.corps || '';
+    // Signature du compte ajoutée automatiquement (réglages)
+    const signature = (userSettings.mail_signature || '').trim();
+    document.getElementById('relance-corps').value = (mail.corps || '') + (signature ? '\n\n' + signature : '');
     document.getElementById('relance-error').textContent = '';
     document.getElementById('relance-copied').style.display = 'none';
     document.getElementById('modal-relance').classList.add('open');
