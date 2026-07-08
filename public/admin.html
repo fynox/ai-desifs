@@ -495,7 +495,7 @@ async function loadDashboard() {
 
 // UTILISATEURS
 async function loadUsers() {
-  if (allUsers.length) return renderUsers(allUsers);
+  if (allUsers.length) renderUsers(allUsers); // affiche tout de suite, puis rafraîchit depuis le serveur
   try {
     allUsers = await api('/api/admin/users');
     renderUsers(allUsers);
@@ -505,13 +505,16 @@ async function loadUsers() {
 function renderUsers(users) {
   document.getElementById('users-count').textContent = `${users.length} utilisateur${users.length > 1 ? 's' : ''}`;
   if (!users.length) { document.getElementById('users-table').innerHTML = '<div class="empty">Aucun utilisateur</div>'; return; }
+  // Email de l'employeur pour chaque sous-compte (affichage du rattachement)
+  const emailById = {};
+  allUsers.forEach(x => { emailById[x.id] = x.email; });
   document.getElementById('users-table').innerHTML = `
     <table>
       <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Jetons</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
       <tbody>${users.map(u => u.parent_user_id ? `
         <tr id="user-row-${u.id}" style="background:rgba(200,240,74,.03);">
           <td style="padding-left:22px;"><span style="color:var(--muted);">↳</span> ${u.email} <span style="font-size:9px;font-weight:700;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:1px 8px;margin-left:4px;">EMPLOYÉ${u.role ? ' · ' + u.role.split(',').map(r => ({preparateur:'🛠',poseur:'🚐',secretariat:'📋',designer:'🎨'}[r] || r)).join(' ') : ''}</span></td>
-          <td colspan="4" style="font-size:10px;color:var(--muted);">Sous-compte rattaché au compte #${u.parent_user_id} — hérite de son plan et de ses jetons</td>
+          <td colspan="4" style="font-size:10px;color:var(--muted);">Employé de <b style="color:var(--text);">${emailById[u.parent_user_id] || ('compte #' + u.parent_user_id)}</b> — hérite de son plan et de ses jetons</td>
           <td>${u.analyses_count}</td>
           <td>${u.stock_count}</td>
           <td>${fmtDate(u.created_at)}</td>
@@ -555,8 +558,17 @@ function renderUsers(users) {
 }
 
 function filterUsers(q) {
-  const filtered = q ? allUsers.filter(u => u.email.toLowerCase().includes(q.toLowerCase())) : allUsers;
-  renderUsers(filtered);
+  if (!q) return renderUsers(allUsers);
+  const ql = q.toLowerCase();
+  // Garde les groupes entiers : un employeur qui matche entraîne ses employés, et inversement
+  const directs = allUsers.filter(u => u.email.toLowerCase().includes(ql));
+  const keepIds = new Set();
+  for (const u of directs) {
+    keepIds.add(u.id);
+    if (u.parent_user_id) keepIds.add(u.parent_user_id);            // l'employé remonte son employeur
+    allUsers.forEach(x => { if (x.parent_user_id === u.id) keepIds.add(x.id); }); // l'employeur emmène ses employés
+  }
+  renderUsers(allUsers.filter(u => keepIds.has(u.id)));
 }
 
 async function changeStatus(id, status) {
