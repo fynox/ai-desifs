@@ -753,6 +753,22 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<!-- MODAL EXPORT VISUEL (formats métier) -->
+<div class="modal-overlay" id="modal-export" style="z-index:650">
+  <div class="modal" style="max-width:420px;width:94vw">
+    <h3 style="margin:0 0 4px;">⬇ Exporter le visuel</h3>
+    <div id="export-sub" style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5;"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn-submit" style="width:100%;font-size:12px;" onclick="doExportImage('png')">🖼 PNG <span style="font-weight:400;opacity:.7;">— qualité max, fond conservé</span></button>
+      <button class="btn-submit" style="width:100%;font-size:12px;" onclick="doExportImage('jpg')">📷 JPG <span style="font-weight:400;opacity:.7;">— léger, pour envoi client</span></button>
+      <button class="btn-submit" style="width:100%;font-size:12px;" onclick="doExportImage('pdf')">📄 PDF <span style="font-weight:400;opacity:.7;">— taille réelle d'impression (mm)</span></button>
+      <button class="btn-submit" style="width:100%;font-size:12px;" onclick="doExportImage('ai')">🅰 AI <span style="font-weight:400;opacity:.7;">— s'ouvre dans Adobe Illustrator</span></button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5;">💡 Pour un fichier 100 % vectoriel (découpe), utilise « ✂ Vectoriser (DAO) » qui exporte en SVG.</div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeExport()">Fermer</button></div>
+  </div>
+</div>
+
 <!-- MODAL CHOIX MESSAGERIE -->
 <div class="modal-overlay" id="modal-messagerie" style="z-index:600">
   <div class="modal" style="max-width:320px;text-align:center">
@@ -2365,8 +2381,14 @@ function buildLesHTML(largeur, hauteur, laize, sensLes, previewB64, previewType,
   const inputStyle = `style="width:58px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;text-align:center;"`;
   return `<div id="les-wrap"><div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${largeurE}/${hauteurE};margin:0 auto;border:2px solid #444;border-radius:4px;overflow:hidden;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);">${bands}${imgLayer}${overlays}</div>
   <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;text-align:center;">${dimTxt} — <b style="color:var(--text)">${n} lé${n > 1 ? 's' : ''}</b> ${vert ? 'verticaux' : 'horizontaux'} · laize ${Math.round(laize)} mm</div>
-  <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
-    ${hasImg ? `<button class="btn-submit" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ ${n > 1 ? `Exporter les ${n} lés` : 'Exporter le lé'} (traits de coupe)</button>` : ''}
+  <div style="display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    ${hasImg ? `<button class="btn-submit" id="btn-export-les" onclick="exporterLes()" style="font-size:12px;padding:8px 18px;">⬇ ${n > 1 ? `Exporter les ${n} lés` : 'Exporter le lé'} (traits de coupe)</button>
+    <select id="les-export-format" title="Format d'export des lés" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:7px 8px;">
+      <option value="png">PNG</option>
+      <option value="jpg">JPG</option>
+      <option value="pdf">PDF (taille réelle${n > 1 ? ', 1 page/lé' : ''})</option>
+      <option value="ai">AI (Illustrator)</option>
+    </select>` : ''}
     <button class="btn-stock" onclick="toggleLesAdv()" style="font-size:11px;padding:6px 14px;margin:0;${_lesAdvOpen ? 'border-color:var(--accent);color:var(--accent);' : ''}">⚙ Réglages</button>
   </div>
   <div id="les-adv" style="display:${_lesAdvOpen ? 'block' : 'none'};margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);">
@@ -2614,6 +2636,8 @@ function optimiserLes() {
 async function exporterLes() {
   const p = window._lesParams;
   if (!p) return;
+  const format = (document.getElementById('les-export-format') || {}).value || 'png';
+  const pdfPages = []; // PDF/AI : un seul document, une page par lé (taille réelle en mm)
   const btn = document.getElementById('btn-export-les');
   if (btn) { btn.disabled = true; btn.textContent = '⬇ Découpe en cours…'; }
   try {
@@ -2680,14 +2704,24 @@ async function exporterLes() {
       if (sLeft) { if (sTop) hTick(tTop, tLeft, -1); if (sBot) hTick(tBot, tLeft, -1); if ((tBot - tTop) / pxY > LONG) hTick((tTop + tBot) / 2, tLeft, -1); }
       if (sRight) { if (sTop) hTick(tTop, tRight, 1); if (sBot) hTick(tBot, tRight, 1); if ((tBot - tTop) / pxY > LONG) hTick((tTop + tBot) / 2, tRight, 1); }
 
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = p.segs.length > 1 ? `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthMm)}mm.png` : `le_${Math.round(widthMm)}x${Math.round(p.vert ? p.hauteur + 2 * d : p.largeur + 2 * d)}mm.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      await new Promise(r => setTimeout(r, 400)); // laisser le navigateur enchaîner les téléchargements
+      // Dimensions réelles du lé exporté (mm) — sert au PDF taille réelle et au nom de fichier
+      const leWmm = p.vert ? widthMm : p.largeur + 2 * d;
+      const leHmm = p.vert ? p.hauteur + 2 * d : widthMm;
+      if (format === 'pdf' || format === 'ai') {
+        const jpeg = _dataUrlToU8(canvas.toDataURL('image/jpeg', 0.95));
+        pdfPages.push({ jpeg, wPx: canvas.width, hPx: canvas.height, wPt: leWmm * MM_TO_PT, hPt: leHmm * MM_TO_PT });
+      } else {
+        const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const ext = format === 'jpg' ? 'jpg' : 'png';
+        const blob = await new Promise(r => canvas.toBlob(r, mime, 0.95));
+        _downloadBlob(blob, p.segs.length > 1 ? `le-${k + 1}-sur-${p.segs.length}_${Math.round(widthMm)}mm.${ext}` : `le_${Math.round(leWmm)}x${Math.round(leHmm)}mm.${ext}`);
+        await new Promise(r => setTimeout(r, 400)); // laisser le navigateur enchaîner les téléchargements
+      }
       start += p.segs[k] - p.recouvrement;
+    }
+    if (pdfPages.length) {
+      const blob = pdfFromJpegPages(pdfPages);
+      _downloadBlob(blob, `${pdfPages.length > 1 ? `les-${pdfPages.length}` : 'le'}_${Math.round(p.largeur)}x${Math.round(p.hauteur)}mm.${format === 'ai' ? 'ai' : 'pdf'}`);
     }
   } catch (e) {
     alert('Erreur pendant la découpe : ' + (e.message || e));
@@ -2757,6 +2791,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
+            <button class="btn-stock" style="flex:1;min-width:130px;font-size:11px;padding:7px 12px;margin:0;" onclick="openExportVisuel(${analyseId})" title="Télécharger le visuel en PNG, JPG, PDF taille réelle ou AI (Illustrator)">⬇ Exporter (PNG/PDF/AI)</button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -2768,6 +2803,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <div style="font-size:11px;color:var(--text);margin-top:5px;font-weight:600;">${v.name ? v.name.replace(/\.[^.]+$/, '').slice(-22) : 'Fichier ' + (i + 1)}</div>
             <div style="font-size:10px;color:${v.w && v.h ? 'var(--accent)' : 'var(--muted)'};font-family:'DM Mono',monospace;">${v.w && v.h ? v.w + '×' + v.h + ' mm' : 'taille ?'}</div>
             <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="planPourFichier(${i})">📐 Plan de lés</button>
+            <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="openExportVisuel(${analyseId}, ${i})" title="Télécharger ce fichier en PNG, JPG, PDF taille réelle ou AI">⬇ Exporter</button>
           </div>`).join('');
         previewTitle = `${visuels.length} fichiers à imprimer`;
         previewInner = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${visuelBtns}`;
@@ -3200,6 +3236,105 @@ function appliquerNettoyageVecto() {
   const el = prev.querySelector('svg');
   if (el) { el.style.maxWidth = '100%'; el.style.maxHeight = '290px'; el.style.height = 'auto'; }
 }
+// ===================== EXPORT MULTI-FORMATS (PNG / JPG / PDF / AI) =====================
+// Générateur PDF minimal côté navigateur : chaque page embarque un JPEG à la taille réelle (mm → points).
+// Un fichier .ai "compatible PDF" est un PDF renommé — Illustrator l'ouvre directement.
+const MM_TO_PT = 72 / 25.4;
+function _dataUrlToU8(dataUrl) {
+  const bin = atob(dataUrl.split(',')[1]);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+function pdfFromJpegPages(pages) { // pages: [{ jpeg: Uint8Array, wPx, hPx, wPt, hPt }]
+  const te = new TextEncoder();
+  const parts = [];        // Uint8Array successifs
+  const offsets = [];      // offset de chaque objet (1-based)
+  let pos = 0;
+  const push = u8 => { parts.push(u8); pos += u8.length; };
+  const pushTxt = s => push(te.encode(s));
+  const beginObj = () => offsets.push(pos);
+
+  pushTxt('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  // 1: catalog — 2: pages
+  const kids = pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
+  beginObj(); pushTxt('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  beginObj(); pushTxt(`2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>\nendobj\n`);
+  pages.forEach((p, i) => {
+    const pageN = 3 + i * 3, imgN = pageN + 1, contN = pageN + 2;
+    beginObj(); pushTxt(`${pageN} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${p.wPt.toFixed(2)} ${p.hPt.toFixed(2)}] /Resources << /XObject << /Im${i} ${imgN} 0 R >> >> /Contents ${contN} 0 R >>\nendobj\n`);
+    beginObj(); pushTxt(`${imgN} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${p.wPx} /Height ${p.hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>\nstream\n`);
+    push(p.jpeg); pushTxt('\nendstream\nendobj\n');
+    const content = `q\n${p.wPt.toFixed(2)} 0 0 ${p.hPt.toFixed(2)} 0 0 cm\n/Im${i} Do\nQ\n`;
+    beginObj(); pushTxt(`${contN} 0 obj\n<< /Length ${content.length} >>\nstream\n${content}endstream\nendobj\n`);
+  });
+  const xrefPos = pos;
+  let xref = `xref\n0 ${offsets.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) xref += String(o).padStart(10, '0') + ' 00000 n \n';
+  pushTxt(xref + `trailer\n<< /Size ${offsets.length + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+function _downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// Ouvre le choix de format pour un visuel (idx = -1 : visuel principal, sinon fichier n° idx)
+let _exportSrc = null;
+async function openExportVisuel(id, idx = -1) {
+  const item = historique.find(a => a.id === id);
+  if (item && item.has_visuel && !item.visuel_b64) {
+    try {
+      const v = await api('GET', `/analyses/${id}/visuel`);
+      item.visuel_b64 = v.visuel_b64; item.visuel_type = v.visuel_type; item.visuels = v.visuels || null;
+    } catch {}
+  }
+  let src = null;
+  if (idx >= 0 && item && Array.isArray(item.visuels) && item.visuels[idx]) {
+    const v = item.visuels[idx];
+    src = { b64: v.b64, type: v.type, name: (v.name || `fichier-${idx + 1}`).replace(/\.[^.]+$/, ''), wMm: v.w || 0, hMm: v.h || 0 };
+  } else if (item && item.visuel_b64) {
+    const m = (item.result && item.result.montage) || {};
+    src = { b64: item.visuel_b64, type: item.visuel_type, name: (item.result && item.result.titre ? item.result.titre.replace(/[^\w\sàâäéèêëîïôöùûüç-]/gi, '').trim().replace(/\s+/g, '-') : 'visuel') || 'visuel', wMm: (parseFloat(m.largeur_cm) || 0) * 10, hMm: (parseFloat(m.hauteur_cm) || 0) * 10 };
+  }
+  if (!src || !src.b64 || !(src.type || '').startsWith('image/')) { alert('Aucune image exportable sur cette analyse.'); return; }
+  _exportSrc = src;
+  document.getElementById('export-sub').textContent = src.wMm && src.hMm
+    ? `${src.name} — taille d'impression : ${Math.round(src.wMm)} × ${Math.round(src.hMm)} mm (PDF/AI générés à cette taille réelle).`
+    : `${src.name} — taille d'impression inconnue : le PDF/AI sera généré à la taille du fichier (96 dpi).`;
+  document.getElementById('modal-export').classList.add('open');
+}
+function closeExport() { document.getElementById('modal-export').classList.remove('open'); }
+document.getElementById('modal-export').addEventListener('click', e => { if (e.target === document.getElementById('modal-export')) closeExport(); });
+
+async function doExportImage(format) {
+  const s = _exportSrc;
+  if (!s) return;
+  const img = new Image();
+  await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = `data:${s.type};base64,${s.b64}`; });
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  const ctx = cv.getContext('2d');
+  if (format !== 'png') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height); } // fond blanc (JPEG/PDF sans alpha)
+  ctx.drawImage(img, 0, 0);
+  const base = s.name || 'visuel';
+  if (format === 'png') {
+    cv.toBlob(b => _downloadBlob(b, `${base}.png`), 'image/png');
+  } else if (format === 'jpg') {
+    cv.toBlob(b => _downloadBlob(b, `${base}.jpg`), 'image/jpeg', 0.95);
+  } else {
+    const jpeg = _dataUrlToU8(cv.toDataURL('image/jpeg', 0.95));
+    const wPt = s.wMm ? s.wMm * MM_TO_PT : cv.width * 72 / 96;
+    const hPt = s.hMm ? s.hMm * MM_TO_PT : cv.height * 72 / 96;
+    const blob = pdfFromJpegPages([{ jpeg, wPx: cv.width, hPx: cv.height, wPt, hPt }]);
+    _downloadBlob(blob, `${base}.${format === 'ai' ? 'ai' : 'pdf'}`);
+  }
+  closeExport();
+}
+
 async function openVectoriser(id) {
   const item = historique.find(a => a.id === id);
   // Le visuel est chargé à la demande : si l'historique a été rafraîchi entre-temps, on le recharge ici
