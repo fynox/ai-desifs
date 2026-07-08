@@ -122,6 +122,7 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN job_photos_json TEXT',       // photos du résultat posé (jointes par le poseur)
   'ALTER TABLE analyses ADD COLUMN assigned_design_id INTEGER', // employé designer (création du visuel)
   'ALTER TABLE analyses ADD COLUMN assigned_secr_id INTEGER',   // employé secrétariat (devis / retours client)
+  'ALTER TABLE analyses ADD COLUMN prep_note TEXT',             // note du préparateur pour le poseur (précisions sur les lés, etc.)
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

@@ -67,7 +67,7 @@ router.get('/', (req, res) => {
   const args = (sc.empId && !sc.secr) ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
-      assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status,
+      assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
       (visuel_orig_b64 IS NOT NULL AND (visuel_hd_b64 IS NULL OR LENGTH(visuel_b64) = LENGTH(visuel_hd_b64))) as has_orig,
@@ -192,6 +192,20 @@ router.get('/:id/job-photos', (req, res) => {
   let photos = [];
   try { photos = item.job_photos_json ? JSON.parse(item.job_photos_json) : []; } catch {}
   res.json({ photos });
+});
+
+// Note du préparateur pour le poseur (précisions sur les lés, la pose...) — préparateur affecté ou patron
+router.patch('/:id/prep-note', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  // Seuls le préparateur affecté et le patron peuvent écrire cette note
+  if (sc.empId && item.assigned_prep_id !== sc.empId) {
+    return res.status(403).json({ error: 'Seul le préparateur en charge (ou le patron) peut écrire une note pour le poseur.' });
+  }
+  const note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 2000) : '';
+  db.prepare('UPDATE analyses SET prep_note = ? WHERE id = ?').run(note || null, item.id);
+  res.json({ ok: true, prep_note: note });
 });
 
 // Espace de stockage occupé / quota du compte

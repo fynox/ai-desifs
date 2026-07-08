@@ -1241,6 +1241,20 @@ async function enregistrerMission(id) {
   } catch (e) { btn.disabled = false; btn.textContent = '💾 Enregistrer la mission'; alert(e.message); }
 }
 
+// Le préparateur (ou le patron) enregistre une note qui s'affichera pour le poseur
+async function enregistrerPrepNote(id) {
+  const el = document.getElementById('prep-note-input');
+  if (!el) return;
+  const note = el.value.trim();
+  try {
+    await api('PATCH', `/analyses/${id}/prep-note`, { note });
+    const item = historique.find(h => h.id === id);
+    if (item) item.prep_note = note;
+    const ok = document.getElementById('prep-note-ok');
+    if (ok) { ok.style.display = 'inline'; setTimeout(() => { ok.style.display = 'none'; }, 2200); }
+  } catch (e) { alert(e.message); }
+}
+
 // Employé : faire avancer le statut de sa mission
 async function avancerMission(id, status) {
   try {
@@ -3179,11 +3193,32 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     </div>`;
   }
 
+  // Note du préparateur → poseur
+  const escNote = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const prepNote = jobItem.prep_note || '';
+  // Bannière bien visible côté poseur
+  const prepNoteBanner = (vPose && !vOwner && prepNote && analyseId !== '_pending')
+    ? `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid #f0c84a;border-radius:12px;background:rgba(240,200,74,.08);">
+        <div style="font-size:11px;font-weight:700;color:#f0c84a;margin-bottom:5px;">📝 Note du préparateur</div>
+        <div style="font-size:12.5px;white-space:pre-wrap;line-height:1.55;">${escNote(prepNote)}</div>
+      </div>`
+    : '';
+  // Éditeur pour le préparateur affecté et le patron
+  const prepNoteEditor = ((vPrep || vOwner) && analyseId && analyseId !== '_pending')
+    ? accSection('Note pour le poseur', `
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Précisions à transmettre au poseur (ordre des lés, sens de pose, points délicats…) — elle s'affiche bien en évidence sur sa mission.</div>
+        <textarea id="prep-note-input" placeholder="Ex : commencer par le lé de gauche, raccord 1 cm, bulle à surveiller sur le lé 2..." style="width:100%;min-height:64px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;">${escNote(prepNote)}</textarea>
+        <button class="btn-submit" style="margin-top:10px;font-size:12px;" onclick="enregistrerPrepNote(${analyseId})">💾 Enregistrer la note</button>
+        <span id="prep-note-ok" style="display:none;font-size:11px;color:var(--accent);margin-left:10px;font-family:'DM Mono',monospace;">✓ enregistrée</span>`,
+      { icon: '📝', open: Boolean(prepNote), hint: prepNote ? '' : 'replié' })
+    : '';
+
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
       <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       ${missionBanner}
+      ${prepNoteBanner}
       ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
       ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
       ${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}
@@ -3191,6 +3226,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${(showSpecs && specBoxes.length) ? accSection('Spécifications', specsInner, { icon: '📋', open: false, hint: 'replié' }) : ''}
       ${montageSection}
       ${(prepHTML && (vOwner || vPrep)) ? accSection('Préparation (atelier)', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' }) : ''}
+      ${prepNoteEditor}
       ${(poseStepsHTML && (vOwner || vPose)) ? accSection('Conseils de pose', `<div class="checklist">${poseStepsHTML}</div>`, { icon: '🚐', open: vPose && !vOwner, hint: vPose && !vOwner ? '' : 'replié' }) : ''}
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
       ${missionSection}

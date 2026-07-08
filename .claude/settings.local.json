@@ -72,7 +72,8 @@
       "Bash(git commit -q -m 'feat retour client: la secretaire \\(ou le patron\\) ajoute les infos obtenues du client et relance l analyse avec - mail enrichi persiste \\(devis/mails futurs en tiennent compte\\), ancien devis efface car obsolete, stock du patron utilise pour l analyse d un employe *)",
       "Bash(git commit -q -m 'feat export multi-formats: visuel principal et chaque fichier exportables en PNG / JPG / PDF taille reelle \\(mm\\) / AI compatible Illustrator \\(generateur PDF integre cote navigateur\\), export des les avec choix de format - PDF/AI = un document avec 1 page par le a la taille reelle, traits de coupe inclus *)",
       "Bash(git commit -q -m 'feat: reglages repenses \\(cartes epurees production/devis/mails + nouvelles options: longueur et espacement d imposition, TVA et validite du devis PDF, ton par defaut et signature des mails\\) + visite guidee premiere connexion \\(bulles etape par etape, analyse de demonstration 100% locale et gratuite, quittable a tout moment, relancable depuis Reglages\\) *)",
-      "Bash(git commit -q -m 'fix visite guidee: vrai spotlight \\(la cible reste eclairee, le reste est assombri autour\\) au lieu d assombrir tout + positionnement fiable \\(scroll puis mesure, bulle sous/au-dessus/a cote selon la place\\) + bouton d aide flottant permanent pour relancer la visite *)"
+      "Bash(git commit -q -m 'fix visite guidee: vrai spotlight \\(la cible reste eclairee, le reste est assombri autour\\) au lieu d assombrir tout + positionnement fiable \\(scroll puis mesure, bulle sous/au-dessus/a cote selon la place\\) + bouton d aide flottant permanent pour relancer la visite *)",
+      "Bash(git commit -q -m 'feat: note du preparateur pour le poseur - le preparateur \\(ou patron\\) ecrit des precisions \\(ordre des les, sens de pose...\\) qui s affichent en evidence sur la mission du poseur, editable uniquement par le preparateur affecte, verifie cote serveur *)"
     ]
   }
 }
