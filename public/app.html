@@ -399,8 +399,10 @@ textarea:focus { border-color: var(--accent); }
 .reg-field .devis-inp{margin:0;}
 .reg-unit{font-size:9.5px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.4;}
 /* ===== Visite guidée ===== */
-.tour-overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:900;}
-.tour-highlight{position:relative !important;z-index:901 !important;box-shadow:0 0 0 3px var(--accent),0 0 26px rgba(200,240,74,.35) !important;border-radius:10px;}
+/* Overlay transparent qui bloque les clics ; l'assombrissement vient du "spot" (trou de lumière sur la cible) */
+.tour-overlay{position:fixed;inset:0;background:transparent;z-index:899;}
+.tour-overlay.dim{background:rgba(0,0,0,.62);}
+#tour-spot{position:fixed;z-index:900;pointer-events:none;background:transparent;border:2px solid var(--accent);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.62),0 0 30px rgba(200,240,74,.35);transition:top .25s,left .25s,width .25s,height .25s;}
 .tour-bubble{position:fixed;z-index:902;max-width:320px;background:var(--surface);border:1px solid var(--accent-dim);border-radius:14px;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.6);}
 .tour-bubble h4{margin:0 0 6px;font-size:14px;}
 .tour-bubble p{margin:0;font-size:12px;color:var(--muted);line-height:1.6;}
@@ -408,6 +410,8 @@ textarea:focus { border-color: var(--accent); }
 .tour-bubble .tour-x:hover{color:var(--danger);}
 .tour-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;}
 .tour-step{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);}
+#help-fab{position:fixed;bottom:18px;right:18px;z-index:500;width:40px;height:40px;border-radius:50%;border:1px solid var(--accent-dim);background:var(--surface);color:var(--accent);font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;transition:transform .12s,background .12s;}
+#help-fab:hover{transform:scale(1.08);background:var(--surface2);}
 </style>
 </head>
 <body>
@@ -981,6 +985,8 @@ textarea:focus { border-color: var(--accent); }
   </div>
 </div>
 
+<button id="help-fab" onclick="startTour()" title="Revoir la visite guidée">?</button>
+
 <script src="/vendor/imagetracer_v1.2.6.js"></script>
 <script>
 // ===================== API HELPER =====================
@@ -1114,6 +1120,9 @@ async function startSession(token, email, status, used, iEmail) {
   renderTrialBanner();
   applyRoleUI();
   startPolling();
+  // Bouton d'aide flottant (revoir la visite) — visible une fois connecté
+  const fab = document.getElementById('help-fab');
+  if (fab) fab.style.display = 'flex';
   // Première connexion (compte principal) → visite guidée avec analyse de démonstration gratuite
   if (!isEmploye && !localStorage.getItem('aidesif_tour_done')) {
     setTimeout(() => { try { startTour(); } catch {} }, 900);
@@ -1359,6 +1368,8 @@ function logout() {
   localStorage.removeItem('aidesif_session');
   sessionStorage.removeItem('aidesif_token');
   stopPolling();
+  try { endTour(); } catch {}
+  const fab = document.getElementById('help-fab'); if (fab) fab.style.display = 'none';
   document.getElementById('sub-wall').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app').classList.remove('visible');
@@ -1506,14 +1517,18 @@ const TOUR_STEPS = [
   { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
   { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment dans ⚙ Réglages → 🎓 Visite guidée. Bonne découverte !' },
 ];
-let _tourIdx = -1, _tourEl = null;
+let _tourIdx = -1;
 
 function startTour() {
   localStorage.setItem('aidesif_tour_done', '1'); // vue (ou passée) = on ne la relance plus automatiquement
   if (!document.getElementById('tour-overlay')) {
     const ov = document.createElement('div');
     ov.id = 'tour-overlay'; ov.className = 'tour-overlay';
+    ov.onclick = e => { if (e.target === ov) { /* clic en dehors : ne ferme pas, on guide */ } };
     document.body.appendChild(ov);
+    const spot = document.createElement('div');
+    spot.id = 'tour-spot'; spot.style.display = 'none';
+    document.body.appendChild(spot);
     const bb = document.createElement('div');
     bb.id = 'tour-bubble'; bb.className = 'tour-bubble';
     document.body.appendChild(bb);
@@ -1526,12 +1541,18 @@ async function nextTourStep() {
   _tourIdx++;
   if (_tourIdx >= TOUR_STEPS.length) return endTour();
   const step = TOUR_STEPS[_tourIdx];
-  if (_tourEl) { _tourEl.classList.remove('tour-highlight'); _tourEl = null; }
-  if (step.before) { document.getElementById('tour-bubble').style.display = 'none'; try { await step.before(); } catch {} }
+  const bb = document.getElementById('tour-bubble');
+  const spot = document.getElementById('tour-spot');
+  // Action préalable (ex : lancer la démo) — on cache bulle + spot le temps que ça se fasse
+  if (step.before) { bb.style.display = 'none'; spot.style.display = 'none'; try { await step.before(); } catch {} }
+
   let el = null;
   if (step.target) el = typeof step.target === 'function' ? step.target() : document.querySelector(step.target);
-  if (step.target && !el) return nextTourStep(); // cible absente (ex : section masquée) → étape suivante
-  const bb = document.getElementById('tour-bubble');
+  if (step.target && !el) return nextTourStep(); // cible absente (section masquée) → étape suivante
+
+  // Amener la cible à l'écran AVANT de mesurer sa position
+  if (el) { el.scrollIntoView({ block: 'center', behavior: 'auto' }); await new Promise(r => setTimeout(r, 260)); }
+
   const last = _tourIdx === TOUR_STEPS.length - 1;
   bb.innerHTML = `
     <button class="tour-x" onclick="endTour()" title="Quitter la visite">✕</button>
@@ -1544,26 +1565,37 @@ async function nextTourStep() {
       </div>
     </div>`;
   bb.style.display = 'block';
+
   if (el) {
-    _tourEl = el;
-    el.classList.add('tour-highlight');
-    el.scrollIntoView({ block: 'center' });
-    setTimeout(() => {
-      const r = el.getBoundingClientRect();
-      const bw = Math.min(320, window.innerWidth - 24), bh = bb.offsetHeight || 180;
-      let top = r.bottom + 12;
-      if (top + bh > window.innerHeight - 12) top = Math.max(12, r.top - bh - 12);
-      let left = Math.min(Math.max(12, r.left), window.innerWidth - bw - 12);
-      bb.style.top = top + 'px'; bb.style.left = left + 'px'; bb.style.transform = 'none';
-    }, 60);
+    // Spot = trou de lumière sur la cible (le reste est assombri par son ombre portée immense)
+    const r = el.getBoundingClientRect();
+    const pad = 8;
+    const sx = Math.max(2, r.left - pad), sy = Math.max(2, r.top - pad);
+    const sw = Math.min(window.innerWidth - sx - 2, r.width + pad * 2);
+    const sh = Math.min(window.innerHeight - sy - 2, r.height + pad * 2);
+    spot.style.display = 'block';
+    spot.style.left = sx + 'px'; spot.style.top = sy + 'px';
+    spot.style.width = sw + 'px'; spot.style.height = sh + 'px';
+    // Bulle : sous la cible si ça tient, sinon au-dessus, sinon à côté
+    const bw = Math.min(320, window.innerWidth - 24), bh = bb.offsetHeight || 190;
+    let top, left = Math.min(Math.max(12, r.left), window.innerWidth - bw - 12);
+    if (r.bottom + 14 + bh <= window.innerHeight - 8) top = r.bottom + 14;
+    else if (r.top - 14 - bh >= 8) top = r.top - 14 - bh;
+    else { top = Math.max(12, (window.innerHeight - bh) / 2); left = (r.right + 14 + bw <= window.innerWidth) ? r.right + 14 : Math.max(12, r.left - bw - 14); }
+    bb.style.top = top + 'px'; bb.style.left = left + 'px'; bb.style.transform = 'none';
   } else {
+    // Étape sans cible → bulle centrée, écran assombri via l'overlay
+    spot.style.display = 'none';
+    document.getElementById('tour-overlay').classList.add('dim');
     bb.style.top = '50%'; bb.style.left = '50%'; bb.style.transform = 'translate(-50%,-50%)';
+    return;
   }
+  document.getElementById('tour-overlay').classList.remove('dim');
 }
 
 function endTour() {
-  if (_tourEl) { _tourEl.classList.remove('tour-highlight'); _tourEl = null; }
   document.getElementById('tour-overlay')?.remove();
+  document.getElementById('tour-spot')?.remove();
   document.getElementById('tour-bubble')?.remove();
   if (window._tourDemoRan) {
     window._tourDemoRan = false;
