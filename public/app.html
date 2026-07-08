@@ -2106,6 +2106,25 @@ async function relancerAssemblage(id, choix) {
   }
 }
 
+// Retour client : la secrétaire (ou le patron) ajoute les infos obtenues et relance l'analyse avec
+async function relancerAvecInfos(id) {
+  if (!id || id === '_pending') return;
+  const txt = (document.getElementById('retour-infos')?.value || '').trim();
+  if (!txt) { alert('Écris d\'abord les informations obtenues du client.'); return; }
+  if (!confirm('Relancer l\'analyse en intégrant ces nouvelles informations ?\n(Compte comme une analyse — l\'ancien devis sera à recalculer.)')) return;
+  document.getElementById('output-panel').innerHTML = `<div class="output-loading"><div class="spinner"></div><p>Nouvelle analyse avec les infos du client…</p></div>`;
+  try {
+    const analyse = await api('POST', '/analyses/analyse', { mail_content: '.', reanalyse_id: id, infos_ajout: txt });
+    const idx = historique.findIndex(h => h.id === id);
+    if (idx >= 0) historique[idx] = analyse; else historique.unshift(analyse);
+    renderSidebarHisto();
+    renderResult(analyse.result, analyse.visuel_b64, analyse.visuel_type, analyse.id, analyse.visuels);
+    loadJetons();
+  } catch (e) {
+    handleActionError(e);
+  }
+}
+
 // Laize saisie tantôt en mm (1520) tantôt en cm (152) → toujours normalisée en MILLIMÈTRES
 function normMm(v) { const n = Number(v); return n > 0 && n < 400 ? Math.round(n * 10) : Math.round(n); }
 
@@ -2962,6 +2981,12 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
       ${missionSection}
       ${(analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : ''}
+      ${(analyseId && analyseId !== '_pending' && (vOwner || vSecr)) ? accSection('Retour client — compléter l\'analyse', `
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Le client a répondu ? Note ici les informations obtenues (dimensions confirmées, pose, délai, quantité…) : l'analyse sera relancée en les intégrant, et les futurs devis/mails en tiendront compte.</div>
+        <textarea id="retour-infos" placeholder="Ex : hauteur confirmée 60 cm, pose définitive en extérieur, livraison avant le 15..." style="width:100%;min-height:70px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
+        <button class="btn-submit" style="margin-top:10px;font-size:12px;" onclick="relancerAvecInfos(${analyseId})">🔄 Relancer l'analyse avec ces infos</button>
+        <span style="font-size:10px;color:var(--muted);margin-left:10px;">compte comme une analyse · l'ancien devis sera recalculé</span>`,
+        { icon: '✉', open: false, hint: 'replié' }) : ''}
       ${assemblageBox}
       ${actionsBar}
     </div>`;

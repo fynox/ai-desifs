@@ -632,12 +632,22 @@ router.post('/analyse', async (req, res) => {
   let { mail_content, consignes = '', file_base64, file_type } = req.body;
   const reanalyse_id = req.body.reanalyse_id ? Number(req.body.reanalyse_id) : null;
   const assemblage_force = (req.body.assemblage_force === 'assemble' || req.body.assemblage_force === 'separe') ? req.body.assemblage_force : null;
-  // Relance d'une analyse existante : on repart de SON mail et de SES visuels stockés
+  // Infos complémentaires obtenues au retour du client (ajoutées par la secrétaire ou le patron)
+  const infos_ajout = typeof req.body.infos_ajout === 'string' ? req.body.infos_ajout.trim().slice(0, 2000) : '';
+  // Relance d'une analyse existante : on repart de SON mail et de SES visuels stockés.
+  // Accessible au patron et au secrétariat (qui intègre les retours client).
   let reItem = null;
   if (reanalyse_id) {
-    reItem = db.prepare('SELECT * FROM analyses WHERE id = ? AND user_id = ?').get(reanalyse_id, req.user.id);
-    if (!reItem) return res.status(404).json({ error: 'Analyse introuvable.' });
+    reItem = db.prepare('SELECT * FROM analyses WHERE id = ?').get(reanalyse_id);
+    if (!canAccessAnalyse(req, reItem)) return res.status(404).json({ error: 'Analyse introuvable.' });
+    const me = db.prepare('SELECT parent_user_id, role FROM users WHERE id = ?').get(req.user.id);
+    if (me.parent_user_id && !hasRoleServ(me.role, 'secretariat')) {
+      return res.status(403).json({ error: 'La relance d\'analyse est réservée au patron et au secrétariat.' });
+    }
     mail_content = reItem.mail_content || mail_content;
+    if (infos_ajout) {
+      mail_content = `${mail_content}\n\n[INFOS COMPLÉMENTAIRES — retour du client] :\n${infos_ajout}`;
+    }
   }
   if (!mail_content) return res.status(400).json({ error: 'Le contenu du mail est requis.' });
 
@@ -659,7 +669,8 @@ router.post('/analyse', async (req, res) => {
   if (affA) return res.status(403).json(affA);
   const analyseOver = (user.subscription_status === 'active') && analyseOverQuota(user);
 
-  const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(req.user.id);
+  // Employé (secrétariat) : le stock utilisé pour l'analyse est celui du PATRON
+  const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(employeScope(req).ownerId);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
 
   const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
@@ -773,8 +784,13 @@ Réponds UNIQUEMENT en JSON valide :
     db.prepare('UPDATE users SET trial_analyses_used = trial_analyses_used + 1 WHERE id = ?').run(user.id);
   }
 
-  // Relance : on met à jour l'analyse existante (on garde ses visuels), pas de nouvelle ligne
+  // Relance : on met à jour l'analyse existante (on garde ses visuels), pas de nouvelle ligne.
+  // Si des infos client ont été ajoutées : le mail enrichi est persisté (devis/mails futurs les verront)
+  // et l'ancien devis devient obsolète → effacé.
   if (reItem) {
+    if (infos_ajout) {
+      db.prepare('UPDATE analyses SET mail_content = ?, devis_json = NULL WHERE id = ?').run(mail_content.slice(0, 8000), reItem.id);
+    }
     db.prepare("UPDATE analyses SET result_json = ?, status = 'done', error_msg = NULL WHERE id = ?").run(JSON.stringify(result), reItem.id);
     const analyse = db.prepare('SELECT * FROM analyses WHERE id = ?').get(reItem.id);
     let visuels = [];
