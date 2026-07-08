@@ -1889,16 +1889,19 @@ function renderSidebarHisto() {
         </div>`;
       }
       const titre = h.result?.titre || (h.result?.resume || '').slice(0, 28) + '…' || '—';
-      // Badge d'étape mission (patron) : où en est la demande dans l'équipe
-      const stBadge = h.job_status
-        ? `<span style="font-size:8px;font-weight:700;border-radius:20px;padding:1px 7px;white-space:nowrap;${h.job_status === 'termine' ? 'background:rgba(80,200,120,.15);color:#4ecd7b;border:1px solid #4ecd7b44;' : 'background:rgba(200,240,74,.12);color:var(--accent);border:1px solid var(--accent-dim);'}">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:10px;">📷</span>' : ''}`
+      // Étape mission (patron) : liseré coloré + étiquette pleine ligne → lisible au premier coup d'œil
+      const STAGE_COLORS = { a_creer: '#c84af0', a_preparer: '#f0a030', pret_a_poser: '#4a8af0', retour_client: '#f0c84a', termine: '#4ecd7b' };
+      const stCol = h.job_status ? (STAGE_COLORS[h.job_status] || 'var(--accent)') : null;
+      const stLine = h.job_status
+        ? `<div style="margin-top:4px;"><span style="display:inline-block;font-size:9px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:${stCol}22;color:${stCol};border:1px solid ${stCol}55;">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:11px;">📷</span>' : ''}</div>`
         : '';
-      return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
+      return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${stCol ? `border-left:4px solid ${stCol};padding-left:8px;border-radius:0 9px 9px 0;` : ''}">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
             <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:9px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
-            <div class="histo-item-sub">${date}${stBadge ? ' · ' + stBadge : ''}</div>
+            <div class="histo-item-sub">${date}</div>
+            ${stLine}
           </div>
         </div>
         ${!isEmploye ? `<button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>` : ``}

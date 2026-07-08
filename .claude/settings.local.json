@@ -67,7 +67,8 @@
       "Bash(git commit -q -m 'admin: sous-comptes employes mieux rattaches - email de l employeur affiche sur chaque ligne employe, liste utilisateurs rafraichie a chaque ouverture \\(plus de cache fige\\), recherche qui garde les groupes employeur+employes ensemble *)",
       "Bash(perl -0pi -e 's/<button class=\"histo-delete-btn\" onclick=\"deleteHisto\\\\\\(event,\\\\$\\\\{h\\\\.id\\\\}\\\\\\)\" title=\"Supprimer\">🗑<\\\\/button>/\\\\$\\\\{!isEmploye ? `<button class=\"histo-delete-btn\" onclick=\"deleteHisto\\(event,\\\\$\\\\{h.id\\\\}\\)\" title=\"Supprimer\">🗑<\\\\/button>` : ``\\\\}/g' public/app.html)",
       "Bash(grep -c \"isEmploye ? \\\\`<button class=\\\\\"histo-delete-btn\\\\\"\" public/app.html)",
-      "Bash(git commit -q -m 'refonte missions: transfert limite aux employes ATTITRES par le patron \\(plus de re-routage libre, verifie cote serveur\\) + secretariat hors parcours de production - vision globale de toutes les analyses \\(comme le patron\\), intervient a la demande \\(mail/devis\\) sans transferts inutiles, sidebar historique complete pour lui, pas de bandeau mission s il n est pas affecte *)"
+      "Bash(git commit -q -m 'refonte missions: transfert limite aux employes ATTITRES par le patron \\(plus de re-routage libre, verifie cote serveur\\) + secretariat hors parcours de production - vision globale de toutes les analyses \\(comme le patron\\), intervient a la demande \\(mail/devis\\) sans transferts inutiles, sidebar historique complete pour lui, pas de bandeau mission s il n est pas affecte *)",
+      "Bash(git commit -q -m 'historique patron: etape de mission bien visible - liseré colore sur la carte + etiquette pleine ligne \\(une couleur par etape: creation violet, preparation orange, pose bleu, termine vert\\), plus de badge coupe *)"
     ]
   }
 }
