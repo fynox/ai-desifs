@@ -4346,7 +4346,7 @@ function openTonChoice(id) {
 
   document.getElementById('mail-points').innerHTML = pts.map(p => `
     <label class="mail-point">
-      <input type="checkbox" value="${p.id}" data-txt="${p.txt.replace(/"/g, '&quot;')}"${p.on ? ' checked' : ''}>
+      <input type="checkbox" value="${p.id}" data-txt="${(p.txt + (p.sub ? ' (' + p.sub + ')' : '')).replace(/"/g, '&quot;')}"${p.on ? ' checked' : ''}>
       <span class="mp-txt">${p.txt}${p.sub ? `<span class="mp-sub"><br>${p.sub}</span>` : ''}</span>
     </label>`).join('');
   // Ton présélectionné selon les réglages du compte

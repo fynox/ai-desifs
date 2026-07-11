@@ -306,6 +306,10 @@ router.post('/:id/relance', async (req, res) => {
     ? `POINTS À ABORDER (imposés par l'imprimeur — traite CHACUN naturellement dans le mail, sans liste à puces sèche) :\n${points.map(p => '- ' + p).join('\n')}\n\nN'ajoute pas d'autres demandes que celles nécessaires à ces points.`
     : `Demande uniquement les informations manquantes nécessaires pour finaliser le devis/la recommandation (dimensions, surface de pose, intérieur/extérieur, durée, quantité, fichier...).`;
 
+  // Nos prestations atelier : quand un problème de fichier est évoqué, on PROPOSE la solution maison,
+  // on ne se contente jamais de renvoyer le client chercher un meilleur fichier.
+  const servicesBloc = `SERVICES DE L'ATELIER — RÈGLE IMPORTANTE : si le mail aborde un fichier en basse résolution, un fichier non vectoriel ou un visuel manquant/inadapté, tu ne dois JAMAIS te contenter de demander un meilleur fichier au client. Propose TOUJOURS l'alternative que NOTRE atelier s'en charge : amélioration/agrandissement du fichier (upscaling) pour la résolution, mise en fichier vectoriel (vectorisation) pour la découpe, ou création du visuel par notre designer. Précise que cette préparation de fichier est une prestation en supplément qui sera chiffrée dans le devis, et laisse au client le choix entre : (a) nous envoyer un fichier HD/vectoriel s'il l'a, ou (b) nous confier la préparation.`;
+
   const prompt = `Tu es un imprimeur professionnel (signalétique / adhésifs). Un client a envoyé cette demande :
 
 ---
@@ -317,6 +321,8 @@ Résumé : ${result.resume || 'N/A'}
 ${result.attention ? `Point d'attention : ${result.attention}` : ''}
 
 ${pointsBloc}
+
+${servicesBloc}
 
 ${req.body?.ton === 'familier'
     ? `Rédige un mail de réponse chaleureux et décontracté en français, en traitant les points à aborder ci-dessus. C'est un client de longue date : tutoiement autorisé, ton amical et direct, mais reste pro sur le fond. Sois concis (5-12 lignes max), termine par une formule sympa SANS signature nominative (l'expéditeur signera lui-même).`
@@ -412,6 +418,7 @@ ${(item.mail_content || '').slice(0, 3000)}
 ---
 
 Analyse interne : ${result.resume || 'N/A'}
+${result.attention ? `Point d'attention : ${result.attention}` : ''}
 Adhésif(s) recommandé(s) : ${nomsReco.join(', ') || 'N/A'}
 
 STOCK ADHÉSIFS (prix au m² HT) :
@@ -422,6 +429,7 @@ ${encreLines}
 
 ${devisPrefHint}RÈGLES :
 - Utilise en priorité les adhésifs recommandés par l'analyse et leurs prix réels du stock.
+- PRÉPARATION DE FICHIER : si la demande ou l'analyse indique un fichier en basse résolution (amélioration/upscaling nécessaire), une vectorisation à réaliser (découpe DAO à partir d'une image non vectorielle) ou un visuel à créer, ajoute une ligne de prestation dédiée (ex: "Préparation du fichier — amélioration HD", "Vectorisation du visuel pour découpe", "Création du visuel") avec un tarif raisonnable (forfait ou taux horaire), et mentionne dans les hypothèses que le client peut fournir un fichier HD/vectoriel pour éviter ce coût.
 - Calcule la surface à partir des dimensions du mail. Si dimensions absentes, fais une hypothèse raisonnable et signale-la.
 - Tiens compte des laizes (largeurs de rouleau) pour estimer le nombre de lés.
 - IMPORTANT : la matière se compte en laize PLEINE du rouleau, pas en surface du visuel. Les chutes (bords du lé non couverts par le visuel, marges d'impression, débord de pose) sont coupées et JETÉES, non réutilisables. Surface matière = nb de lés × laize complète du rouleau × longueur du lé (longueur du visuel + ~4 cm de débord). Détaille cette perte dans la ligne du devis.
