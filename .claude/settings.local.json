@@ -81,7 +81,14 @@
       "Bash(nslookup -type=mx mail.ai-dhesif.fr 8.8.8.8)",
       "Bash(dig +short MX ai-dhesif.fr @1.1.1.1)",
       "PowerShell(try { $r = Resolve-DnsName -Name ai-dhesif.fr -Type MX -Server 1.1.1.1 -ErrorAction Stop; $r | Where-Object {$_.Type -eq 'MX'} | ForEach-Object { \"MX: $\\($_.NameExchange\\) \\(priorite $\\($_.Preference\\)\\)\" } } catch { \"Aucun MX trouve sur la racine pour l'instant \\(propagation en cours\\)\" })",
-      "Bash(git commit -q -m 'perf: mails entrants apparaissent plus vite dans l historique - poll passe de 10s a 4s quand l onglet est actif \\(20s en arriere-plan\\), premier poll a 3s, verification immediate au retour sur l onglet *)"
+      "Bash(git commit -q -m 'perf: mails entrants apparaissent plus vite dans l historique - poll passe de 10s a 4s quand l onglet est actif \\(20s en arriere-plan\\), premier poll a 3s, verification immediate au retour sur l onglet *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('deps:', Object.keys\\(p.dependencies||{}\\).join\\(', '\\)\\)\")",
+      "Bash(node -e \"try{require\\('mailparser'\\);console.log\\('mailparser: DISPONIBLE'\\)}catch\\(e\\){console.log\\('mailparser: ABSENT'\\)}\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('mailparser'\\);console.log\\('mailparser OK'\\)\")",
+      "Bash(node -e \"require\\('./src/routes/webhook.js'\\);console.log\\('webhook OK'\\)\")",
+      "Bash(node -e \"console.log\\('mailparser dans package.json:', !!require\\('./package.json'\\).dependencies.mailparser\\)\")",
+      "Bash(git commit -q -m 'fix mail entrant: recuperation des pieces jointes meme avec Send Raw active - parsing MIME robuste via mailparser \\(texte + fichiers extraits du mail brut\\), fusionnes avec les pieces jointes detachees par SendGrid *)"
     ]
   }
 }

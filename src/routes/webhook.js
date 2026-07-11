@@ -40,16 +40,21 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     const to = req.body.to || '';
     const from = req.body.from || '';
     const subject = req.body.subject || '';
-    // Send Raw ON → contenu dans req.body.email (MIME brut), sinon dans text/html
-    let text = req.body.text || req.body.html || '';
-    if (!text && req.body.email) {
-      // Extraire la partie texte du MIME brut
-      const raw = req.body.email;
-      const plainMatch = raw.match(/Content-Type: text\/plain[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?=--|\n--)/i);
-      const htmlMatch = raw.match(/Content-Type: text\/html[^\n]*\n(?:[^\n]*\n)*?\n([\s\S]*?)(?=--|\n--)/i);
-      text = (plainMatch?.[1] || htmlMatch?.[1] || '').replace(/<[^>]+>/g, ' ').trim();
-      if (!text) text = raw.slice(0, 3000); // fallback : envoyer le brut tronqué
+    // Send Raw ON → tout est dans req.body.email (MIME brut) : on le parse proprement (texte + pièces jointes).
+    // Send Raw OFF → texte dans text/html et pièces jointes dans req.files. On gère les DEUX cas.
+    let text = req.body.text || '';
+    let rawAttachments = [];
+    if (req.body.email) {
+      try {
+        const { simpleParser } = require('mailparser');
+        const parsed = await simpleParser(req.body.email);
+        if (!text) text = (parsed.text || (parsed.html || '').replace(/<[^>]+>/g, ' ')).trim();
+        rawAttachments = (parsed.attachments || [])
+          .filter(a => a.content && a.content.length)
+          .map(a => ({ mimetype: a.contentType || 'application/octet-stream', buffer: a.content, originalname: a.filename || 'piece-jointe' }));
+      } catch (e) { console.error('MIME parse error:', e.message); }
     }
+    if (!text) text = (req.body.html || '').replace(/<[^>]+>/g, ' ').trim();
 
     // Extraire l'adresse inbound complète dans le champ "to".
     // Le champ "to" peut contenir plusieurs adresses (destinataires en copie) → on les teste toutes.
@@ -152,8 +157,8 @@ SÉPARE BIEN les deux listes d'étapes : "preparation" = étapes d'ATELIER avant
 Réponds UNIQUEMENT en JSON valide :
 {"titre":"3-4 mots max ex: Logo vitrine extérieur","resume":"...","adhesifs":[{"nom":"nom exact du stock","raison":"...","priorite":"principal ou alternatif"}],"specs":{"finition":"...","duree":"...","pose":"...","retrait":"..."},"preparation":["..."],"pose":["..."],"attention":"... ou null","montage":{"largeur_cm":300,"hauteur_cm":120,"laize_cm":137,"nb_les":3,"sens_les":"vertical ou horizontal","debord_mm":0,"quantite":1,"assemblage":"assemble|separe|inconnu"}}`;
 
-    // Pièces jointes : images directes + PDFs convertis en PNG
-    const files = req.files || [];
+    // Pièces jointes : celles détachées par SendGrid (req.files) + celles extraites du MIME brut (Send Raw)
+    const files = [...(req.files || []), ...rawAttachments];
     const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
     const pdfFiles = files.filter(f => f.mimetype === 'application/pdf' || f.originalname?.endsWith('.pdf'));
 
