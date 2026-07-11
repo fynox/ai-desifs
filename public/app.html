@@ -3704,17 +3704,27 @@ async function _doPoll() {
         if (done) { const id = window._viewingPendingId; window._viewingPendingId = null; clearInterval(window._iaLoaderTimer); openHisto(id); }
       }
     }
-    const delay = hasPending ? 2000 : 10000;
+    // Onglet actif : on vérifie souvent (4 s) pour que les mails arrivent vite dans l'historique.
+    // Onglet en arrière-plan : on ralentit (20 s) pour ne pas surcharger inutilement.
+    const idle = document.hidden ? 20000 : 4000;
+    const delay = hasPending ? 2000 : idle;
     if (_pollActive) pollingInterval = setTimeout(_doPoll, delay);
   } catch {
-    if (_pollActive) pollingInterval = setTimeout(_doPoll, 10000);
+    if (_pollActive) pollingInterval = setTimeout(_doPoll, 8000);
   }
 }
 
 function startPolling() {
   if (_pollActive) return;
   _pollActive = true;
-  pollingInterval = setTimeout(_doPoll, 10000);
+  pollingInterval = setTimeout(_doPoll, 3000);
+  // Revenir sur l'onglet → vérification immédiate (le mail apparaît sans attendre)
+  if (!window._pollVisibilityBound) {
+    window._pollVisibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _pollActive) { clearTimeout(pollingInterval); pollingInterval = setTimeout(_doPoll, 300); }
+    });
+  }
 }
 
 function stopPolling() {

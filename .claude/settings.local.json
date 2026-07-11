@@ -73,7 +73,15 @@
       "Bash(git commit -q -m 'feat export multi-formats: visuel principal et chaque fichier exportables en PNG / JPG / PDF taille reelle \\(mm\\) / AI compatible Illustrator \\(generateur PDF integre cote navigateur\\), export des les avec choix de format - PDF/AI = un document avec 1 page par le a la taille reelle, traits de coupe inclus *)",
       "Bash(git commit -q -m 'feat: reglages repenses \\(cartes epurees production/devis/mails + nouvelles options: longueur et espacement d imposition, TVA et validite du devis PDF, ton par defaut et signature des mails\\) + visite guidee premiere connexion \\(bulles etape par etape, analyse de demonstration 100% locale et gratuite, quittable a tout moment, relancable depuis Reglages\\) *)",
       "Bash(git commit -q -m 'fix visite guidee: vrai spotlight \\(la cible reste eclairee, le reste est assombri autour\\) au lieu d assombrir tout + positionnement fiable \\(scroll puis mesure, bulle sous/au-dessus/a cote selon la place\\) + bouton d aide flottant permanent pour relancer la visite *)",
-      "Bash(git commit -q -m 'feat: note du preparateur pour le poseur - le preparateur \\(ou patron\\) ecrit des precisions \\(ordre des les, sens de pose...\\) qui s affichent en evidence sur la mission du poseur, editable uniquement par le preparateur affecte, verifie cote serveur *)"
+      "Bash(git commit -q -m 'feat: note du preparateur pour le poseur - le preparateur \\(ou patron\\) ecrit des precisions \\(ordre des les, sens de pose...\\) qui s affichent en evidence sur la mission du poseur, editable uniquement par le preparateur affecte, verifie cote serveur *)",
+      "Bash(nslookup -type=ns ai-dhesif.fr 8.8.8.8)",
+      "Bash(dig +short NS ai-dhesif.fr @8.8.8.8)",
+      "Bash(nslookup -type=mx ai-dhesif.fr 8.8.8.8)",
+      "Bash(dig +short MX ai-dhesif.fr @8.8.8.8)",
+      "Bash(nslookup -type=mx mail.ai-dhesif.fr 8.8.8.8)",
+      "Bash(dig +short MX ai-dhesif.fr @1.1.1.1)",
+      "PowerShell(try { $r = Resolve-DnsName -Name ai-dhesif.fr -Type MX -Server 1.1.1.1 -ErrorAction Stop; $r | Where-Object {$_.Type -eq 'MX'} | ForEach-Object { \"MX: $\\($_.NameExchange\\) \\(priorite $\\($_.Preference\\)\\)\" } } catch { \"Aucun MX trouve sur la racine pour l'instant \\(propagation en cours\\)\" })",
+      "Bash(git commit -q -m 'perf: mails entrants apparaissent plus vite dans l historique - poll passe de 10s a 4s quand l onglet est actif \\(20s en arriere-plan\\), premier poll a 3s, verification immediate au retour sur l onglet *)"
     ]
   }
 }
