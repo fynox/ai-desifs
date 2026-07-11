@@ -51,11 +51,22 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
       if (!text) text = raw.slice(0, 3000); // fallback : envoyer le brut tronqué
     }
 
-    // Extraire l'adresse inbound complète dans le champ "to"
-    const toMatch = to.match(/([^\s<,]+@[^\s>,]+)/);
-    if (!toMatch) return;
-    const inboundAddr = toMatch[1].toLowerCase();
-    const user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(inboundAddr);
+    // Extraire l'adresse inbound complète dans le champ "to".
+    // Le champ "to" peut contenir plusieurs adresses (destinataires en copie) → on les teste toutes.
+    const candidates = [];
+    for (const m of String(to).matchAll(/([^\s<,;]+@[^\s>,;]+)/g)) {
+      const addr = m[1].toLowerCase();
+      candidates.push(addr);
+      // Tolérance : SendGrid reçoit sur le sous-domaine "mail." mais l'adresse stockée est sur le domaine racine (et vice-versa)
+      if (addr.includes('@mail.')) candidates.push(addr.replace('@mail.', '@'));
+      else candidates.push(addr.replace('@', '@mail.'));
+    }
+    if (!candidates.length) return;
+    let user = null;
+    for (const addr of [...new Set(candidates)]) {
+      user = db.prepare('SELECT * FROM users WHERE inbound_email = ?').get(addr);
+      if (user) break;
+    }
     if (!user) return; // adresse inconnue : impossible de rattacher à un compte
 
     const { hasMailInbound, affordAnalyse, analyseOverQuota, consumeJetons } = require('../utils/limits');
