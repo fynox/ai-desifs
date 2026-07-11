@@ -91,7 +91,8 @@
       "Bash(git commit -q -m 'fix mail entrant: recuperation des pieces jointes meme avec Send Raw active - parsing MIME robuste via mailparser \\(texte + fichiers extraits du mail brut\\), fusionnes avec les pieces jointes detachees par SendGrid *)",
       "Bash(perl -0pi -e 's/\"priorite\":\"principal ou alternatif\"\\\\}\\\\],\"specs\"/\"priorite\":\"principal ou alternatif ou complement\"\\\\}\\\\],\"manque_stock\":\"conseil d achat si le produit ideal manque au stock, sinon null\",\"specs\"/g' src/routes/analyses.js src/routes/webhook.js)",
       "Bash(node -e \"require\\('./src/routes/analyses.js'\\);require\\('./src/routes/webhook.js'\\);console.log\\('backend OK'\\)\")",
-      "Bash(git commit -q -m 'feat: onglets Analyse/Preparation/Pose sur le resultat patron \\(etapes separees, plus de fouillis\\), note poseur ecrite uniquement par le preparateur \\(lisible par patron et poseur\\), mail dedie repare pour le plan Entreprise, employes gardent leur vue filtree *)"
+      "Bash(git commit -q -m 'feat: onglets Analyse/Preparation/Pose sur le resultat patron \\(etapes separees, plus de fouillis\\), note poseur ecrite uniquement par le preparateur \\(lisible par patron et poseur\\), mail dedie repare pour le plan Entreprise, employes gardent leur vue filtree *)",
+      "Bash(git commit -q -m 'onglet Analyse epure: visuel du mail seul \\(boutons ameliorer/vectoriser/exporter deplaces dans l onglet Preparation sous '\\\\''Outils du visuel'\\\\''\\), le bouton plan de les d un fichier bascule automatiquement sur l onglet Preparation - employes inchanges *)"
     ]
   }
 }

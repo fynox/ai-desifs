@@ -2690,6 +2690,7 @@ function afficherPlanGroupe(gi) {
 
 // Génère le plan de lés pour UN fichier précis (multi-fichiers de tailles différentes)
 function planPourFichier(i) {
+  try { switchResultTab('prep'); } catch {} // le plan vit dans l'onglet Préparation (compte patron)
   const v = (window._visuels || [])[i];
   const host = document.getElementById('les-host');
   if (!v || !host) return;
@@ -3005,11 +3006,12 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const poseStepsHTML = (r.pose || []).map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
   let previewInner = '', previewTitle = 'Aperçu du visuel';
+  let toolsBtns = ''; // outils du visuel (améliorer / vectoriser / exporter) — chez le patron ils vont dans l'onglet Préparation
   const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
       const hasOrig = (historique.find(a => a.id === analyseId) || {}).has_orig;
-      const visuelBtns = analyseId && analyseId !== '_pending' && showTools
+      toolsBtns = analyseId && analyseId !== '_pending' && showTools
         ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
@@ -3017,6 +3019,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
+      const inlineBtns = vOwner ? '' : toolsBtns; // employés : outils sous l'image ; patron : onglet Préparation
       if (Array.isArray(visuels) && visuels.length > 1) {
         // Plusieurs fichiers (souvent de tailles différentes) : chacun avec sa taille + son bouton plan de lés
         window._visuels = visuels;
@@ -3028,9 +3031,9 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="openExportVisuel(${analyseId}, ${i})" title="Télécharger ce fichier en PNG, JPG, PDF taille réelle ou AI">⬇ Exporter</button>
           </div>`).join('');
         previewTitle = `${visuels.length} fichiers à imprimer`;
-        previewInner = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${visuelBtns}`;
+        previewInner = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${inlineBtns}`;
       } else {
-        previewInner = `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${visuelBtns}`;
+        previewInner = `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${inlineBtns}`;
       }
     } else if (previewType === 'application/pdf') {
       previewInner = `<iframe src="data:application/pdf;base64,${previewB64}" style="width:100%;height:320px;border-radius:8px;border:1px solid var(--border);" loading="lazy"></iframe>`;
@@ -3272,7 +3275,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   // Employés : page unique déjà filtrée sur leur rôle.
   let corps;
   if (vOwner) {
-    const tabPrep = secPrepChk + montageSection;
+    const tabPrep = (toolsBtns ? accSection('Outils du visuel', toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection;
     const tabPose = ownerNoteView + secPoseChk + secPhotos;
     corps = `
       <div style="display:flex;gap:8px;margin:2px 0 14px;">
