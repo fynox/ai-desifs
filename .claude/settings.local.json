@@ -88,7 +88,10 @@
       "Bash(node -e \"require\\('mailparser'\\);console.log\\('mailparser OK'\\)\")",
       "Bash(node -e \"require\\('./src/routes/webhook.js'\\);console.log\\('webhook OK'\\)\")",
       "Bash(node -e \"console.log\\('mailparser dans package.json:', !!require\\('./package.json'\\).dependencies.mailparser\\)\")",
-      "Bash(git commit -q -m 'fix mail entrant: recuperation des pieces jointes meme avec Send Raw active - parsing MIME robuste via mailparser \\(texte + fichiers extraits du mail brut\\), fusionnes avec les pieces jointes detachees par SendGrid *)"
+      "Bash(git commit -q -m 'fix mail entrant: recuperation des pieces jointes meme avec Send Raw active - parsing MIME robuste via mailparser \\(texte + fichiers extraits du mail brut\\), fusionnes avec les pieces jointes detachees par SendGrid *)",
+      "Bash(perl -0pi -e 's/\"priorite\":\"principal ou alternatif\"\\\\}\\\\],\"specs\"/\"priorite\":\"principal ou alternatif ou complement\"\\\\}\\\\],\"manque_stock\":\"conseil d achat si le produit ideal manque au stock, sinon null\",\"specs\"/g' src/routes/analyses.js src/routes/webhook.js)",
+      "Bash(node -e \"require\\('./src/routes/analyses.js'\\);require\\('./src/routes/webhook.js'\\);console.log\\('backend OK'\\)\")",
+      "Bash(git commit -q -m 'feat: onglets Analyse/Preparation/Pose sur le resultat patron \\(etapes separees, plus de fouillis\\), note poseur ecrite uniquement par le preparateur \\(lisible par patron et poseur\\), mail dedie repare pour le plan Entreprise, employes gardent leur vue filtree *)"
     ]
   }
 }

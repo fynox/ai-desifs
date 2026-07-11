@@ -392,6 +392,9 @@ textarea:focus { border-color: var(--accent); }
 .role-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:6px 11px;border:1px solid var(--border);border-radius:20px;cursor:pointer;background:var(--surface2);user-select:none;transition:all .12s;}
 .role-chip:has(input:checked){border-color:var(--accent);color:var(--accent);background:#141f03;}
 .role-chip input{accent-color:var(--accent);width:13px;height:13px;margin:0;}
+.rtab{flex:1;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .15s;}
+.rtab:hover{border-color:var(--accent-dim);}
+.rtab.active{border-color:var(--accent);color:var(--accent);background:#141f03;}
 .reg-card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:var(--surface);}
 .reg-title{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
 .reg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
@@ -1526,7 +1529,7 @@ const TOUR_STEPS = [
   { target: '#btn-analyze', title: '⚡ Analyser la demande', text: 'L\'IA choisit l\'adhésif dans TON stock, calcule le plan de lés et prépare devis et mails. On lance une démo — gratuite, promis !' },
   { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat', text: 'Résumé, adhésif recommandé, spécifications… chaque bloc se déplie ou se replie d\'un clic pour garder l\'écran simple.' },
   { target: () => document.querySelectorAll('#output-panel .acc-section')[1], title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Clique dessus pour voir la fiche dans ton stock.' },
-  { target: () => [...document.querySelectorAll('#output-panel .acc-section')].find(s => s.textContent.includes('Plan de lés')), title: '📐 Le plan de lés', text: 'Nombre de lés, raccords, débord de pose… et l\'export des lés avec traits de coupe (PNG, PDF taille réelle, AI). Les réglages fins sont sous ⚙.' },
+  { target: () => { try { switchResultTab('prep'); } catch {} return [...document.querySelectorAll('#output-panel .acc-section')].find(s => s.textContent.includes('Plan de lés')); }, title: '📐 Le plan de lés (onglet Préparation)', text: 'Chaque dossier a 3 onglets : Analyse, Préparation, Pose. Ici, l\'onglet Préparation : nombre de lés, raccords, export avec traits de coupe (PNG, PDF taille réelle, AI). Réglages fins sous ⚙.' },
   { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses sont là. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
   { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
   { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment dans ⚙ Réglages → 🎓 Visite guidée. Bonne découverte !' },
@@ -1690,7 +1693,7 @@ function openProfile() {
   document.getElementById('profil-success').style.display = 'none';
 
   const wrap = document.getElementById('profil-inbound-wrap');
-  if (subscriptionStatus === 'active' && ['pro', 'ultra'].includes(userPlan) && inboundEmail) {
+  if (subscriptionStatus === 'active' && ['pro', 'ultra', 'entreprise'].includes(userPlan) && inboundEmail) {
     wrap.innerHTML = `
       <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
       <div style="display:flex;align-items:center;gap:10px;">
@@ -2937,6 +2940,16 @@ function accSection(title, body, opts) {
 }
 function toggleAcc(head) { head.parentNode.classList.toggle('collapsed'); }
 
+// Onglets du résultat (patron) : Analyse / Préparation / Pose
+function switchResultTab(t) {
+  ['analyse', 'prep', 'pose'].forEach(k => {
+    const pane = document.getElementById('rtab-' + k);
+    const btn = document.getElementById('rtab-btn-' + k);
+    if (pane) pane.style.display = k === t ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', k === t);
+  });
+}
+
 // Détecte une demande de découpe (DAO / adhésif découpé) → pas de plan de lés / impression
 function isDemandeDAO(r) {
   const txt = ((r.resume || '') + ' ' + (r.attention || '') + ' ' + (r.specs ? Object.values(r.specs).join(' ') : '') + ' ' + (r.adhesifs || []).map(a => (a.nom || '') + ' ' + (a.raison || '')).join(' ')).toLowerCase();
@@ -2961,15 +2974,32 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const showActions = vOwner || vSecr;                     // mail client + devis
   const adhesifsHTML = r.adhesifs.map(a => {
     const principal = a.priorite === 'principal';
-    return `<div class="adhesif-result-card${principal ? ' adhesif-principal' : ''}" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')" style="${principal ? 'border-color:var(--accent);background:#141f03;' : 'opacity:.82;'}">
+    // Une plastification n'est pas une alternative : c'est un AJOUT par-dessus l'adhésif principal
+    const complement = a.priorite === 'complement' || (a.priorite !== 'principal' && /plastif|lamination|film de protection/i.test((a.nom || '') + ' ' + (a.raison || '')));
+    const badge = principal
+      ? '<span style="font-size:9px;font-weight:700;background:var(--accent);color:#111;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">★ RECOMMANDÉ</span>'
+      : complement
+        ? '<span style="font-size:9px;font-weight:700;background:rgba(74,138,240,.18);color:#6aa8ff;border:1px solid #4a8af077;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">➕ À AJOUTER PAR-DESSUS</span>'
+        : '<span style="font-size:9px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 9px;">Alternative</span>';
+    const cardStyle = principal
+      ? 'border-color:var(--accent);background:#141f03;'
+      : complement
+        ? 'border-color:#4a8af077;background:rgba(74,138,240,.06);'
+        : 'opacity:.82;';
+    return `<div class="adhesif-result-card${principal ? ' adhesif-principal' : ''}" onclick="openStockItem('${a.nom.replace(/'/g,"\\'")}')" style="${cardStyle}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-        ${principal ? '<span style="font-size:9px;font-weight:700;background:var(--accent);color:#111;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">★ RECOMMANDÉ</span>' : '<span style="font-size:9px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 9px;">Alternative</span>'}
-        <span class="adhesif-result-name" style="${principal ? 'color:var(--accent);font-size:15px;' : ''}">${a.nom}</span>
+        ${badge}
+        <span class="adhesif-result-name" style="${principal ? 'color:var(--accent);font-size:15px;' : (complement ? 'color:#6aa8ff;' : '')}">${a.nom}</span>
       </div>
       <div class="adhesif-result-raison">${a.raison}</div>
       <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent-dim);margin-top:6px;">↗ Voir dans le stock</div>
     </div>`;
-  }).join('');
+  }).join('')
+  // Conseil d'achat quand le produit idéal n'est pas dans le stock
+  + (r.manque_stock ? `<div style="margin-top:10px;padding:11px 14px;border:1px dashed #f0a030;border-radius:10px;background:rgba(240,160,48,.07);">
+      <div style="font-size:10px;font-weight:700;color:#f0a030;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">💡 Conseil matière — absent de ton stock</div>
+      <div style="font-size:12px;line-height:1.55;">${r.manque_stock}</div>
+    </div>` : '');
   const prepHTML = (r.preparation || []).map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
   // Conseils de POSE séparés (analyses récentes) — le poseur ne voit que ça, jamais les étapes d'atelier
   const poseStepsHTML = (r.pose || []).map(p => `<div class="check-row"><span class="check-arrow">→</span><span>${p}</span></div>`).join('');
@@ -3203,8 +3233,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         <div style="font-size:12.5px;white-space:pre-wrap;line-height:1.55;">${escNote(prepNote)}</div>
       </div>`
     : '';
-  // Éditeur pour le préparateur affecté et le patron
-  const prepNoteEditor = ((vPrep || vOwner) && analyseId && analyseId !== '_pending')
+  // Éditeur de note : UNIQUEMENT le préparateur affecté (sur un compte sans employés, ça n'aurait aucun sens)
+  const prepNoteEditor = (vPrep && analyseId && analyseId !== '_pending')
     ? accSection('Note pour le poseur', `
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Précisions à transmettre au poseur (ordre des lés, sens de pose, points délicats…) — elle s'affiche bien en évidence sur sa mission.</div>
         <textarea id="prep-note-input" placeholder="Ex : commencer par le lé de gauche, raccord 1 cm, bulle à surveiller sur le lé 2..." style="width:100%;min-height:64px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;">${escNote(prepNote)}</textarea>
@@ -3213,32 +3243,57 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       { icon: '📝', open: Boolean(prepNote), hint: prepNote ? '' : 'replié' })
     : '';
 
+  // ===== Sections communes (chaînes réutilisées par les deux mises en page) =====
+  const secResume = accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true });
+  const secPreview = previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : '';
+  const secAdhesif = showAdhesif ? accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true }) : '';
+  const secSpecs = (showSpecs && specBoxes.length) ? accSection('Spécifications', specsInner, { icon: '📋', open: false, hint: 'replié' }) : '';
+  const secPrepChk = (prepHTML && (vOwner || vPrep)) ? accSection('Préparation (atelier)', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: vOwner, hint: vOwner ? '' : 'replié' }) : '';
+  const secPoseChk = (poseStepsHTML && (vOwner || vPose)) ? accSection('Conseils de pose', `<div class="checklist">${poseStepsHTML}</div>`, { icon: '🚐', open: true }) : '';
+  const secAttention = r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : '';
+  const secPhotos = (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : '';
+  const secRetour = (analyseId && analyseId !== '_pending' && (vOwner || vSecr)) ? accSection('Retour client — compléter l\'analyse', `
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Le client a répondu ? Note ici les informations obtenues (dimensions confirmées, pose, délai, quantité…) : l'analyse sera relancée en les intégrant, et les futurs devis/mails en tiendront compte.</div>
+        <textarea id="retour-infos" placeholder="Ex : hauteur confirmée 60 cm, pose définitive en extérieur, livraison avant le 15..." style="width:100%;min-height:70px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
+        <button class="btn-submit" style="margin-top:10px;font-size:12px;" onclick="relancerAvecInfos(${analyseId})">🔄 Relancer l'analyse avec ces infos</button>
+        <span style="font-size:10px;color:var(--muted);margin-left:10px;">compte comme une analyse · l'ancien devis sera recalculé</span>`,
+        { icon: '✉', open: false, hint: 'replié' }) : '';
+  // Note du préparateur, lue par le patron (onglet Pose)
+  const ownerNoteView = (vOwner && prepNote && analyseId !== '_pending')
+    ? `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid #f0c84a;border-radius:12px;background:rgba(240,200,74,.08);">
+        <div style="font-size:11px;font-weight:700;color:#f0c84a;margin-bottom:5px;">📝 Note du préparateur pour le poseur</div>
+        <div style="font-size:12.5px;white-space:pre-wrap;line-height:1.55;">${escNote(prepNote)}</div>
+      </div>`
+    : '';
+  const tabVide = txt => `<div style="padding:24px 16px;text-align:center;font-size:12px;color:var(--muted);">Rien pour l'étape ${txt} sur ce dossier.</div>`;
+
+  // ===== Mise en page =====
+  // Patron : 3 onglets pour séparer les étapes (Analyse / Préparation / Pose).
+  // Employés : page unique déjà filtrée sur leur rôle.
+  let corps;
+  if (vOwner) {
+    const tabPrep = secPrepChk + montageSection;
+    const tabPose = ownerNoteView + secPoseChk + secPhotos;
+    corps = `
+      <div style="display:flex;gap:8px;margin:2px 0 14px;">
+        <button class="rtab active" id="rtab-btn-analyse" onclick="switchResultTab('analyse')">📝 Analyse</button>
+        <button class="rtab" id="rtab-btn-prep" onclick="switchResultTab('prep')">🔧 Préparation</button>
+        <button class="rtab" id="rtab-btn-pose" onclick="switchResultTab('pose')">🚐 Pose</button>
+      </div>
+      <div id="rtab-analyse">${secResume}${secPreview}${secAdhesif}${secSpecs}${secAttention}${missionSection}${secRetour}${assemblageBox}${actionsBar}</div>
+      <div id="rtab-prep" style="display:none">${tabPrep || tabVide('préparation')}</div>
+      <div id="rtab-pose" style="display:none">${tabPose || tabVide('pose')}</div>`;
+  } else {
+    corps = `${secResume}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
+  }
+
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
       <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       ${missionBanner}
       ${prepNoteBanner}
-      ${accSection('Résumé', `<div class="rs-text">${r.resume}</div>`, { icon: '📝', open: true })}
-      ${previewInner ? accSection(previewTitle, previewInner, { icon: '🖼️', open: true }) : ''}
-      ${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}
-      ${showAdhesif ? accSection('Adhésif recommandé', adhesifsHTML, { icon: '✅', open: true }) : ''}
-      ${(showSpecs && specBoxes.length) ? accSection('Spécifications', specsInner, { icon: '📋', open: false, hint: 'replié' }) : ''}
-      ${montageSection}
-      ${(prepHTML && (vOwner || vPrep)) ? accSection('Préparation (atelier)', `<div class="checklist">${prepHTML}</div>`, { icon: '🔧', open: false, hint: 'replié' }) : ''}
-      ${prepNoteEditor}
-      ${(poseStepsHTML && (vOwner || vPose)) ? accSection('Conseils de pose', `<div class="checklist">${poseStepsHTML}</div>`, { icon: '🚐', open: vPose && !vOwner, hint: vPose && !vOwner ? '' : 'replié' }) : ''}
-      ${r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : ''}
-      ${missionSection}
-      ${(analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : ''}
-      ${(analyseId && analyseId !== '_pending' && (vOwner || vSecr)) ? accSection('Retour client — compléter l\'analyse', `
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Le client a répondu ? Note ici les informations obtenues (dimensions confirmées, pose, délai, quantité…) : l'analyse sera relancée en les intégrant, et les futurs devis/mails en tiendront compte.</div>
-        <textarea id="retour-infos" placeholder="Ex : hauteur confirmée 60 cm, pose définitive en extérieur, livraison avant le 15..." style="width:100%;min-height:70px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
-        <button class="btn-submit" style="margin-top:10px;font-size:12px;" onclick="relancerAvecInfos(${analyseId})">🔄 Relancer l'analyse avec ces infos</button>
-        <span style="font-size:10px;color:var(--muted);margin-left:10px;">compte comme une analyse · l'ancien devis sera recalculé</span>`,
-        { icon: '✉', open: false, hint: 'replié' }) : ''}
-      ${assemblageBox}
-      ${actionsBar}
+      ${corps}
     </div>`;
   if (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) loadJobPhotos(analyseId);
   panel.classList.add('open');
