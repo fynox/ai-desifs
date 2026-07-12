@@ -3007,6 +3007,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const attentionHTML = r.attention ? `<div class="result-section"><div class="rs-label">Point d'attention</div><div class="alert-result">⚠ ${r.attention}</div></div>` : '';
   let previewInner = '', previewTitle = 'Aperçu du visuel';
   let toolsBtns = ''; // outils du visuel (améliorer / vectoriser / exporter) — chez le patron ils vont dans l'onglet Préparation
+  let prepPreview = ''; // copie du visuel affichée avec les outils dans l'onglet Préparation (sinon on ne sait pas sur quoi on travaille)
   const isImgGlobal = previewB64 && previewType && previewType.startsWith('image/');
   if (previewB64 && previewType) {
     if (previewType.startsWith('image/')) {
@@ -3275,7 +3276,14 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   // Employés : page unique déjà filtrée sur leur rôle.
   let corps;
   if (vOwner) {
-    const tabPrep = (toolsBtns ? accSection('Outils du visuel', toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection;
+    // Le préparateur/patron doit VOIR le visuel sur lequel il travaille (pas seulement les boutons)
+    let prepVisuel = '';
+    if (isImgGlobal) {
+      prepVisuel = (Array.isArray(visuels) && visuels.length > 1)
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:6px;">${visuels.map(v => `<img src="data:${v.type};base64,${v.b64}" style="max-height:170px;max-width:190px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`).join('')}</div>`
+        : `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;margin:0 auto 6px;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`;
+    }
+    const tabPrep = ((prepVisuel || toolsBtns) ? accSection('Visuel & outils', prepVisuel + toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection;
     const tabPose = ownerNoteView + secPoseChk + secPhotos;
     corps = `
       <div style="display:flex;gap:8px;margin:2px 0 14px;">
@@ -4100,6 +4108,18 @@ let _devisId = null;
 function afficherDevis(d, id) {
   _devisData = d;
   _devisId = id;
+  // Filet de sécurité : une "ligne" sans vrai montant est un avertissement égaré → déplacée dans les hypothèses
+  {
+    const facturables = [], notes = [];
+    (d.lignes || []).forEach(l => {
+      const t = Number(l.total);
+      (isFinite(t) && t > 0 ? facturables : notes).push(l);
+    });
+    if (notes.length) {
+      d.hypotheses = [...(d.hypotheses || []), ...notes.map(l => [l.designation, l.details].filter(Boolean).join(' — ')).filter(Boolean)];
+      d.lignes = facturables;
+    }
+  }
   (d.lignes || []).forEach(l => { if (l.perso === undefined) l.perso = null; });
   document.getElementById('devis-body').innerHTML = `
     <div style="overflow-x:auto;">

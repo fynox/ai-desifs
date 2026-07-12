@@ -428,6 +428,7 @@ ENCRES D'IMPRESSION (coût au m² imprimé) :
 ${encreLines}
 
 ${devisPrefHint}RÈGLES :
+- Les "lignes" contiennent EXCLUSIVEMENT des prestations facturables avec un vrai montant (matière, encre, main d'œuvre/découpe, préparation de fichier, pose...). N'y mets JAMAIS d'avertissement, de rappel de dimension, d'hypothèse ou de question au client : tout cela va UNIQUEMENT dans "hypotheses".
 - Utilise en priorité les adhésifs recommandés par l'analyse et leurs prix réels du stock.
 - PRÉPARATION DE FICHIER : si la demande ou l'analyse indique un fichier en basse résolution (amélioration/upscaling nécessaire), une vectorisation à réaliser (découpe DAO à partir d'une image non vectorielle) ou un visuel à créer, ajoute une ligne de prestation dédiée (ex: "Préparation du fichier — amélioration HD", "Vectorisation du visuel pour découpe", "Création du visuel") avec un tarif raisonnable (forfait ou taux horaire), et mentionne dans les hypothèses que le client peut fournir un fichier HD/vectoriel pour éviter ce coût.
 - Calcule la surface à partir des dimensions du mail. Si dimensions absentes, fais une hypothèse raisonnable et signale-la.
