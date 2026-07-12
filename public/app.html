@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI-dhésif</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Inter:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
 
 :root {
   --bg: #0e0f0d;
@@ -193,8 +193,8 @@ body { background: var(--bg); background-image: var(--bg-soft); color: var(--tex
 .field-group { display: flex; flex-direction: column; }
 textarea {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; color: var(--text); font-family: 'Syne', sans-serif;
-  font-size: 14px; padding: 14px 16px; resize: vertical; outline: none;
+  border-radius: 10px; color: var(--text); font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13.5px; padding: 14px 16px; resize: vertical; outline: none;
   transition: border-color 0.15s; line-height: 1.65;
 }
 textarea:focus { border-color: var(--accent); }
@@ -244,19 +244,19 @@ textarea:focus { border-color: var(--accent); }
 .result-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
 .result-section:last-child { border-bottom: none; }
 .rs-label { font-size: 10.5px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
-.rs-text { font-size: 14.5px; font-family: 'Syne', sans-serif; color: #dcded6; line-height: 1.75; max-width: 82ch; }
+.rs-text { font-size: 14px; font-family: 'Inter', system-ui, sans-serif; color: #dcded6; line-height: 1.75; max-width: 82ch; }
 .adhesif-result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; }
 .adhesif-result-card:last-child { margin-bottom: 0; }
 .adhesif-result-name { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 5px; }
-.adhesif-result-raison { font-size: 13.5px; font-family: 'Syne', sans-serif; color: #c9cbc3; line-height: 1.7; max-width: 82ch; }
+.adhesif-result-raison { font-size: 13px; font-family: 'Inter', system-ui, sans-serif; color: #c9cbc3; line-height: 1.7; max-width: 82ch; }
 .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .spec-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; }
 .spec-box-key { font-size: 10.5px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
 .spec-box-val { font-size: 14px; font-weight: 600; line-height: 1.5; }
 .checklist { display: flex; flex-direction: column; gap: 7px; }
-.check-row { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; font-family: 'Syne', sans-serif; color: #d3d5cd; line-height: 1.65; padding: 3px 0; max-width: 90ch; }
+.check-row { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; color: #d3d5cd; line-height: 1.65; padding: 3px 0; max-width: 90ch; }
 .check-arrow { color: var(--accent); flex-shrink: 0; }
-.alert-result { background: #1a1200; border: 1px solid #4a3500; border-radius: 8px; padding: 13px 17px; font-size: 13.5px; font-family: 'Syne', sans-serif; color: #ffb347; line-height: 1.7; }
+.alert-result { background: #1a1200; border: 1px solid #4a3500; border-radius: 8px; padding: 13px 17px; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; color: #ffb347; line-height: 1.7; }
 
 /* ===================== STOCK PANEL (overlay) ===================== */
 .stock-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 300; }
@@ -415,18 +415,7 @@ textarea:focus { border-color: var(--accent); }
 .tour-step{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);}
 #help-fab{position:fixed;bottom:18px;right:18px;z-index:500;width:40px;height:40px;border-radius:50%;border:1px solid var(--accent-dim);background:var(--surface);color:var(--accent);font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;transition:transform .12s,background .12s;}
 #help-fab:hover{transform:scale(1.08);background:var(--surface2);}
-
-/* ===== Couche lisibilité (retours utilisateurs : textes trop petits / trop bruts en pavé) =====
-   Les contenus générés portent des tailles en style inline : on remonte d'un cran les plus
-   petites dans les zones de lecture (panneau de résultat + fenêtres). */
-.result-block [style*="font-size:10px"], .modal [style*="font-size:10px"] { font-size: 11px !important; }
-.result-block [style*="font-size:10.5px"], .modal [style*="font-size:10.5px"] { font-size: 11.5px !important; }
-.result-block [style*="font-size:11px"], .modal [style*="font-size:11px"] { font-size: 12.5px !important; }
-.result-block [style*="font-size:11.5px"], .modal [style*="font-size:11.5px"] { font-size: 12.5px !important; }
-.result-block [style*="font-size:12px"], .modal [style*="font-size:12px"] { font-size: 13.5px !important; }
-.result-block [style*="font-size:12.5px"], .modal [style*="font-size:12.5px"] { font-size: 13.5px !important; }
 .modal h3 { font-size: 17px; }
-.modal { font-size: 13.5px; line-height: 1.6; }
 </style>
 </head>
 <body>
