@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Logo AI-dhésif : un sticker au coin qui se décolle, marqué "AI" -->
+  <rect width="512" height="512" rx="96" fill="#111210"/>
+  <!-- sticker -->
+  <path d="M116 156 q0 -40 40 -40 h200 q40 0 40 40 v130 l-110 110 h-130 q-40 0 -40 -40 z" fill="#c8f04a"/>
+  <!-- coin qui se décolle -->
+  <path d="M396 286 l-110 110 q0 -70 30 -85 q25 -15 80 -25 z" fill="#8aaa2a"/>
+  <path d="M286 396 q10 -60 40 -78 q28 -18 70 -32 l-110 110 z" fill="#5c7420" opacity="0.65"/>
+  <!-- AI -->
+  <text x="238" y="272" font-family="Arial Black, Arial, sans-serif" font-size="118" font-weight="900" fill="#111210" text-anchor="middle">AI</text>
+</svg>

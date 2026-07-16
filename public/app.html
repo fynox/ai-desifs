@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI-dhésif</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Inter:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
 
@@ -1504,9 +1505,19 @@ async function saveReglages() {
 // ===================== VISITE GUIDÉE (première connexion) =====================
 // Bulles explicatives + analyse de DÉMONSTRATION entièrement locale : aucun appel IA,
 // aucune analyse décomptée, aucun jeton débité. Quittable à tout moment (✕).
+// Visuel de la démo : le logo AI-dhésif en SVG (large, haute définition → contrôle DPI vert)
+const DEMO_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="4800" height="3200" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#ffffff"/>
+  <path d="M460 170 q0 -34 34 -34 h170 q34 0 34 34 v110 l-94 94 h-110 q-34 0 -34 -34 z" fill="#c8f04a"/>
+  <path d="M698 280 l-94 94 q0 -60 26 -73 q22 -12 68 -21 z" fill="#8aaa2a"/>
+  <text x="564" y="270" font-family="Arial Black, Arial, sans-serif" font-size="100" font-weight="900" fill="#111210" text-anchor="middle">AI</text>
+  <text x="600" y="520" font-family="Arial Black, Arial, sans-serif" font-size="86" font-weight="900" fill="#111210" text-anchor="middle">AI-dhésif</text>
+  <text x="600" y="590" font-family="Arial, sans-serif" font-size="34" fill="#6a6d60" text-anchor="middle">L'assistant IA des pros de l'adhésif</text>
+</svg>`;
+
 const DEMO_RESULT = {
   titre: 'Démo — logo vitrine',
-  resume: "Exemple : le client veut un logo imprimé pour sa vitrine, 120 × 80 cm, pose intérieure côté vitre. L'IA lit le mail, comprend la demande et choisit l'adhésif adapté dans TON stock.",
+  resume: "Exemple : le client veut son logo (fichier joint) imprimé pour sa vitrine, 120 × 80 cm, pose intérieure côté vitre. L'IA lit le mail ET le visuel, comprend la demande et choisit l'adhésif adapté dans TON stock.",
   adhesifs: [{ nom: 'Vinyle blanc imprimable (exemple)', raison: "Vinyle imprimable adapté à une vitrine intérieure — dans la vraie vie, l'IA choisit parmi TES références de stock, avec la raison du choix.", priorite: 'principal' }],
   specs: { finition: 'Mat', duree: 'Moyenne durée (1-3 ans)', pose: 'Vitrine intérieure', retrait: 'Retrait facile sans résidu' },
   preparation: ['Imprimer le visuel sur le vinyle blanc (exemple)', 'Découper au format 120 × 80 cm'],
@@ -1521,7 +1532,9 @@ async function runDemoAnalyse() {
   showAnalyseLoader('Analyse de démonstration — gratuite 😉');
   await new Promise(r => setTimeout(r, 2000));
   clearInterval(window._iaLoaderTimer);
-  renderResult(DEMO_RESULT, null, null, '_pending'); // '_pending' = boutons d'action masqués (démo sans coût)
+  // Le logo AI-dhésif sert de visuel d'exemple (btoa via encodeURIComponent : le SVG contient des accents)
+  const logoB64 = btoa(unescape(encodeURIComponent(DEMO_LOGO_SVG)));
+  renderResult(DEMO_RESULT, logoB64, 'image/svg+xml', '_pending'); // '_pending' = boutons d'action masqués (démo sans coût)
   window._tourDemoRan = true;
 }
 
@@ -1529,7 +1542,7 @@ const TOUR_STEPS = [
   { target: '.analyse-input', title: '📩 La demande client', text: 'Tout part d\'ici : colle le mail de ton client (consignes et fichier joint en option), et l\'IA s\'occupe du reste.' },
   { target: '#btn-analyze', title: '⚡ Analyser la demande', text: 'L\'IA choisit l\'adhésif dans TON stock, calcule le plan de lés et prépare devis et mails. On lance une démo — gratuite, promis !' },
   { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat', text: 'Résumé, adhésif recommandé, spécifications… chaque bloc se déplie ou se replie d\'un clic pour garder l\'écran simple.' },
-  { target: () => document.querySelectorAll('#output-panel .acc-section')[1], title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Clique dessus pour voir la fiche dans ton stock.' },
+  { target: () => [...document.querySelectorAll('#output-panel .acc-section')].find(s => (s.querySelector('.acc-title') || {}).textContent?.includes('Adhésif')), title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Clique dessus pour voir la fiche dans ton stock.' },
   { target: () => { try { switchResultTab('prep'); } catch {} return [...document.querySelectorAll('#output-panel .acc-section')].find(s => s.textContent.includes('Plan de lés')); }, title: '📐 Le plan de lés (onglet Préparation)', text: 'Chaque dossier a 3 onglets : Analyse, Préparation, Pose. Ici, l\'onglet Préparation : nombre de lés, raccords, export avec traits de coupe (PNG, PDF taille réelle, AI). Réglages fins sous ⚙.' },
   { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses sont là. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
   { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
