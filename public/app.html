@@ -443,7 +443,7 @@ textarea:focus { border-color: var(--accent); }
 <div class="auth-screen" id="auth-screen">
   <div class="auth-box">
     <div class="auth-logo-row">
-      <div class="logo">A</div>
+      <img src="/logo.svg" alt="AI-dhésif" style="width:30px;height:30px;border-radius:8px;">
       <div>
         <span class="auth-brand">AI-dhésif</span>
         <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;">L'assistant IA des pros de l'adhésif</div>
@@ -481,7 +481,7 @@ textarea:focus { border-color: var(--accent); }
   <aside class="sidebar">
     <div class="sidebar-top">
       <a class="sidebar-brand" href="/" style="text-decoration:none;color:inherit;cursor:pointer;">
-        <div class="logo">A</div>
+        <img src="/logo.svg" alt="AI-dhésif" style="width:30px;height:30px;border-radius:8px;">
         <span class="brand-name">AI-dhésif</span>
       </a>
       <button class="btn-new-analyse" onclick="newAnalyse()">＋ Nouvelle analyse</button>
@@ -1534,19 +1534,35 @@ async function runDemoAnalyse() {
   clearInterval(window._iaLoaderTimer);
   // Le logo AI-dhésif sert de visuel d'exemple (btoa via encodeURIComponent : le SVG contient des accents)
   const logoB64 = btoa(unescape(encodeURIComponent(DEMO_LOGO_SVG)));
-  renderResult(DEMO_RESULT, logoB64, 'image/svg+xml', '_pending'); // '_pending' = boutons d'action masqués (démo sans coût)
+  // id -1 = démo : les vrais boutons s'affichent (pour la visite) mais le voile bloque les clics,
+  // et tout est refermé/nettoyé à la fin — aucune analyse décomptée, aucun jeton débité.
+  renderResult(DEMO_RESULT, logoB64, 'image/svg+xml', -1);
   window._tourDemoRan = true;
+}
+// Cible un élément par id/sélecteur en basculant d'abord sur le bon onglet du résultat
+function tourCible(tab, sel) {
+  return () => { try { switchResultTab(tab); } catch {} return document.querySelector(sel); };
+}
+function tourSection(tab, titre) {
+  return () => { try { switchResultTab(tab); } catch {} return [...document.querySelectorAll('#output-panel .acc-section')].find(s => (s.querySelector('.acc-title') || {}).textContent?.includes(titre)); };
 }
 
 const TOUR_STEPS = [
   { target: '.analyse-input', title: '📩 La demande client', text: 'Tout part d\'ici : colle le mail de ton client (consignes et fichier joint en option), et l\'IA s\'occupe du reste.' },
   { target: '#btn-analyze', title: '⚡ Analyser la demande', text: 'L\'IA choisit l\'adhésif dans TON stock, calcule le plan de lés et prépare devis et mails. On lance une démo — gratuite, promis !' },
-  { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat', text: 'Résumé, adhésif recommandé, spécifications… chaque bloc se déplie ou se replie d\'un clic pour garder l\'écran simple.' },
-  { target: () => [...document.querySelectorAll('#output-panel .acc-section')].find(s => (s.querySelector('.acc-title') || {}).textContent?.includes('Adhésif')), title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Clique dessus pour voir la fiche dans ton stock.' },
-  { target: () => { try { switchResultTab('prep'); } catch {} return [...document.querySelectorAll('#output-panel .acc-section')].find(s => s.textContent.includes('Plan de lés')); }, title: '📐 Le plan de lés (onglet Préparation)', text: 'Chaque dossier a 3 onglets : Analyse, Préparation, Pose. Ici, l\'onglet Préparation : nombre de lés, raccords, export avec traits de coupe (PNG, PDF taille réelle, AI). Réglages fins sous ⚙.' },
-  { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses sont là. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
+  { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat, en 3 onglets', text: 'Analyse (la demande et la reco), Préparation (atelier) et Pose. Chaque bloc se déplie d\'un clic — l\'écran reste simple, tout est là.' },
+  { target: tourSection('analyse', 'Adhésif'), title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Si une plastification est nécessaire, elle apparaît comme AJOUT — et si ton stock n\'a pas l\'idéal, un conseil d\'achat s\'affiche.' },
+  { target: tourCible('analyse', '#btn-devis'), title: '📋 Devis automatique (2🪙)', text: 'Un devis chiffré à partir de TES prix de stock. Chaque ligne est modifiable (ton prix à toi), lignes ajoutables/supprimables, export en PDF pro — et l\'IA apprend ta tarification pour les prochains devis.' },
+  { target: tourCible('analyse', '#btn-relance'), title: '✉ Mail client automatique (2🪙)', text: 'L\'IA rédige la réponse au client : tu coches les points à aborder (infos manquantes, devis, délai...). Si le fichier client est flou ou non vectoriel, elle propose TES prestations plutôt que de le renvoyer.' },
+  { target: tourSection('analyse', 'Retour client'), title: '🔄 Retour client', text: 'Quand le client répond, note ici ses nouvelles infos (dimensions confirmées, délai...) : l\'analyse est relancée en les intégrant, et le devis suit.' },
+  { target: tourCible('prep', '#btn-upscale'), title: '✨ Améliorer la résolution (5🪙)', text: 'Onglet Préparation. Fichier client trop petit ou flou ? L\'IA l\'agrandit en haute définition, prêt à imprimer. Comparatif avant/après inclus.' },
+  { target: tourCible('prep', '#btn-vecto'), title: '✂ Vectoriser pour la découpe', text: 'Transforme une image en tracé vectoriel (SVG) pour le plotter : aperçu et réglages gratuits, téléchargement 2🪙. Export aussi en PNG, PDF taille réelle et AI (Illustrator).' },
+  { target: tourSection('prep', 'Plan de lés'), title: '📐 Le plan de lés', text: 'Nombre de lés, raccords, débord de pose, optimisation de la matière — et export des lés prêts à imprimer avec traits de coupe. Réglages fins sous ⚙.' },
+  { target: tourSection('analyse', 'Mission'), title: '🗂 Transfert à l\'équipe', text: 'Plan Entreprise : attitre un designer, un préparateur, un poseur — chacun voit SA mission, la termine et la transmet au suivant. Toi, tu vois tout.' },
+  { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses, avec l\'étape en cours en couleur. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
+  { target: '#jeton-wrap', title: '🪙 Tes jetons', text: 'Les actions premium (devis, mails, HD, vectorisation...) coûtent quelques jetons. Ton forfait en inclut chaque mois, et tu peux recharger — les jetons achetés n\'expirent jamais.' },
   { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
-  { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment dans ⚙ Réglages → 🎓 Visite guidée. Bonne découverte !' },
+  { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment avec le bouton « ? » en bas à droite, ou dans ⚙ Réglages. Bonne découverte !' },
 ];
 let _tourIdx = -1;
 
@@ -1580,6 +1596,7 @@ async function nextTourStep() {
   let el = null;
   if (step.target) el = typeof step.target === 'function' ? step.target() : document.querySelector(step.target);
   if (step.target && !el) return nextTourStep(); // cible absente (section masquée) → étape suivante
+  if (el && el.offsetParent === null) return nextTourStep(); // cible cachée (ex : jetons en essai, Mission hors plan Entreprise) → étape suivante
 
   // Amener la cible à l'écran AVANT de mesurer sa position
   if (el) { el.scrollIntoView({ block: 'center', behavior: 'auto' }); await new Promise(r => setTimeout(r, 260)); }
