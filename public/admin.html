@@ -367,10 +367,10 @@ async function loadUsage() {
       d.parUser.map(u => `<tr>
         <td>${u.email || '<i>compte supprimé</i>'}</td>
         <td>${planBadge(u.plan)}</td>
-        <td>${Number(u.revenue_eur) > 0 ? fmtEur(u.revenue_eur) + '/mois' + (u.plan_period === 'annual' ? ' <span style="font-size:9px;color:var(--muted)">(annuel)</span>' : '') : '—'}</td>
+        <td>${Number(u.revenue_eur) > 0 ? fmtEur(u.revenue_eur) + '/mois' + (u.plan_period === 'annual' ? ' <span style="font-size:10px;color:var(--muted)">(annuel)</span>' : '') : '—'}</td>
         <td>${u.appels}</td>
         <td>${fmtCost(u.cost_mois_usd)}</td>
-        <td><b>${fmtCost(u.cost_usd)}</b>${Number(u.cost_own_key_usd) > 0 ? ` <span style="font-size:9px;color:var(--muted)" title="Consommé sur sa clé API perso">+${fmtCost(u.cost_own_key_usd)} clé perso</span>` : ''}</td>
+        <td><b>${fmtCost(u.cost_usd)}</b>${Number(u.cost_own_key_usd) > 0 ? ` <span style="font-size:10px;color:var(--muted)" title="Consommé sur sa clé API perso">+${fmtCost(u.cost_own_key_usd)} clé perso</span>` : ''}</td>
         <td><b style="color:${Number(u.gain_mois_eur) >= 0 ? 'var(--success,#3fcf6f)' : 'var(--danger,#f05050)'}">${fmtGain(u.gain_mois_eur)}</b></td>
         <td>${u.user_id ? `<button class="btn-sm" onclick="openGains(${u.user_id})" title="Historique mensuel des gains">📈</button>` : ''}</td>
       </tr>`).join('') + `</tbody></table>`;
@@ -514,7 +514,7 @@ function renderUsers(users) {
       <thead><tr><th>Email</th><th>Plan</th><th>Statut</th><th>Jetons</th><th>Essais</th><th>Analyses</th><th>Stock</th><th>Inscrit le</th><th>Actions</th></tr></thead>
       <tbody>${users.map(u => u.parent_user_id ? `
         <tr id="user-row-${u.id}" style="background:rgba(200,240,74,.03);">
-          <td style="padding-left:22px;"><span style="color:var(--muted);">↳</span> ${u.email} <span style="font-size:9px;font-weight:700;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:1px 8px;margin-left:4px;">EMPLOYÉ${u.role ? ' · ' + u.role.split(',').map(r => ({preparateur:'🛠',poseur:'🚐',secretariat:'📋',designer:'🎨'}[r] || r)).join(' ') : ''}</span></td>
+          <td style="padding-left:22px;"><span style="color:var(--muted);">↳</span> ${u.email} <span style="font-size:10px;font-weight:700;border:1px solid var(--accent-dim);color:var(--accent);border-radius:20px;padding:1px 8px;margin-left:4px;">EMPLOYÉ${u.role ? ' · ' + u.role.split(',').map(r => ({preparateur:'🛠',poseur:'🚐',secretariat:'📋',designer:'🎨'}[r] || r)).join(' ') : ''}</span></td>
           <td colspan="4" style="font-size:10px;color:var(--muted);">Employé de <b style="color:var(--text);">${emailById[u.parent_user_id] || ('compte #' + u.parent_user_id)}</b> — hérite de son plan et de ses jetons</td>
           <td>${u.analyses_count}</td>
           <td>${u.stock_count}</td>

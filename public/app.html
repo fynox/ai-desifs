@@ -241,7 +241,7 @@ textarea:focus { border-color: var(--accent); }
 .result-block { display: flex; flex-direction: column; }
 .result-top { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
 .result-top h2 { font-size: 15px; font-weight: 700; }
-.result-badge { margin-left: auto; font-size: 11px; font-family: 'DM Mono', monospace; background: #1a2a05; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 20px; padding: 3px 10px; }
+.result-badge { margin-left: auto; font-size: 11px; font-family: 'DM Mono', monospace; background: #1a2a05; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 20px; padding: 3px 10px; white-space: nowrap; flex-shrink: 0; }
 .result-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
 .result-section:last-child { border-bottom: none; }
 .rs-label { font-size: 10.5px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
@@ -2067,10 +2067,10 @@ function renderMissionsList() {
     const titre = (h.result && (h.result.titre || (h.result.resume || '').slice(0, 26) + '…')) || 'Mission';
     const s = st(h);
     const badge = kind === 'todo'
-      ? `<span style="background:var(--accent);color:#111;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">${(JOB_STAGES[s] ? JOB_STAGES[s].label : s).toUpperCase()} — À TOI</span>`
+      ? `<span style="background:var(--accent);color:#111;font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;">${(JOB_STAGES[s] ? JOB_STAGES[s].label : s).toUpperCase()} — À TOI</span>`
       : kind === 'waiting'
-        ? `<span style="background:rgba(240,160,40,.18);color:#f0a030;border:1px solid #f0a03055;font-size:9px;font-weight:700;border-radius:20px;padding:2px 8px;">⏳ ${JOB_STAGES[s] ? JOB_STAGES[s].label : s}</span>`
-        : '<span style="color:var(--muted);border:1px solid var(--border);font-size:9px;font-weight:600;border-radius:20px;padding:2px 8px;">✅ Terminée</span>';
+        ? `<span style="background:rgba(240,160,40,.18);color:#f0a030;border:1px solid #f0a03055;font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;">⏳ ${JOB_STAGES[s] ? JOB_STAGES[s].label : s}</span>`
+        : '<span style="color:var(--muted);border:1px solid var(--border);font-size:10px;font-weight:600;border-radius:20px;padding:2px 8px;">✅ Terminée</span>';
     const hl = kind === 'todo' ? 'border:1px solid var(--accent);background:#141f03;' : (kind === 'done' ? 'opacity:.55;' : 'border:1px solid #f0a03044;');
     return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${hl}border-radius:9px;margin-bottom:6px;">
       <div style="display:flex;flex-direction:column;gap:4px;padding:2px 0;">
@@ -2081,7 +2081,7 @@ function renderMissionsList() {
     </div>`;
   };
   const section = (label, arr, kind) => arr.length
-    ? `<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:10px 2px 6px;">${label} (${arr.length})</div>` + arr.map(h => card(h, kind)).join('')
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:10px 2px 6px;">${label} (${arr.length})</div>` + arr.map(h => card(h, kind)).join('')
     : '';
 
   if (!historique.length) return '<div class="histo-empty">Aucune mission affectée pour le moment</div>';
@@ -2121,7 +2121,7 @@ function renderSidebarHisto() {
       if (h._failed) {
         return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;">
           <div class="histo-item-row">
-            <div style="width:7px;flex-shrink:0;color:var(--danger);font-size:9px;">⚠</div>
+            <div style="width:7px;flex-shrink:0;color:var(--danger);font-size:10px;">⚠</div>
             <div class="histo-item-text">
               <div class="histo-item-title" style="color:var(--danger)">Analyse échouée</div>
               <div class="histo-item-sub">${date}</div>
@@ -2135,13 +2135,13 @@ function renderSidebarHisto() {
       const STAGE_COLORS = { a_creer: '#c84af0', a_preparer: '#f0a030', pret_a_poser: '#4a8af0', retour_client: '#f0c84a', termine: '#4ecd7b' };
       const stCol = h.job_status ? (STAGE_COLORS[h.job_status] || 'var(--accent)') : null;
       const stLine = h.job_status
-        ? `<div style="margin-top:4px;"><span style="display:inline-block;font-size:9px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:${stCol}22;color:${stCol};border:1px solid ${stCol}55;">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:11px;">📷</span>' : ''}</div>`
+        ? `<div style="margin-top:4px;"><span style="display:inline-block;font-size:10px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:${stCol}22;color:${stCol};border:1px solid ${stCol}55;">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:11px;">📷</span>' : ''}</div>`
         : '';
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${stCol ? `border-left:4px solid ${stCol};padding-left:8px;border-radius:0 9px 9px 0;` : ''}">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
-            <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:9px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
+            <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:10px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
             <div class="histo-item-sub">${date}</div>
             ${stLine}
           </div>
@@ -2466,7 +2466,7 @@ function buildNestingHTML(copyW, copyH, laize, previewB64, previewType, deduite)
     ? `<b style="color:var(--accent)">1 lé</b> de ${Math.round(leLen)} mm`
     : `<b style="color:var(--accent)">${nbLes} lés</b> (${nbLes - 1} pleins de ${perLeFull} + 1 partiel)`;
   return `<div id="les-wrap">
-    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid #444;border-radius:4px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);overflow:hidden;">${cells}${shown >= maxCells ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu plafonné</div>` : ''}</div>
+    <div style="position:relative;width:min(100%,${wPx}px);aspect-ratio:${laize}/${leLen};margin:0 auto;border:2px solid #444;border-radius:4px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.35);overflow:hidden;">${cells}${shown >= maxCells ? `<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-family:'DM Mono',monospace;text-align:center;padding:2px;">aperçu plafonné</div>` : ''}</div>
     <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:8px;text-align:center;line-height:1.7;">
       ${lesTxt} · <b style="color:var(--text)">${N} visuel${N > 1 ? 's' : ''}</b> de ${Math.round(copyW)} × ${Math.round(copyH)} mm${rab > 0 ? ` (+${rab} en rab)` : ''} · ~${matiereM2} m² de rouleau
     </div>
@@ -3009,10 +3009,10 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     // Une plastification n'est pas une alternative : c'est un AJOUT par-dessus l'adhésif principal
     const complement = a.priorite === 'complement' || (a.priorite !== 'principal' && /plastif|lamination|film de protection/i.test((a.nom || '') + ' ' + (a.raison || '')));
     const badge = principal
-      ? '<span style="font-size:9px;font-weight:700;background:var(--accent);color:#111;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">★ RECOMMANDÉ</span>'
+      ? '<span style="font-size:10px;font-weight:700;background:var(--accent);color:#111;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">★ RECOMMANDÉ</span>'
       : complement
-        ? '<span style="font-size:9px;font-weight:700;background:rgba(74,138,240,.18);color:#6aa8ff;border:1px solid #4a8af077;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">➕ À AJOUTER PAR-DESSUS</span>'
-        : '<span style="font-size:9px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 9px;">Alternative</span>';
+        ? '<span style="font-size:10px;font-weight:700;background:rgba(74,138,240,.18);color:#6aa8ff;border:1px solid #4a8af077;border-radius:20px;padding:2px 9px;letter-spacing:.5px;">➕ À AJOUTER PAR-DESSUS</span>'
+        : '<span style="font-size:10px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 9px;">Alternative</span>';
     const cardStyle = principal
       ? 'border-color:var(--accent);background:#141f03;'
       : complement
