@@ -28,7 +28,17 @@ router.get('/stats', (req, res) => {
   const todayAnalyses = db.prepare("SELECT COUNT(*) as c FROM analyses WHERE date(created_at)=date('now')").get().c;
   const totalStock = db.prepare('SELECT COUNT(*) as c FROM stock').get().c;
 
-  res.json({ totalUsers, activeUsers, trialUsers, inactiveUsers, totalAnalyses, todayAnalyses, totalStock });
+  // Taille de la base sur le disque (fichier + journal WAL) et des sauvegardes conservées.
+  // Sert de jauge : au-delà de ~1 Go, prévoir la migration des visuels vers un stockage objet (R2).
+  let dbSize = null, backupsSize = 0;
+  try {
+    const p = process.env.DB_PATH || './data/aidesifs.db';
+    dbSize = fs.statSync(p).size;
+    try { dbSize += fs.statSync(p + '-wal').size; } catch {}
+    for (const b of backup.listBackups()) backupsSize += b.size;
+  } catch {}
+
+  res.json({ totalUsers, activeUsers, trialUsers, inactiveUsers, totalAnalyses, todayAnalyses, totalStock, db_size: dbSize, backups_size: backupsSize });
 });
 
 // Liste des utilisateurs

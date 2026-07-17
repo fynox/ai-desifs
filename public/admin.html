@@ -513,6 +513,19 @@ function fmtDate(d) {
 }
 
 // DASHBOARD
+// Jauge de taille de la base : vert < 500 Mo, orange < 1 Go, rouge au-delà (= déclencher la migration R2)
+function dbSizeCard(stats) {
+  if (stats.db_size == null) return '';
+  const fmt = o => o >= 1024 * 1024 * 1024 ? (o / 1024 / 1024 / 1024).toFixed(2) + ' Go' : (o / 1024 / 1024).toFixed(1) + ' Mo';
+  const GO = 1024 * 1024 * 1024;
+  const cls = stats.db_size >= GO ? 'red' : stats.db_size >= GO / 2 ? 'orange' : 'green';
+  const alerte = stats.db_size >= GO
+    ? '<div style="font-size:10.5px;color:var(--danger,#f05050);margin-top:6px;font-weight:700;">⚠ Seuil atteint — prévoir la migration des visuels vers Cloudflare R2</div>'
+    : '';
+  return `<div class="stat-card"><div class="stat-val ${cls}" style="font-size:26px;">${fmt(stats.db_size)}</div>
+    <div class="stat-label">Taille de la base${stats.backups_size ? ` (+ ${fmt(stats.backups_size)} de sauvegardes)` : ''}</div>${alerte}</div>`;
+}
+
 async function loadDashboard() {
   try {
     const [stats, users] = await Promise.all([api('/api/admin/stats'), api('/api/admin/users')]);
@@ -525,6 +538,7 @@ async function loadDashboard() {
       <div class="stat-card"><div class="stat-val green">${stats.todayAnalyses}</div><div class="stat-label">Analyses aujourd'hui</div></div>
       <div class="stat-card"><div class="stat-val red">${stats.inactiveUsers}</div><div class="stat-label">Comptes inactifs</div></div>
       <div class="stat-card"><div class="stat-val">${stats.totalStock}</div><div class="stat-label">Produits en stock</div></div>
+      ${dbSizeCard(stats)}
     `;
 
     const recent = users.slice(0, 10);
