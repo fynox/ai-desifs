@@ -630,6 +630,11 @@ textarea:focus { border-color: var(--accent); }
       <datalist id="couleurs-list"><option value="Blanc"><option value="Noir"><option value="Gris"><option value="Rouge"><option value="Bleu"><option value="Vert"><option value="Jaune"><option value="Orange"><option value="Violet"><option value="Rose"><option value="Marron"><option value="Beige"><option value="Argent"><option value="Or"><option value="Transparent"></datalist>
     </div>
     <div class="form-group form-row"><div style="flex:1"><label id="label-prix">Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
+    <div class="form-group form-row">
+      <div style="flex:1"><label>Quantité restante (m², optionnel)</label><input type="number" id="modal-quantite" placeholder="Ex: 45" min="0" step="0.1" style="width:100%"></div>
+      <div style="flex:1"><label>Seuil d'alerte stock bas (m²)</label><input type="number" id="modal-seuil" placeholder="Ex: 10" min="0" step="0.1" style="width:100%"></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin:-6px 0 10px;">💡 Si tu renseignes les deux, un badge ⚠ « stock bas » apparaît dès que la quantité passe sous le seuil (pense à mettre la quantité à jour après tes tirages).</div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
 </div>
@@ -1933,6 +1938,8 @@ function openModal(cat) {
   setVariantes([]);
   document.querySelectorAll('input[name="resist"], input[name="appli"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
+  document.getElementById('modal-quantite').value = '';
+  document.getElementById('modal-seuil').value = '';
   document.getElementById('modal-finition').value = 'Brillant';
   toggleEncreFields();
   document.getElementById('modal').classList.add('open');
@@ -1964,6 +1971,8 @@ function openEditModal(id) {
   }
   setVariantes(vars);
   document.getElementById('modal-prix').value = item.prix_m2 || '';
+  document.getElementById('modal-quantite').value = item.quantite_m2 != null ? item.quantite_m2 : '';
+  document.getElementById('modal-seuil').value = item.seuil_alerte != null ? item.seuil_alerte : '';
   toggleEncreFields();
   document.getElementById('modal').classList.add('open');
 }
@@ -1975,6 +1984,8 @@ async function saveAdhesif() {
   const nom = document.getElementById('modal-nom').value.trim();
   if (!nom) { document.getElementById('modal-nom').focus(); return; }
   const isEncre = document.getElementById('modal-cat').value === 'encre';
+  const numOrNull = id => { const v = document.getElementById(id).value.trim(); const n = parseFloat(v); return v !== '' && isFinite(n) ? n : null; };
+  const qte = { quantite_m2: numOrNull('modal-quantite'), seuil_alerte: numOrNull('modal-seuil') };
   const body = isEncre ? {
     cat: 'encre',
     nom,
@@ -1982,6 +1993,7 @@ async function saveAdhesif() {
     resistances: [], applications: [], largeurs: [], couleurs: [], variantes: [],
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
+    ...qte,
   } : {
     cat: document.getElementById('modal-cat').value,
     nom,
@@ -1994,6 +2006,7 @@ async function saveAdhesif() {
     variantes: getVariantes(),
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
+    ...qte,
   };
   if (!isEncre) {
     // Largeurs/couleurs dérivées des variantes (compat plan de lés et anciennes données)
@@ -2031,6 +2044,11 @@ async function toggleDispo(id, val) {
   } catch (e) { alert(e.message); }
 }
 
+// Un adhésif est "stock bas" si quantité ET seuil sont renseignés et quantité ≤ seuil
+function isStockBas(item) {
+  return item.quantite_m2 != null && item.seuil_alerte != null && Number(item.quantite_m2) <= Number(item.seuil_alerte);
+}
+
 function renderList(cat, items) {
   const list = document.getElementById('list-' + cat); if (!list) return;
   if (!items.length) { list.innerHTML = '<div class="empty-cat">Aucune référence</div>'; return; }
@@ -2043,8 +2061,11 @@ function renderList(cat, items) {
     const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>normMm(l)+'mm').join(' · ')}</span>` : '';
     const coulHTML = !vars.length && (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
+    const stockBas = isStockBas(item);
+    const qteHTML = item.quantite_m2 != null
+      ? `<span class="spec-tag" style="${stockBas ? 'color:var(--danger);border-color:var(--danger);font-weight:700;' : ''}">${stockBas ? '⚠ Stock bas : ' : '📦 '}${item.quantite_m2} m²${item.seuil_alerte != null ? ' / seuil ' + item.seuil_alerte : ''}</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${qteHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge" ${clean(item.finition) ? '' : 'style="display:none"'}>${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
@@ -2072,7 +2093,12 @@ function filterCat(cat, query) {
 function updateStats() {
   ALL_CATS.forEach(cat => {
     const el = document.getElementById('count-' + cat);
-    if (el) el.textContent = stock.filter(i => i.cat === cat && i.dispo).length + '/' + stock.filter(i => i.cat === cat).length;
+    if (!el) return;
+    const items = stock.filter(i => i.cat === cat);
+    const bas = items.some(isStockBas);
+    el.textContent = (bas ? '⚠ ' : '') + items.filter(i => i.dispo).length + '/' + items.length;
+    el.style.color = bas ? 'var(--danger)' : '';
+    el.title = bas ? 'Stock bas sur au moins une référence de cette catégorie' : '';
   });
 }
 function renderAll() { ALL_CATS.forEach(cat => renderCat(cat)); updateStats(); }
