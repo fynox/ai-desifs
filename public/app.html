@@ -405,6 +405,10 @@ textarea:focus { border-color: var(--accent); }
 .reg-field{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--text);}
 .reg-field .devis-inp{margin:0;}
 .reg-unit{font-size:10.5px;font-family:'DM Mono',monospace;color:var(--muted);line-height:1.5;}
+.pwa-os-tab{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'Syne',sans-serif;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;}
+.pwa-os-tab.active{border-color:var(--accent);color:var(--accent);background:var(--surface);}
+.pwa-guide{margin:0;padding-left:20px;font-size:12.5px;line-height:1.8;color:var(--text);font-family:'Inter',sans-serif;}
+.pwa-guide li{margin-bottom:2px;}
 /* ===== Visite guidée ===== */
 /* Overlay transparent qui bloque les clics ; l'assombrissement vient du "spot" (trou de lumière sur la cible) */
 .tour-overlay{position:fixed;inset:0;background:transparent;z-index:899;}
@@ -1014,6 +1018,29 @@ textarea:focus { border-color: var(--accent); }
       <label class="reg-field" style="margin-top:8px;">Signature ajoutée aux mails<textarea id="reglage-signature" placeholder="Ex :&#10;Jean Dupont — Adhésif Pro&#10;06 12 34 56 78" style="width:100%;min-height:54px;box-sizing:border-box;padding:8px 10px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea><span class="reg-unit">collée automatiquement à la fin des mails générés (vide = aucune)</span></label>
     </div>
 
+    <div class="reg-card">
+      <div class="reg-title">📱 Sur ton téléphone — appli web</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Installe AI-dhésif sur l'écran d'accueil de ton téléphone : le site s'ouvre alors comme une vraie appli, en plein écran, avec le logo. Pratique pour consulter les missions sur chantier.</div>
+      <div id="pwa-installed" style="display:none;font-size:12.5px;color:var(--accent);margin-bottom:10px;">✓ Tu utilises déjà l'appli installée sur cet appareil.</div>
+      <button id="pwa-install-btn" class="btn-stock" style="display:none;margin:0 0 12px;border-color:var(--accent);color:var(--accent);" onclick="installPWA()">⬇ Installer l'application maintenant</button>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button class="pwa-os-tab" id="pwa-tab-ios" onclick="showPwaOS('ios')">🍎 iPhone / iPad</button>
+        <button class="pwa-os-tab" id="pwa-tab-android" onclick="showPwaOS('android')">🤖 Android</button>
+      </div>
+      <ol class="pwa-guide" id="pwa-guide-ios">
+        <li>Sur ton iPhone, ouvre <b>ai-dhesif.fr/app</b> dans <b>Safari</b> (obligatoire — pas Chrome).</li>
+        <li>Touche le bouton <b>Partager</b> <span style="display:inline-block;border:1px solid var(--muted);border-radius:4px;padding:0 5px;font-size:11px;">⎋</span> en bas au centre de l'écran.</li>
+        <li>Fais défiler la liste et touche <b>« Sur l'écran d'accueil »</b>.</li>
+        <li>Touche <b>Ajouter</b> en haut à droite : l'icône AI-dhésif apparaît sur ton écran d'accueil.</li>
+      </ol>
+      <ol class="pwa-guide" id="pwa-guide-android" style="display:none;">
+        <li>Sur ton téléphone, ouvre <b>ai-dhesif.fr/app</b> dans <b>Chrome</b>.</li>
+        <li>Touche le menu <b>⋮</b> en haut à droite.</li>
+        <li>Touche <b>« Ajouter à l'écran d'accueil »</b> (parfois affiché <b>« Installer l'application »</b>).</li>
+        <li>Confirme : l'icône AI-dhésif apparaît sur ton écran d'accueil.</li>
+      </ol>
+    </div>
+
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin:6px 0;" id="reglages-success">✓ Réglages enregistrés</div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
@@ -1607,9 +1634,49 @@ function openReglages() {
   document.getElementById('reglage-ton').value = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
   document.getElementById('reglage-signature').value = userSettings.mail_signature || '';
   document.getElementById('reglages-success').style.display = 'none';
+  initPwaCard();
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== CARTE "APPLI SUR TÉLÉPHONE" (réglages) =====================
+// Chrome/Android propose une installation directe : on capture l'invitation pour
+// l'offrir en un clic dans les réglages. iOS (Safari) n'a pas d'équivalent → guide manuel.
+let _pwaPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _pwaPrompt = e;
+  const b = document.getElementById('pwa-install-btn');
+  if (b) b.style.display = 'block';
+});
+async function installPWA() {
+  if (!_pwaPrompt) return;
+  _pwaPrompt.prompt();
+  try {
+    const choix = await _pwaPrompt.userChoice;
+    if (choix && choix.outcome === 'accepted') {
+      document.getElementById('pwa-install-btn').style.display = 'none';
+      document.getElementById('pwa-installed').style.display = 'block';
+    }
+  } catch {}
+  _pwaPrompt = null;
+}
+function showPwaOS(os) {
+  document.getElementById('pwa-tab-ios').classList.toggle('active', os === 'ios');
+  document.getElementById('pwa-tab-android').classList.toggle('active', os === 'android');
+  document.getElementById('pwa-guide-ios').style.display = os === 'ios' ? 'block' : 'none';
+  document.getElementById('pwa-guide-android').style.display = os === 'android' ? 'block' : 'none';
+}
+function initPwaCard() {
+  // Onglet présélectionné selon l'appareil
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  showPwaOS(isIOS ? 'ios' : 'android');
+  // Déjà lancé depuis l'icône installée ?
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  document.getElementById('pwa-installed').style.display = standalone ? 'block' : 'none';
+  const b = document.getElementById('pwa-install-btn');
+  if (b) b.style.display = (!standalone && _pwaPrompt) ? 'block' : 'none';
+}
 
 async function saveReglages() {
   const lire = (id, def, max, min = 0) => {
