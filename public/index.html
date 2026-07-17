@@ -251,19 +251,19 @@ footer { border-top: 1px solid var(--border); padding: 32px 48px; display: flex;
       </div>
       <div class="preview-input-col">
         <div class="preview-label">Contenu du mail</div>
-        <div class="preview-textarea">Bonjour, je souhaite faire imprimer mon logo sur la vitrine de mon magasin. Pose extérieure, je voudrais que ça tienne au moins 3 ans. Surface en verre. Merci</div>
-        <div class="preview-analyze-btn">Analyser la demande →</div>
+        <div class="preview-textarea" id="pv-textarea">Bonjour, je souhaite faire imprimer mon logo sur la vitrine de mon magasin. Pose extérieure, je voudrais que ça tienne au moins 3 ans. Surface en verre. Merci</div>
+        <div class="preview-analyze-btn" id="pv-btn">Analyser la demande →</div>
       </div>
-      <div class="preview-result-col">
+      <div class="preview-result-col" id="pv-result">
         <div class="preview-result-title">
           Analyse complète
-          <span class="preview-result-badge">✓ Prêt</span>
+          <span class="preview-result-badge" id="pv-badge">✓ Prêt</span>
         </div>
-        <div class="preview-card">
+        <div class="preview-card pv-anim" id="pv-card">
           <div class="preview-card-name">ORAJET 3551 Blanc Mat ✦</div>
           <div class="preview-card-text">Adhésif imprimable idéal pour vitrine extérieure, excellente tenue UV et humidité, durabilité 5-7 ans.</div>
         </div>
-        <div class="preview-specs">
+        <div class="preview-specs pv-anim" id="pv-specs">
           <div class="preview-spec"><div class="preview-spec-key">FINITION</div><div class="preview-spec-val">Mat</div></div>
           <div class="preview-spec"><div class="preview-spec-key">DURÉE</div><div class="preview-spec-val">3–7 ans</div></div>
           <div class="preview-spec"><div class="preview-spec-key">ENVIRONNEMENT</div><div class="preview-spec-val">Extérieur</div></div>
@@ -462,6 +462,75 @@ function toggleFaq(el) {
   const item = el.parentElement;
   item.classList.toggle('open');
 }
+
+// ===== Démo animée du mockup : frappe du mail → analyse → résultat, en boucle =====
+(function () {
+  const ta = document.getElementById('pv-textarea');
+  const btn = document.getElementById('pv-btn');
+  const result = document.getElementById('pv-result');
+  const badge = document.getElementById('pv-badge');
+  const card = document.getElementById('pv-card');
+  const specs = document.getElementById('pv-specs');
+  if (!ta || !btn || !result) return;
+  // Accessibilité : pas d'animation si l'utilisateur préfère le mouvement réduit
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const MAIL = ta.textContent;
+  const style = document.createElement('style');
+  style.textContent = `
+    .pv-anim { transition: opacity .45s ease, transform .45s ease; }
+    .pv-off { opacity: 0; transform: translateY(8px); }
+    #pv-result { transition: opacity .4s ease; }
+    #pv-badge { transition: opacity .3s ease, transform .3s ease; display: inline-block; }
+    #pv-badge.pv-off { transform: scale(.6); }
+    #pv-btn { transition: background .2s ease, transform .1s ease; }
+    #pv-btn.pv-press { transform: scale(.97); }
+    .pv-caret::after { content: '▌'; color: var(--accent); animation: pvBlink .8s infinite; }
+    @keyframes pvBlink { 50% { opacity: 0; } }
+  `;
+  document.head.appendChild(style);
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function cycle() {
+    // État initial : mail vide, résultat éteint
+    ta.textContent = ''; ta.classList.add('pv-caret');
+    result.style.opacity = '0.28';
+    badge.classList.add('pv-off'); card.classList.add('pv-off'); specs.classList.add('pv-off');
+    btn.textContent = 'Analyser la demande →';
+    await sleep(700);
+    // Frappe du mail
+    for (let i = 0; i < MAIL.length; i += 3) {
+      ta.textContent = MAIL.slice(0, i + 3);
+      await sleep(26);
+    }
+    ta.textContent = MAIL; ta.classList.remove('pv-caret');
+    await sleep(450);
+    // Clic sur Analyser
+    btn.classList.add('pv-press'); await sleep(140); btn.classList.remove('pv-press');
+    btn.textContent = '⏳ Analyse en cours…';
+    await sleep(1500);
+    // Résultat qui apparaît
+    result.style.opacity = '1';
+    btn.textContent = 'Analyser la demande →';
+    card.classList.remove('pv-off'); await sleep(420);
+    specs.classList.remove('pv-off'); await sleep(380);
+    badge.classList.remove('pv-off');
+    await sleep(4200);
+  }
+  (async () => {
+    // La démo ne tourne que quand le mockup est visible à l'écran
+    let visible = true;
+    if ('IntersectionObserver' in window) {
+      visible = false;
+      new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { threshold: 0.25 })
+        .observe(document.querySelector('.preview-frame'));
+    }
+    while (true) {
+      if (visible) await cycle();
+      else await sleep(600);
+    }
+  })();
+})();
 </script>
 </body>
 </html>
