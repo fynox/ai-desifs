@@ -123,6 +123,16 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN assigned_design_id INTEGER', // employé designer (création du visuel)
   'ALTER TABLE analyses ADD COLUMN assigned_secr_id INTEGER',   // employé secrétariat (devis / retours client)
   'ALTER TABLE analyses ADD COLUMN prep_note TEXT',             // note du préparateur pour le poseur (précisions sur les lés, etc.)
+  // Réinitialisation de mot de passe par mail
+  'ALTER TABLE users ADD COLUMN reset_token TEXT',
+  'ALTER TABLE users ADD COLUMN reset_expires TEXT',
+  // Suivi commercial des devis
+  'ALTER TABLE analyses ADD COLUMN devis_status TEXT',          // envoye | accepte | refuse (null = pas encore envoyé)
+  'ALTER TABLE analyses ADD COLUMN devis_sent_at TEXT',         // date d envoi du devis au client
+  'ALTER TABLE analyses ADD COLUMN client_email TEXT',          // adresse mail du client (fiche client)
+  // Alerte stock bas
+  'ALTER TABLE stock ADD COLUMN quantite_m2 REAL',              // quantité restante estimée (m² ou ml, au choix de l utilisateur)
+  'ALTER TABLE stock ADD COLUMN seuil_alerte REAL',             // en dessous → alerte stock bas
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

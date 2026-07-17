@@ -463,6 +463,22 @@ textarea:focus { border-color: var(--accent); }
       <div class="auth-field"><label>Mot de passe</label><div class="pw-wrap"><input type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"><button class="pw-toggle" onclick="togglePw('login-pw')">👁</button></div></div>
       <div class="auth-error" id="login-error"></div>
       <button class="btn-primary" id="btn-login" onclick="login()">Se connecter →</button>
+      <button onclick="switchAuthTab('forgot')" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:2px;align-self:center;">Mot de passe oublié ?</button>
+    </div>
+    <div class="auth-form" id="form-forgot" style="display:none">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6;margin:0;">Entre l'adresse mail de ton compte : on t'envoie un lien pour choisir un nouveau mot de passe (valable 1 heure).</p>
+      <div class="auth-field"><label>Adresse mail</label><input type="email" id="forgot-email" placeholder="votre@mail.com" onkeydown="if(event.key==='Enter')forgotSend()"></div>
+      <div class="auth-error" id="forgot-error"></div>
+      <div id="forgot-ok" style="display:none;font-size:13px;color:var(--accent);line-height:1.6;"></div>
+      <button class="btn-primary" id="btn-forgot" onclick="forgotSend()">Envoyer le lien →</button>
+      <button onclick="switchAuthTab('login')" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:2px;align-self:center;">← Retour à la connexion</button>
+    </div>
+    <div class="auth-form" id="form-reset" style="display:none">
+      <p style="font-size:13px;color:var(--muted);line-height:1.6;margin:0;">Choisis ton nouveau mot de passe.</p>
+      <div class="auth-field"><label>Nouveau mot de passe</label><div class="pw-wrap"><input type="password" id="reset-pw" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('reset-pw')">👁</button></div></div>
+      <div class="auth-field"><label>Confirmer le mot de passe</label><input type="password" id="reset-pw2" placeholder="••••••••" onkeydown="if(event.key==='Enter')resetSend()"></div>
+      <div class="auth-error" id="reset-error"></div>
+      <button class="btn-primary" id="btn-reset" onclick="resetSend()">Valider le nouveau mot de passe →</button>
     </div>
     <div class="auth-form" id="form-signup" style="display:none">
       <div class="auth-field"><label>Adresse mail</label><input type="email" id="signup-email" placeholder="votre@mail.com"></div>
@@ -1042,8 +1058,46 @@ function closeJetonsKo() { document.getElementById('modal-jetons-ko').classList.
 function switchAuthTab(tab) {
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
   document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
-  document.getElementById('form-login').style.display = tab === 'login' ? 'flex' : 'none';
-  document.getElementById('form-signup').style.display = tab === 'signup' ? 'flex' : 'none';
+  for (const f of ['login', 'signup', 'forgot', 'reset']) {
+    const el = document.getElementById('form-' + f);
+    if (el) el.style.display = tab === f ? 'flex' : 'none';
+  }
+}
+
+async function forgotSend() {
+  const email = document.getElementById('forgot-email').value.trim().toLowerCase();
+  const err = document.getElementById('forgot-error');
+  const ok = document.getElementById('forgot-ok');
+  const btn = document.getElementById('btn-forgot');
+  err.textContent = ''; ok.style.display = 'none';
+  if (!email) { err.textContent = 'Entre ton adresse mail.'; return; }
+  btn.disabled = true; btn.textContent = 'Envoi...';
+  try {
+    const data = await api('POST', '/auth/forgot', { email });
+    ok.textContent = '✉ ' + (data.message || 'Lien envoyé — regarde ta boîte mail.');
+    ok.style.display = 'block';
+  } catch (e) { err.textContent = e.message; }
+  btn.disabled = false; btn.textContent = 'Envoyer le lien →';
+}
+
+async function resetSend() {
+  const password = document.getElementById('reset-pw').value;
+  const pw2 = document.getElementById('reset-pw2').value;
+  const err = document.getElementById('reset-error');
+  const btn = document.getElementById('btn-reset');
+  err.textContent = '';
+  if (password !== pw2) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await api('POST', '/auth/reset', { token: window._resetToken, password });
+    window._resetToken = null;
+    window.history.replaceState({}, '', '/app');
+    switchAuthTab('login');
+    const le = document.getElementById('login-error');
+    le.style.color = 'var(--accent)';
+    le.textContent = '✓ Mot de passe changé — connecte-toi avec le nouveau.';
+  } catch (e) { err.textContent = e.message; }
+  btn.disabled = false; btn.textContent = 'Valider le nouveau mot de passe →';
 }
 
 function togglePw(id) { const el = document.getElementById(id); el.type = el.type === 'password' ? 'text' : 'password'; }
@@ -1053,7 +1107,7 @@ async function login() {
   const password = document.getElementById('login-pw').value;
   const err = document.getElementById('login-error');
   const btn = document.getElementById('btn-login');
-  err.textContent = '';
+  err.textContent = ''; err.style.color = '';
   btn.disabled = true; btn.textContent = 'Connexion...';
   try {
     const data = await api('POST', '/auth/login', { email, password });
@@ -3832,6 +3886,13 @@ function stopPolling() {
 
 // ===================== AUTO-LOGIN =====================
 (async () => {
+  // Lien de réinitialisation de mot de passe : on montre le formulaire dédié (pas d'auto-login)
+  const resetTok = new URLSearchParams(window.location.search).get('reset');
+  if (resetTok) {
+    window._resetToken = resetTok;
+    switchAuthTab('reset');
+    return;
+  }
   const savedToken = localStorage.getItem('aidesif_token');
   const savedSession = localStorage.getItem('aidesif_session');
   if (savedToken && savedSession) {

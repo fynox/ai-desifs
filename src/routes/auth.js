@@ -49,6 +49,51 @@ router.post('/login', async (req, res) => {
   res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, plan: user.plan || 'free', plan_period: user.plan_period || 'monthly', trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email, settings: user.settings || '{}', role: user.role || 'owner', is_employe: Boolean(user.parent_user_id) });
 });
 
+// Mot de passe oublié — envoie un lien de réinitialisation par mail (valable 1 h)
+router.post('/forgot', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email manquant.' });
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).toLowerCase());
+  // Réponse identique que le compte existe ou non (ne révèle rien)
+  const generic = { ok: true, message: 'Si un compte existe avec cet email, un lien de réinitialisation vient d\'être envoyé. Pense à vérifier tes spams.' };
+  if (!user) return res.json(generic);
+  try {
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    db.prepare('UPDATE users SET reset_token=?, reset_expires=? WHERE id=?').run(token, expires, user.id);
+    const { sendMail, mailTemplate, APP_URL } = require('../utils/mailer');
+    await sendMail({
+      to: user.email,
+      subject: 'Réinitialisation de ton mot de passe AI-dhésif',
+      html: mailTemplate({
+        titre: 'Réinitialiser ton mot de passe',
+        corps: 'Tu as demandé à réinitialiser ton mot de passe AI-dhésif.<br>Clique sur le bouton ci-dessous — le lien est valable 1 heure.<br><br>Si tu n\'es pas à l\'origine de cette demande, ignore simplement ce mail : ton mot de passe reste inchangé.',
+        boutonTexte: 'Choisir un nouveau mot de passe',
+        boutonUrl: `${APP_URL}/app?reset=${token}`,
+      }),
+    });
+  } catch (e) {
+    console.error('Forgot password mail error:', e.message);
+    return res.status(503).json({ error: 'L\'envoi de mails n\'est pas encore configuré sur le site — contacte le support.' });
+  }
+  res.json(generic);
+});
+
+// Nouveau mot de passe via le lien reçu par mail
+router.post('/reset', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Champs manquants.' });
+  if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (8 caractères minimum).' });
+  const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(String(token));
+  if (!user || !user.reset_expires || new Date(user.reset_expires) < new Date()) {
+    return res.status(400).json({ error: 'Lien invalide ou expiré — refais une demande depuis "Mot de passe oublié".' });
+  }
+  const hash = await bcrypt.hash(password, 12);
+  db.prepare('UPDATE users SET password_hash=?, reset_token=NULL, reset_expires=NULL WHERE id=?').run(hash, user.id);
+  res.json({ ok: true });
+});
+
 router.get('/profile', requireAuth, async (req, res) => {
   let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id, settings FROM users WHERE id = ?').get(req.user.id);
 
