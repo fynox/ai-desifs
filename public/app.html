@@ -754,12 +754,18 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Destinataire</label><input type="text" id="relance-to" placeholder="email@client.fr"></div>
     <div class="form-group"><label>Objet</label><input type="text" id="relance-objet"></div>
     <div class="form-group"><label>Message (modifiable)</label><textarea id="relance-corps" style="height:220px"></textarea></div>
+    <label id="relance-attach-wrap" style="display:none;align-items:center;gap:8px;font-size:12.5px;color:var(--text);cursor:pointer;margin-top:2px;">
+      <input type="checkbox" id="relance-attach" checked style="accent-color:var(--accent);width:16px;height:16px;">
+      📎 Joindre le devis en PDF <span style="color:var(--muted);font-size:11px;">(le suivi passera à « envoyé »)</span>
+    </label>
     <div class="auth-error" id="relance-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="relance-copied">✓ Copié dans le presse-papier</div>
+    <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="relance-sent">📤 Mail envoyé au client — les réponses arriveront sur ta boîte mail habituelle</div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeRelance()">Fermer</button>
       <button class="btn-cancel" onclick="copierRelance()">⧉ Copier</button>
-      <button class="btn-submit" onclick="openMessagerieChoice()">Ouvrir ma messagerie →</button>
+      <button class="btn-cancel" onclick="openMessagerieChoice()">Via ma messagerie</button>
+      <button class="btn-submit" id="btn-envoyer-relance" onclick="envoyerRelance()">📤 Envoyer maintenant</button>
     </div>
   </div>
 </div>
@@ -1783,10 +1789,11 @@ const TOUR_STEPS = [
   { target: () => document.querySelector('#output-panel .result-block'), before: runDemoAnalyse, title: '✅ Le résultat, en 3 onglets', text: 'Analyse (la demande et la reco), Préparation (atelier) et Pose. Chaque bloc se déplie d\'un clic — l\'écran reste simple, tout est là.' },
   { target: tourSection('analyse', 'Adhésif'), title: '🎯 L\'adhésif recommandé', text: 'Choisi parmi TES références de stock, avec la raison du choix. Si une plastification est nécessaire, elle apparaît comme AJOUT — et si ton stock n\'a pas l\'idéal, un conseil d\'achat s\'affiche.' },
   { target: tourCible('analyse', '#btn-devis'), title: '📋 Devis automatique (2🪙)', text: 'Un devis chiffré à partir de TES prix de stock. Chaque ligne est modifiable (ton prix à toi), lignes ajoutables/supprimables, export en PDF pro — et l\'IA apprend ta tarification pour les prochains devis.' },
-  { target: tourCible('analyse', '#btn-relance'), title: '✉ Mail client automatique (2🪙)', text: 'L\'IA rédige la réponse au client : tu coches les points à aborder (infos manquantes, devis, délai...). Si le fichier client est flou ou non vectoriel, elle propose TES prestations plutôt que de le renvoyer.' },
+  { target: tourCible('analyse', '#btn-relance'), title: '✉ Mail client automatique (2🪙)', text: 'L\'IA rédige la réponse au client : tu coches les points à aborder (infos manquantes, devis, délai...). Puis « 📤 Envoyer maintenant » : le mail part directement du site, devis PDF joint, et le client te répond sur ta boîte habituelle.' },
   { target: tourSection('analyse', 'Retour client'), title: '🔄 Retour client', text: 'Quand le client répond, note ici ses nouvelles infos (dimensions confirmées, délai...) : l\'analyse est relancée en les intégrant, et le devis suit.' },
   { target: tourCible('prep', '#btn-upscale'), title: '✨ Améliorer la résolution (5🪙)', text: 'Onglet Préparation. Fichier client trop petit ou flou ? L\'IA l\'agrandit en haute définition, prêt à imprimer. Comparatif avant/après inclus.' },
   { target: tourCible('prep', '#btn-vecto'), title: '✂ Vectoriser pour la découpe', text: 'Transforme une image en tracé vectoriel (SVG) pour le plotter : aperçu et réglages gratuits, téléchargement 2🪙. Export aussi en PNG, PDF taille réelle et AI (Illustrator).' },
+  { target: tourCible('prep', '#btn-bon-prod'), title: '🖨 Bon de production', text: 'La fiche d\'atelier imprimable : visuel, matière retenue, dimensions et lés, checklist de préparation à cocher et note pour le poseur — à poser sur la table de découpe.' },
   { target: tourSection('prep', 'Plan de lés'), title: '📐 Le plan de lés', text: 'Nombre de lés, raccords, débord de pose, optimisation de la matière — et export des lés prêts à imprimer avec traits de coupe. Réglages fins sous ⚙.' },
   { target: tourSection('analyse', 'Mission'), title: '🗂 Transfert à l\'équipe', text: 'Plan Entreprise : attitre un designer, un préparateur, un poseur — chacun voit SA mission, la termine et la transmet au suivant. Toi, tu vois tout.' },
   { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses, avec l\'étape en cours en couleur. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
@@ -3492,6 +3499,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
             <button class="btn-stock" style="flex:1;min-width:130px;font-size:11px;padding:7px 12px;margin:0;" onclick="openExportVisuel(${analyseId})" title="Télécharger le visuel en PNG, JPG, PDF taille réelle ou AI (Illustrator)">⬇ Exporter (PNG/PDF/AI)</button>
+            <button class="btn-stock" id="btn-bon-prod" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="genererBonProduction(${analyseId})" title="Fiche A4 pour l'atelier : visuel, matière, dimensions, checklist de préparation à cocher, note pour le poseur">🖨 Bon de production</button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -4088,6 +4096,251 @@ async function doExportImage(format) {
     _downloadBlob(blob, `${base}.${format === 'ai' ? 'ai' : 'pdf'}`);
   }
   closeExport();
+}
+
+// ===================== MOTEUR DE DOCUMENTS PDF (devis joint / facture / bon de production) =====================
+// Rendu sur canvas A4 (150 dpi) → JPEG → PDF via pdfFromJpegPages. Curseur vertical d.y, saut de page auto.
+const A4DOC = { w: 1240, h: 1754, m: 92 };
+
+function docNew() {
+  const d = { pages: [], ctx: null, y: 0 };
+  d.addPage = () => {
+    const cv = document.createElement('canvas');
+    cv.width = A4DOC.w; cv.height = A4DOC.h;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    d.pages.push(cv); d.ctx = ctx; d.y = A4DOC.m;
+  };
+  d.need = (h) => { if (d.y + h > A4DOC.h - A4DOC.m) d.addPage(); };
+  d.gap = (h) => { d.y += h; };
+  d.hr = (color = '#111111', h = 3) => { d.need(h + 16); d.ctx.fillStyle = color; d.ctx.fillRect(A4DOC.m, d.y, A4DOC.w - 2 * A4DOC.m, h); d.y += h + 16; };
+  // Texte avec retour à la ligne automatique (gère \n) — toujours re-régler le ctx (il change à chaque page)
+  d.text = (str, x, opts = {}) => {
+    const size = opts.size || 24, color = opts.color || '#1a1a1a';
+    const width = opts.maxW || (A4DOC.w - A4DOC.m - x);
+    const lineH = opts.lh || Math.round(size * 1.45);
+    const font = `${opts.bold ? '700' : '400'} ${size}px Arial, sans-serif`;
+    const drawLine = (l) => {
+      d.need(lineH);
+      d.ctx.font = font; d.ctx.fillStyle = color;
+      d.ctx.textAlign = opts.align === 'right' ? 'right' : 'left';
+      d.ctx.fillText(l, opts.align === 'right' ? x + width : x, d.y + size);
+      d.ctx.textAlign = 'left';
+      d.y += lineH;
+    };
+    for (const para of String(str == null ? '' : str).split('\n')) {
+      let line = '';
+      for (const w of para.split(' ')) {
+        const t = line ? line + ' ' + w : w;
+        d.ctx.font = font;
+        if (d.ctx.measureText(t).width > width && line) { drawLine(line); line = w; }
+        else line = t;
+      }
+      drawLine(line);
+    }
+  };
+  d.addPage();
+  return d;
+}
+
+function docToPdfBlob(d) {
+  return pdfFromJpegPages(d.pages.map(cv => ({
+    jpeg: _dataUrlToU8(cv.toDataURL('image/jpeg', 0.92)),
+    wPx: cv.width, hPx: cv.height, wPt: 595.28, hPt: 841.89,
+  })));
+}
+
+function _blobToB64(blob) {
+  return new Promise((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',')[1]);
+    r.onerror = ko;
+    r.readAsDataURL(blob);
+  });
+}
+
+// Devis ou facture en PDF (blob téléchargeable/joignable). mode : 'devis' | 'facture'
+function documentDevisBlob(mode, lignes, infos, meta = {}) {
+  const d = docNew();
+  const M = A4DOC.m, W = A4DOC.w - 2 * A4DOC.m;
+  const fmt = v => (typeof v === 'number' && isFinite(v) ? v.toFixed(2).replace('.', ',') + ' €' : '—');
+  const today = meta.date ? new Date(meta.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+  const tvaPct = Number(userSettings.tva_pct);
+  const totalHT = lignes.reduce((s, l) => s + (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0), 0);
+  const tva = isFinite(tvaPct) && tvaPct > 0 ? totalHT * tvaPct / 100 : 0;
+  const validite = Number(userSettings.devis_validite_jours) >= 1 ? Math.round(Number(userSettings.devis_validite_jours)) : 30;
+
+  d.text(mode === 'facture' ? 'FACTURE' : 'DEVIS', M, { size: 52, bold: true });
+  d.gap(2);
+  d.text(`N° ${meta.num || '—'}   ·   Date : ${today}` + (mode === 'devis' ? `   ·   Valable ${validite} jours` : ''), M, { size: 21, color: '#555555' });
+  d.hr();
+
+  // Émetteur / Client en deux colonnes
+  const colW = (W - 40) / 2, x2 = M + colW + 40, y0 = d.y;
+  d.text('ÉMETTEUR', M, { size: 17, bold: true, color: '#999999' });
+  d.text([infos.em_nom, infos.em_adr, infos.em_cp, infos.em_tel, infos.em_mail, infos.em_siret ? 'SIRET/TVA : ' + infos.em_siret : ''].filter(Boolean).join('\n') || '—', M, { size: 21, maxW: colW });
+  const yGauche = d.y; d.y = y0;
+  d.text('CLIENT', x2, { size: 17, bold: true, color: '#999999' });
+  d.text([infos.cl_nom, infos.cl_adr, infos.cl_cp, infos.cl_tel, infos.cl_mail].filter(Boolean).join('\n') || '—', x2, { size: 21, maxW: colW });
+  d.y = Math.max(yGauche, d.y) + 22;
+
+  // Tableau des lignes
+  const cDes = M, wDes = W * 0.50, cQte = M + W * 0.52, wQte = W * 0.08, cPU = M + W * 0.62, wPU = W * 0.16, cTot = M + W * 0.80, wTot = W * 0.20;
+  d.text('DÉSIGNATION', cDes, { size: 16, bold: true, color: '#999999' });
+  d.y -= Math.round(16 * 1.45);
+  d.text('QTÉ', cQte, { size: 16, bold: true, color: '#999999' });
+  d.y -= Math.round(16 * 1.45);
+  d.text('P.U. HT', cPU, { size: 16, bold: true, color: '#999999', maxW: wPU, align: 'right' });
+  d.y -= Math.round(16 * 1.45);
+  d.text('TOTAL HT', cTot, { size: 16, bold: true, color: '#999999', maxW: wTot, align: 'right' });
+  d.ctx.fillStyle = '#111111'; d.ctx.fillRect(M, d.y + 4, W, 3); d.y += 18;
+
+  for (const l of lignes) {
+    d.need(90);
+    const montant = l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0;
+    const qte = parseFloat(l.quantite) || null;
+    const rowTop = d.y;
+    d.text(l.designation || '', cDes, { size: 21, maxW: wDes });
+    if (l.details) d.text(l.details, cDes, { size: 17, color: '#999999', maxW: wDes });
+    const rowBot = d.y;
+    d.y = rowTop;
+    d.text(String(l.quantite || '—'), cQte, { size: 21, maxW: wQte });
+    d.y = rowTop;
+    d.text(qte && montant ? fmt(montant / qte) : fmt(montant), cPU, { size: 21, maxW: wPU, align: 'right' });
+    d.y = rowTop;
+    d.text(fmt(montant), cTot, { size: 21, bold: true, maxW: wTot, align: 'right' });
+    d.y = Math.max(rowBot, d.y) + 4;
+    d.ctx.fillStyle = '#eeeeee'; d.ctx.fillRect(M, d.y, W, 2); d.y += 14;
+  }
+
+  // Totaux
+  d.gap(8);
+  d.text(`Total HT : ${fmt(totalHT)}`, M, { size: 23, align: 'right', maxW: W });
+  if (tva > 0) {
+    d.text(`TVA ${String(tvaPct).replace('.', ',')} % : ${fmt(tva)}`, M, { size: 23, align: 'right', maxW: W });
+    d.text(`TOTAL TTC : ${fmt(totalHT + tva)}`, M, { size: 30, bold: true, align: 'right', maxW: W });
+  } else {
+    d.text(`TOTAL : ${fmt(totalHT)} HT`, M, { size: 30, bold: true, align: 'right', maxW: W });
+  }
+
+  // Mentions de bas de page
+  d.gap(26);
+  d.ctx.fillStyle = '#eeeeee'; d.ctx.fillRect(M, d.y, W, 2); d.y += 16;
+  if (mode === 'facture') {
+    d.text(`Facture établie le ${today}. Paiement à réception.` +
+      (tva > 0 ? '' : '\nTVA non applicable, art. 293 B du CGI (à adapter selon votre régime).') +
+      '\nPénalités de retard : trois fois le taux d\'intérêt légal. Indemnité forfaitaire pour frais de recouvrement : 40 €. Pas d\'escompte pour paiement anticipé.', M, { size: 17, color: '#777777' });
+  } else {
+    d.text(`Devis établi le ${today}${tva > 0 ? '' : ' — TVA non applicable / à adapter selon votre régime'}. Bon pour accord : signature et date du client.`, M, { size: 17, color: '#777777' });
+    d.gap(56);
+    d.text('Signature client (précédée de « Bon pour accord ») :', M, { size: 17, color: '#777777' });
+  }
+  return docToPdfBlob(d);
+}
+
+// Infos émetteur/client pour un document : champs de la fenêtre devis s'ils sont remplis, sinon celles mémorisées
+async function infosPourDocument(item) {
+  let infos = {};
+  try { infos = await api('GET', '/analyses/devis-infos'); } catch {}
+  const g = idd => { const el = document.getElementById(idd); return el && el.value.trim() ? el.value.trim() : null; };
+  return {
+    em_nom: g('dv-em-nom') || infos.em_nom, em_adr: g('dv-em-adr') || infos.em_adr, em_cp: g('dv-em-cp') || infos.em_cp,
+    em_tel: g('dv-em-tel') || infos.em_tel, em_mail: g('dv-em-mail') || infos.em_mail, em_siret: g('dv-em-siret') || infos.em_siret,
+    cl_nom: g('dv-cl-nom'), cl_adr: g('dv-cl-adr'), cl_cp: g('dv-cl-cp'), cl_tel: g('dv-cl-tel'),
+    cl_mail: g('dv-cl-mail') || (item ? item.client_email : null),
+    ref: g('dv-ref'),
+  };
+}
+
+// Facture : numéro attribué par le serveur (FA-AAAA-NNN, définitif), puis PDF téléchargé
+async function genererFacture(id) {
+  try {
+    const item = historique.find(a => a.id === id);
+    if (!item || !item.devis || !(item.devis.lignes || []).length) { alert('Aucun devis sur cette analyse.'); return; }
+    try { recomputeDevisTotal(); } catch {}
+    const r = await api('POST', `/analyses/${id}/facture`);
+    const infos = await infosPourDocument(item);
+    const blob = documentDevisBlob('facture', item.devis.lignes, infos, { num: r.num, date: r.date });
+    _downloadBlob(blob, `${r.num}.pdf`);
+    item.facture_num = r.num;
+    try { renderDevisSuivi(id); } catch {}
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
+// Bon de production : fiche A4 pour l'atelier (visuel, matière, dimensions, checklist, note poseur)
+async function genererBonProduction(id) {
+  const item = historique.find(a => a.id === id);
+  if (!item || !item.result) { alert('Analyse introuvable.'); return; }
+  const r = item.result;
+  if (item.has_visuel && !item.visuel_b64) {
+    try { const v = await api('GET', `/analyses/${id}/visuel`); item.visuel_b64 = v.visuel_b64; item.visuel_type = v.visuel_type; } catch {}
+  }
+  const d = docNew();
+  const M = A4DOC.m, W = A4DOC.w - 2 * A4DOC.m;
+
+  d.text('BON DE PRODUCTION', M, { size: 44, bold: true });
+  d.gap(2);
+  d.text(`${r.titre || 'Analyse #' + id}   ·   ${new Date(item.created_at).toLocaleDateString('fr-FR')}` +
+    (item.client_email ? `\nClient : ${item.client_email}` : '') +
+    (item.job_date ? `\nPose : ${item.job_date}${item.job_lieu ? ' — ' + item.job_lieu : ''}` : ''), M, { size: 21, color: '#555555' });
+  d.hr();
+
+  if (item.visuel_b64 && (item.visuel_type || '').startsWith('image/')) {
+    const img = new Image();
+    await new Promise(ok => { img.onload = ok; img.onerror = ok; img.src = `data:${item.visuel_type};base64,${item.visuel_b64}`; });
+    if (img.naturalWidth) {
+      const k = Math.min(W / img.naturalWidth, 400 / img.naturalHeight, 1);
+      const iw = Math.round(img.naturalWidth * k), ih = Math.round(img.naturalHeight * k);
+      d.need(ih + 24);
+      d.ctx.drawImage(img, M, d.y, iw, ih);
+      d.ctx.strokeStyle = '#dddddd'; d.ctx.lineWidth = 2; d.ctx.strokeRect(M, d.y, iw, ih);
+      d.y += ih + 26;
+    }
+  }
+
+  const principal = (r.adhesifs || []).find(a => a.priorite === 'principal') || (r.adhesifs || [])[0];
+  const complements = (r.adhesifs || []).filter(a => a.priorite === 'complement');
+  d.text('MATIÈRE', M, { size: 18, bold: true, color: '#999999' });
+  d.text((principal ? principal.nom : '—') + (complements.length ? '   +   ' + complements.map(c => c.nom).join(', ') : ''), M, { size: 26, bold: true });
+  const s = r.specs || {};
+  const specLine = [s.finition ? 'Finition : ' + s.finition : null, s.duree ? 'Durée : ' + s.duree : null, s.pose ? 'Pose : ' + s.pose : null].filter(Boolean).join('   ·   ');
+  if (specLine) d.text(specLine, M, { size: 20, color: '#555555' });
+  d.gap(14);
+
+  const m = r.montage || {};
+  d.text('DIMENSIONS & LÉS', M, { size: 18, bold: true, color: '#999999' });
+  d.text([
+    (m.largeur_cm && m.hauteur_cm) ? `Visuel : ${m.largeur_cm} × ${m.hauteur_cm} cm` : 'Dimensions : à confirmer avec le client',
+    Number(m.quantite) > 1 ? `Quantité : ${m.quantite} ex.` : null,
+    m.laize_cm ? `Laize : ${m.laize_cm} cm` : null,
+    m.nb_les ? `Lés : ${m.nb_les}${m.sens_les ? ' (' + m.sens_les + ')' : ''}` : null,
+    m.debord_mm != null ? `Débord : ${m.debord_mm} mm` : null,
+  ].filter(Boolean).join('   ·   '), M, { size: 22 });
+  d.gap(14);
+
+  if ((r.preparation || []).length) {
+    d.text('PRÉPARATION — À COCHER', M, { size: 18, bold: true, color: '#999999' });
+    d.gap(4);
+    for (const step of r.preparation) {
+      d.need(46);
+      d.ctx.strokeStyle = '#333333'; d.ctx.lineWidth = 2.5;
+      d.ctx.strokeRect(M, d.y + 5, 24, 24);
+      d.text(step, M + 42, { size: 21 });
+      d.gap(6);
+    }
+    d.gap(8);
+  }
+  if (item.prep_note) {
+    d.text('NOTE POUR LE POSEUR', M, { size: 18, bold: true, color: '#999999' });
+    d.text(item.prep_note, M, { size: 21 });
+    d.gap(10);
+  }
+  if (r.attention) {
+    d.text('ATTENTION', M, { size: 18, bold: true, color: '#c00000' });
+    d.text(r.attention, M, { size: 21, color: '#c00000' });
+  }
+
+  _downloadBlob(docToPdfBlob(d), `bon-production-${id}.pdf`);
 }
 
 async function openVectoriser(id) {
@@ -4707,7 +4960,12 @@ function renderDevisSuivi(id) {
     return `<button onclick="setDevisStatus(${id}, ${actif ? 'null' : `'${k}'`})" title="${actif ? 'Cliquer pour annuler ce statut' : ''}"
       style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:${actif ? '700' : '400'};
       background:${actif ? v.color : 'none'};color:${actif ? '#111' : v.color};border:1px solid ${v.color};">${v.label}</button>`;
-  }).join('');
+  }).join('')
+  // Devis accepté → génération de la facture (numéro définitif attribué par le serveur)
+  + (cur === 'accepte'
+    ? `<button onclick="genererFacture(${id})" title="${item && item.facture_num ? 'Retélécharger la facture ' + item.facture_num : 'Attribue un numéro définitif et télécharge le PDF'}"
+        style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:700;background:var(--accent);color:#111;border:1px solid var(--accent);">🧾 ${item && item.facture_num ? item.facture_num : 'Générer la facture'}</button>`
+    : '');
 }
 async function setDevisStatus(id, status) {
   try {
@@ -4953,23 +5211,68 @@ function lancerRelanceDepuisModal() {
   genererRelance(_tonAnalyseId, ton, points);
 }
 
+let _relanceId = null;
 async function genererRelance(id, ton = 'pro', points = []) {
   const btn = document.getElementById('btn-relance');
   if (btn) { btn.disabled = true; btn.textContent = '✉ Rédaction du mail en cours…'; }
   try {
     const mail = await api('POST', `/analyses/${id}/relance`, { ton, points });
-    document.getElementById('relance-to').value = mail.to || '';
+    _relanceId = id;
+    const item = historique.find(a => a.id === id);
+    document.getElementById('relance-to').value = mail.to || (item && item.client_email) || '';
     document.getElementById('relance-objet').value = mail.objet || '';
     // Signature du compte ajoutée automatiquement (réglages)
     const signature = (userSettings.mail_signature || '').trim();
     document.getElementById('relance-corps').value = (mail.corps || '') + (signature ? '\n\n' + signature : '');
     document.getElementById('relance-error').textContent = '';
     document.getElementById('relance-copied').style.display = 'none';
+    document.getElementById('relance-sent').style.display = 'none';
+    // Proposer la pièce jointe uniquement si un devis existe sur ce dossier
+    const aDevis = item && item.devis && (item.devis.lignes || []).length;
+    document.getElementById('relance-attach-wrap').style.display = aDevis ? 'flex' : 'none';
+    document.getElementById('relance-attach').checked = Boolean(aDevis);
     document.getElementById('modal-relance').classList.add('open');
   } catch(e) {
     handleActionError(e);
   }
   if (btn) { btn.disabled = false; btn.textContent = '✉ Mail au client — demander les infos manquantes'; }
+}
+
+// Envoi direct depuis le site (SendGrid) — les réponses reviennent sur l'adresse du compte
+async function envoyerRelance() {
+  const id = _relanceId;
+  if (!id) return;
+  const btn = document.getElementById('btn-envoyer-relance');
+  const err = document.getElementById('relance-error');
+  err.textContent = '';
+  const to = document.getElementById('relance-to').value.trim();
+  const objet = document.getElementById('relance-objet').value.trim();
+  const corps = document.getElementById('relance-corps').value;
+  if (!to) { err.textContent = 'Renseigne l\'adresse email du destinataire.'; return; }
+  btn.disabled = true; btn.textContent = '📤 Envoi en cours…';
+  try {
+    const body = { to, objet, corps };
+    const item = historique.find(a => a.id === id);
+    const attach = document.getElementById('relance-attach');
+    if (attach && attach.checked && document.getElementById('relance-attach-wrap').style.display !== 'none'
+        && item && item.devis && (item.devis.lignes || []).length) {
+      const infos = await infosPourDocument(item);
+      const blob = documentDevisBlob('devis', item.devis.lignes, infos, { num: infos.ref || ('DEV-' + id) });
+      body.devis_pdf_b64 = await _blobToB64(blob);
+      body.devis_pdf_nom = `devis-${infos.ref || id}.pdf`;
+    }
+    const r = await api('POST', `/analyses/${id}/envoyer-mail`, body);
+    if (item) {
+      if (r.devis_status) item.devis_status = r.devis_status;
+      if (r.devis_status === 'envoye' && !item.devis_sent_at) item.devis_sent_at = new Date().toISOString();
+      if (!item.client_email) item.client_email = to.toLowerCase();
+      renderSidebarHisto();
+    }
+    document.getElementById('relance-sent').style.display = 'block';
+    showImportToast('📤 Mail envoyé à ' + to, 'success');
+    setTimeout(closeRelance, 1600);
+  } catch (e) { err.textContent = e.message; }
+  btn.disabled = false; btn.textContent = '📤 Envoyer maintenant';
 }
 
 function closeRelance() { document.getElementById('modal-relance').classList.remove('open'); }

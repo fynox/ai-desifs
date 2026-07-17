@@ -95,7 +95,7 @@ router.get('/', (req, res) => {
   const args = (sc.empId && !sc.secr) ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
-      devis_status, devis_sent_at, client_email,
+      devis_status, devis_sent_at, client_email, facture_num,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
@@ -662,6 +662,85 @@ router.post('/:id/devis/feedback', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+// Envoi direct du mail au client depuis l'app (SendGrid) — patron + secrétariat.
+// Le mail part de l'adresse du domaine (authentifiée), au NOM de l'entreprise de l'utilisateur,
+// et les réponses du client reviennent sur la vraie adresse du compte (reply-to).
+router.post('/:id/envoyer-mail', async (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, devis_status FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+
+  const to = String(req.body.to || '').trim();
+  const objet = String(req.body.objet || '').trim().slice(0, 300);
+  const corps = String(req.body.corps || '').trim().slice(0, 20000);
+  if (!/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(to)) return res.status(400).json({ error: 'Adresse du destinataire invalide.' });
+  if (!objet || !corps) return res.status(400).json({ error: 'Objet et message obligatoires.' });
+
+  const { sendMail, mailReady } = require('../utils/mailer');
+  if (!mailReady()) return res.status(503).json({ error: 'L\'envoi de mails n\'est pas configuré (clé SendGrid — panel admin).' });
+
+  const owner = db.prepare('SELECT email, devis_infos FROM users WHERE id = ?').get(sc.ownerId);
+  let fromName = null;
+  try { fromName = (JSON.parse(owner.devis_infos || '{}').em_nom || '').trim() || null; } catch {}
+
+  // Pièce jointe optionnelle : le devis PDF généré côté client (max ~8 Mo)
+  const attachments = [];
+  if (req.body.devis_pdf_b64 && typeof req.body.devis_pdf_b64 === 'string') {
+    if (req.body.devis_pdf_b64.length > 11e6) return res.status(400).json({ error: 'Pièce jointe trop lourde.' });
+    attachments.push({
+      content: req.body.devis_pdf_b64,
+      filename: req.body.devis_pdf_nom || `devis-${item.id}.pdf`,
+      type: 'application/pdf',
+      disposition: 'attachment',
+    });
+  }
+
+  const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  try {
+    await sendMail({
+      to,
+      subject: objet,
+      text: corps,
+      // Mail client : présentation neutre au nom de l'imprimeur (pas de marque AI-dhésif)
+      html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#1a1a1a;white-space:pre-wrap;">${esc(corps)}</div>`,
+      replyTo: owner.email,
+      fromName,
+      attachments,
+    });
+  } catch (e) {
+    console.error('Envoi mail client error:', e.message);
+    return res.status(502).json({ error: 'L\'envoi a échoué : ' + e.message });
+  }
+
+  // Un devis joint = devis envoyé (sauf s'il a déjà une réponse)
+  let devis_status = item.devis_status;
+  if (attachments.length && item.devis_status !== 'accepte' && item.devis_status !== 'refuse') {
+    devis_status = 'envoye';
+    db.prepare("UPDATE analyses SET devis_status='envoye', devis_sent_at=COALESCE(devis_sent_at, datetime('now')), client_email=COALESCE(client_email, ?) WHERE id=?").run(to.toLowerCase(), item.id);
+  } else {
+    db.prepare('UPDATE analyses SET client_email=COALESCE(client_email, ?) WHERE id=?').run(to.toLowerCase(), item.id);
+  }
+  res.json({ ok: true, devis_status });
+});
+
+// Numéro de facture : attribution atomique et idempotente (FA-AAAA-NNN, compteur par compte)
+router.post('/:id/facture', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, devis_json, facture_num, facture_at FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  if (!item.devis_json) return res.status(400).json({ error: 'Génère d\'abord le devis de cette analyse.' });
+  if (item.facture_num) return res.json({ num: item.facture_num, date: item.facture_at, deja: true });
+
+  const user = db.prepare('SELECT facture_seq FROM users WHERE id = ?').get(sc.ownerId);
+  const seq = (Number(user.facture_seq) || 0) + 1;
+  db.prepare('UPDATE users SET facture_seq = ? WHERE id = ?').run(seq, sc.ownerId);
+  const num = `FA-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`;
+  db.prepare("UPDATE analyses SET facture_num=?, facture_at=datetime('now') WHERE id=?").run(num, item.id);
+  res.json({ num, date: new Date().toISOString(), deja: false });
 });
 
 // Suivi commercial du devis : envoyé au client / accepté / refusé (patron + secrétariat)

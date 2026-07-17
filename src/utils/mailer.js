@@ -10,18 +10,20 @@ function mailReady() {
   return Boolean(getSetting('SENDGRID_API_KEY'));
 }
 
-async function sendMail({ to, subject, html, text, attachments }) {
+async function sendMail({ to, subject, html, text, attachments, replyTo, fromName }) {
   const key = getSetting('SENDGRID_API_KEY');
   if (!key) throw new Error('Envoi de mails non configuré (clé SendGrid manquante — panel admin).');
   sgMail.setApiKey(key);
   const from = getSetting('MAIL_FROM') || 'AI-dhésif <notifications@ai-dhesif.fr>';
   const msg = {
     to,
-    from,
+    // fromName : afficher le nom de l'entreprise de l'utilisateur (l'adresse reste celle du domaine authentifié)
+    from: fromName ? { email: String(from).match(/<([^>]+)>/)?.[1] || from, name: fromName } : from,
     subject,
     text: text || (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
     html: html || `<p>${text || ''}</p>`,
   };
+  if (replyTo) msg.replyTo = replyTo;
   if (attachments && attachments.length) msg.attachments = attachments;
   await sgMail.send(msg);
 }
