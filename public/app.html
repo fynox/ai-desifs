@@ -1026,9 +1026,10 @@ textarea:focus { border-color: var(--accent); }
       <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Installe AI-dhésif sur l'écran d'accueil de ton téléphone : le site s'ouvre alors comme une vraie appli, en plein écran, avec le logo. Pratique pour consulter les missions sur chantier.</div>
       <div id="pwa-installed" style="display:none;font-size:12.5px;color:var(--accent);margin-bottom:10px;">✓ Tu utilises déjà l'appli installée sur cet appareil.</div>
       <button id="pwa-install-btn" class="btn-stock" style="display:none;margin:0 0 12px;border-color:var(--accent);color:var(--accent);" onclick="installPWA()">⬇ Installer l'application maintenant</button>
-      <div style="display:flex;gap:6px;margin-bottom:10px;">
-        <button class="pwa-os-tab" id="pwa-tab-ios" onclick="showPwaOS('ios')">🍎 iPhone / iPad</button>
-        <button class="pwa-os-tab" id="pwa-tab-android" onclick="showPwaOS('android')">🤖 Android</button>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="pwa-os-tab" id="pwa-tab-ios" onclick="showPwaOS('ios')" style="min-width:110px;">🍎 iPhone / iPad</button>
+        <button class="pwa-os-tab" id="pwa-tab-android" onclick="showPwaOS('android')" style="min-width:90px;">🤖 Android</button>
+        <button class="pwa-os-tab" id="pwa-tab-pc" onclick="showPwaOS('pc')" style="min-width:70px;">💻 PC</button>
       </div>
       <div id="pwa-guide-ios">
         <ol class="pwa-guide">
@@ -1045,6 +1046,14 @@ textarea:focus { border-color: var(--accent); }
         <li>Touche <b>« Ajouter à l'écran d'accueil »</b> (parfois affiché <b>« Installer l'application »</b>).</li>
         <li>Confirme : l'icône AI-dhésif apparaît sur ton écran d'accueil.</li>
       </ol>
+      <div id="pwa-guide-pc" style="display:none;">
+        <ol class="pwa-guide">
+          <li>Ouvre <b>ai-dhesif.fr/app</b> dans <b>Chrome</b> ou <b>Edge</b>.</li>
+          <li>Clique sur l'<b>icône d'installation</b> tout à droite de la barre d'adresse (petit écran avec une flèche ⤓), ou menu <b>⋮</b> → <b>« Installer AI-dhésif »</b>.</li>
+          <li>L'appli s'ouvre dans sa propre fenêtre, avec le logo dans la barre des tâches — épingle-la si tu veux.</li>
+        </ol>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:8px;">ℹ️ Le bouton d'installation a disparu ? C'est que l'appli est <b>déjà installée</b> dans Chrome (supprimer le raccourci du bureau ne la désinstalle pas). Pour repartir de zéro : tape <b>chrome://apps</b> dans la barre d'adresse → clic droit sur AI-dhésif → « Supprimer de Chrome », puis recharge cette page.</div>
+      </div>
     </div>
 
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin:6px 0;" id="reglages-success">✓ Réglages enregistrés</div>
@@ -1668,15 +1677,16 @@ async function installPWA() {
   _pwaPrompt = null;
 }
 function showPwaOS(os) {
-  document.getElementById('pwa-tab-ios').classList.toggle('active', os === 'ios');
-  document.getElementById('pwa-tab-android').classList.toggle('active', os === 'android');
-  document.getElementById('pwa-guide-ios').style.display = os === 'ios' ? 'block' : 'none';
-  document.getElementById('pwa-guide-android').style.display = os === 'android' ? 'block' : 'none';
+  for (const k of ['ios', 'android', 'pc']) {
+    document.getElementById('pwa-tab-' + k).classList.toggle('active', os === k);
+    document.getElementById('pwa-guide-' + k).style.display = os === k ? 'block' : 'none';
+  }
 }
 function initPwaCard() {
   // Onglet présélectionné selon l'appareil
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  showPwaOS(isIOS ? 'ios' : 'android');
+  const isAndroid = /Android/.test(navigator.userAgent);
+  showPwaOS(isIOS ? 'ios' : (isAndroid ? 'android' : 'pc'));
   // Déjà lancé depuis l'icône installée ?
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
   document.getElementById('pwa-installed').style.display = standalone ? 'block' : 'none';
