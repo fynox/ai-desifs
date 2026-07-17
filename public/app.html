@@ -4290,8 +4290,10 @@ function startEvents() {
         analyse_done: d.failed ? '⚠ Une analyse par mail a échoué — voir l\'historique' : '✅ Nouvelle analyse prête dans l\'historique',
         mission: '🎯 Nouvelle mission pour toi',
         mission_finie: '🏁 Une mission vient d\'être terminée',
+        stock_bas: '⚠ Stock bas : ' + ((d.noms || []).join(', ') || 'un adhésif') + ' sous le seuil d\'alerte',
       };
-      if (msgs[d.type]) showImportToast(msgs[d.type], d.failed ? 'error' : 'success');
+      if (msgs[d.type]) showImportToast(msgs[d.type], (d.failed || d.type === 'stock_bas') ? 'error' : 'success');
+      if (d.type === 'stock_bas') { try { loadStock().then(renderAll); } catch {} }
       // Rafraîchissement immédiat via le mécanisme de polling existant
       if (_pollActive) { clearTimeout(pollingInterval); pollingInterval = setTimeout(_doPoll, 300); }
     });

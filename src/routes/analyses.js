@@ -298,6 +298,34 @@ router.patch('/:id/job-status', (req, res) => {
 
   db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(status, item.id);
 
+  // Pose terminée pour la PREMIÈRE fois → décompte automatique du stock utilisé
+  // (uniquement pour les références où le suivi de quantité est activé)
+  if (status === 'termine' && item.job_status !== 'termine') {
+    try {
+      const a = db.prepare('SELECT result_json FROM analyses WHERE id = ?').get(item.id);
+      const rj = JSON.parse(a.result_json || '{}');
+      const m = rj.montage || {};
+      const surface = (Number(m.largeur_cm) > 0 && Number(m.hauteur_cm) > 0)
+        ? (Number(m.largeur_cm) * Number(m.hauteur_cm) * (Number(m.quantite) || 1)) / 10000
+        : 0;
+      if (surface > 0) {
+        const passesSousSeuil = [];
+        for (const ad of (rj.adhesifs || [])) {
+          if (!ad || !ad.nom || (ad.priorite !== 'principal' && ad.priorite !== 'complement')) continue;
+          const row = db.prepare('SELECT id, nom, quantite_m2, seuil_alerte FROM stock WHERE user_id = ? AND nom = ? AND quantite_m2 IS NOT NULL').get(item.user_id, ad.nom);
+          if (!row) continue;
+          const avant = Number(row.quantite_m2);
+          const apres = Math.max(0, Math.round((avant - surface) * 100) / 100);
+          db.prepare('UPDATE stock SET quantite_m2 = ? WHERE id = ?').run(apres, row.id);
+          if (row.seuil_alerte != null && avant > Number(row.seuil_alerte) && apres <= Number(row.seuil_alerte)) passesSousSeuil.push(row.nom);
+        }
+        if (passesSousSeuil.length) {
+          try { require('../utils/events').emitTo(item.user_id, 'stock_bas', { noms: passesSousSeuil }); } catch {}
+        }
+      }
+    } catch (e) { console.error('Décrément stock error:', e.message); }
+  }
+
   // Notifications : le prochain employé du parcours (sauf s'il est l'auteur de l'action),
   // et le patron quand la mission est terminée par un employé
   if (nextEmp && nextEmp !== req.user.id) notifyMission(nextEmp, item.id, status);
