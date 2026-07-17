@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentions légales & CGV — AI-dhésif</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Inter:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap');
+:root { --bg:#0d0e0c; --surface:#161814; --surface2:#1d201a; --border:#2a2d26; --text:#f2f4ee; --muted:#8a8f80; --accent:#c8f04a; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; line-height:1.75; -webkit-font-smoothing:antialiased; }
+.nav { display:flex; align-items:center; gap:12px; padding:18px 24px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:10; flex-wrap:wrap; }
+.nav a.brand { display:flex; align-items:center; gap:10px; font-family:'Syne',sans-serif; font-weight:800; font-size:17px; color:var(--text); text-decoration:none; }
+.nav .links { margin-left:auto; display:flex; gap:14px; flex-wrap:wrap; }
+.nav .links a { color:var(--muted); text-decoration:none; font-size:13px; font-family:'DM Mono',monospace; }
+.nav .links a:hover { color:var(--accent); }
+.wrap { max-width:820px; margin:0 auto; padding:40px 20px 80px; }
+h1 { font-family:'Syne',sans-serif; font-size:30px; margin-bottom:8px; }
+.updated { font-size:12px; color:var(--muted); font-family:'DM Mono',monospace; margin-bottom:36px; }
+h2 { font-family:'Syne',sans-serif; font-size:21px; margin:44px 0 14px; padding-top:18px; border-top:1px solid var(--border); color:var(--accent); }
+h3 { font-family:'Syne',sans-serif; font-size:15px; margin:22px 0 8px; }
+p, li { font-size:14.5px; color:#c9cec0; margin-bottom:10px; }
+ul { padding-left:22px; margin-bottom:14px; }
+b { color:var(--text); }
+.todo { background:#f0c84a22; border:1px solid #f0c84a66; color:#f0c84a; border-radius:6px; padding:1px 7px; font-size:12.5px; font-family:'DM Mono',monospace; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin:16px 0; }
+table { width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:13.5px; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); color:#c9cec0; vertical-align:top; }
+th { color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="/"><img src="/logo.svg" alt="" style="width:28px;height:28px;border-radius:7px;">AI-dhésif</a>
+  <div class="links">
+    <a href="#mentions">Mentions légales</a>
+    <a href="#confidentialite">Confidentialité</a>
+    <a href="#cgv">CGV</a>
+    <a href="/app">Ouvrir l'app →</a>
+  </div>
+</nav>
+<div class="wrap">
+  <h1>Informations légales</h1>
+  <div class="updated">Dernière mise à jour : 17 juillet 2026</div>
+
+  <h2 id="mentions">1. Mentions légales</h2>
+  <div class="card">
+    <p><b>Éditeur du site</b><br>
+    AI-dhésif — <span class="todo">[raison sociale / nom de l'exploitant à compléter]</span><br>
+    SIRET : <span class="todo">[n° SIRET à compléter]</span><br>
+    Siège : <span class="todo">[adresse à compléter]</span><br>
+    Contact : <span class="todo">[email de contact à compléter]</span></p>
+    <p><b>Directeur de la publication</b> : l'exploitant du site.</p>
+    <p><b>Hébergement</b> : Railway Corp., 548 Market St, San Francisco, CA 94104, États-Unis — <a href="https://railway.com" style="color:var(--accent)">railway.com</a>. Nom de domaine et DNS : Cloudflare, Inc.</p>
+  </div>
+  <p>L'ensemble du site (interface, textes, logo) est protégé par le droit d'auteur. Toute reproduction non autorisée est interdite.</p>
+
+  <h2 id="confidentialite">2. Politique de confidentialité (RGPD)</h2>
+  <h3>Données collectées</h3>
+  <ul>
+    <li><b>Compte</b> : adresse email, mot de passe (haché, jamais stocké en clair), réglages.</li>
+    <li><b>Utilisation du service</b> : demandes analysées (texte des mails clients, fichiers visuels joints), devis générés, stock d'adhésifs saisi, missions d'équipe.</li>
+    <li><b>Facturation</b> : gérée par Stripe — AI-dhésif ne voit ni ne stocke jamais votre numéro de carte.</li>
+  </ul>
+  <h3>Finalités</h3>
+  <p>Ces données servent exclusivement à fournir le service (analyse IA, devis, gestion d'atelier), à la facturation et à l'envoi d'emails liés au service (réinitialisation de mot de passe, notifications de mission, suivi de l'essai gratuit). Aucune revente de données, aucune publicité.</p>
+  <h3>Sous-traitants</h3>
+  <table>
+    <tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr>
+    <tr><td>Railway</td><td>Hébergement de l'application et des données</td><td>États-Unis</td></tr>
+    <tr><td>Anthropic</td><td>Traitement IA des demandes (analyse des textes et visuels soumis)</td><td>États-Unis</td></tr>
+    <tr><td>Stripe</td><td>Paiement des abonnements et jetons</td><td>UE / États-Unis</td></tr>
+    <tr><td>Twilio SendGrid</td><td>Réception et envoi d'emails</td><td>États-Unis</td></tr>
+    <tr><td>Cloudflare</td><td>DNS et sécurité réseau</td><td>UE / États-Unis</td></tr>
+  </table>
+  <h3>Durée de conservation</h3>
+  <p>Les données du compte et l'historique d'analyses sont conservés tant que le compte existe. La suppression du compte (sur demande, ou depuis le panel d'administration) efface l'ensemble des données associées. Chaque utilisateur peut supprimer ses analyses et visuels à tout moment depuis l'application.</p>
+  <h3>Vos droits</h3>
+  <p>Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, d'effacement et de portabilité de vos données. Pour l'exercer : contactez l'éditeur à l'adresse indiquée dans les mentions légales. Vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).</p>
+  <h3>Cookies</h3>
+  <p>AI-dhésif n'utilise <b>aucun cookie publicitaire ni traceur tiers</b>. Seul le stockage local du navigateur est utilisé pour maintenir votre session connectée et mémoriser vos préférences d'affichage.</p>
+
+  <h2 id="cgv">3. Conditions générales de vente (CGV)</h2>
+  <h3>3.1 Objet et champ d'application</h3>
+  <p>AI-dhésif est un service en ligne d'assistance par intelligence artificielle destiné aux <b>professionnels</b> de l'impression adhésive et de la signalétique (analyse de demandes clients, recommandation d'adhésifs, plans de lés, devis, gestion d'atelier). L'inscription vaut acceptation des présentes CGV. Le service étant réservé à un usage professionnel (B2B), le droit de rétractation des consommateurs ne s'applique pas.</p>
+  <h3>3.2 Essai gratuit, abonnements et jetons</h3>
+  <ul>
+    <li>Un <b>essai gratuit</b> (nombre limité d'analyses) est offert à l'inscription, sans carte bancaire.</li>
+    <li>Les <b>abonnements</b> (mensuels ou annuels) donnent accès aux fonctionnalités et à une allocation mensuelle de jetons selon le forfait choisi, détaillés sur la page Tarifs. Paiement par carte via Stripe, renouvellement automatique.</li>
+    <li>Les <b>packs de jetons</b> sont des achats ponctuels ; les jetons achetés n'expirent pas tant que le compte est actif.</li>
+    <li>Les prix sont affichés hors taxes ; la TVA applicable est ajoutée lors du paiement le cas échéant.</li>
+  </ul>
+  <h3>3.3 Résiliation</h3>
+  <p>L'abonnement est résiliable à tout moment depuis l'application (portail de facturation Stripe). La résiliation prend effet à la fin de la période en cours, déjà payée ; il n'est pas accordé de remboursement au prorata. L'allocation mensuelle de jetons non consommée n'est pas reportée.</p>
+  <h3>3.4 Bon usage et disponibilité</h3>
+  <p>L'utilisateur s'engage à ne soumettre que des contenus dont il détient les droits et à un usage conforme à la loi. AI-dhésif vise une disponibilité maximale mais ne garantit pas un fonctionnement ininterrompu ; des sauvegardes quotidiennes des données sont réalisées.</p>
+  <h3>3.5 Nature des résultats de l'IA — limitation de responsabilité</h3>
+  <p><b>Les recommandations produites par l'intelligence artificielle (choix d'adhésif, plans de lés, devis, conseils de pose) sont fournies à titre indicatif</b> pour assister le professionnel. Elles ne remplacent pas son jugement : l'utilisateur reste seul responsable de la vérification technique, des prix qu'il pratique et des engagements pris envers ses propres clients. La responsabilité de l'éditeur, tous préjudices confondus, est limitée au montant payé par l'utilisateur au cours des douze derniers mois.</p>
+  <h3>3.6 Droit applicable</h3>
+  <p>Les présentes CGV sont soumises au droit français. À défaut de résolution amiable, tout litige relève des tribunaux compétents du ressort du siège de l'éditeur.</p>
+
+  <p style="margin-top:40px;font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;">© 2026 AI-dhésif — <a href="/" style="color:var(--muted)">ai-dhesif.fr</a></p>
+</div>
+</body>
+</html>
