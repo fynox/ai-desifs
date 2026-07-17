@@ -421,7 +421,7 @@ textarea:focus { border-color: var(--accent); }
 .tour-bubble .tour-x:hover{color:var(--danger);}
 .tour-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;}
 .tour-step{font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);}
-#help-fab{position:fixed;bottom:18px;right:18px;z-index:500;width:40px;height:40px;border-radius:50%;border:1px solid var(--accent-dim);background:var(--surface);color:var(--accent);font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;transition:transform .12s,background .12s;}
+#help-fab{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom, 0px));right:18px;z-index:500;width:40px;height:40px;border-radius:50%;border:1px solid var(--accent-dim);background:var(--surface);color:var(--accent);font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;transition:transform .12s,background .12s;}
 #help-fab:hover{transform:scale(1.08);background:var(--surface2);}
 
 /* ===================== MOBILE (≤768px) ===================== */
@@ -431,7 +431,9 @@ textarea:focus { border-color: var(--accent); }
   .app.visible { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
   /* Barre du haut : burger + logo + nouvelle analyse */
   #mobile-topbar {
-    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    /* safe area : ne jamais passer sous la barre d'état / l'encoche du téléphone */
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px;
     background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
   #mobile-topbar .mt-burger {
@@ -447,6 +449,7 @@ textarea:focus { border-color: var(--accent); }
   .sidebar {
     position: fixed; top: 0; left: 0; bottom: 0; width: 310px; max-width: 86vw; z-index: 450;
     transform: translateX(-105%); transition: transform .22s ease; box-shadow: 6px 0 28px rgba(0,0,0,.55);
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .sidebar.mobile-open { transform: translateX(0); }
   #sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 440; }
@@ -456,7 +459,7 @@ textarea:focus { border-color: var(--accent); }
   /* Panneaux latéraux (stock, tableau de bord…) en pleine largeur */
   .stock-panel { width: 100vw; max-width: 100vw; min-width: 0; border-left: none; }
   .stock-resize-handle { display: none; }
-  .stock-panel-header { padding: 14px 14px; flex-wrap: wrap; gap: 8px; }
+  .stock-panel-header { padding: calc(14px + env(safe-area-inset-top, 0px)) 14px 14px; flex-wrap: wrap; gap: 8px; }
   .stock-panel-body { padding: 14px 12px; }
   /* Fenêtres modales confortables au doigt */
   .modal { padding: 20px 16px; }
@@ -1027,12 +1030,15 @@ textarea:focus { border-color: var(--accent); }
         <button class="pwa-os-tab" id="pwa-tab-ios" onclick="showPwaOS('ios')">🍎 iPhone / iPad</button>
         <button class="pwa-os-tab" id="pwa-tab-android" onclick="showPwaOS('android')">🤖 Android</button>
       </div>
-      <ol class="pwa-guide" id="pwa-guide-ios">
-        <li>Sur ton iPhone, ouvre <b>ai-dhesif.fr/app</b> dans <b>Safari</b> (obligatoire — pas Chrome).</li>
-        <li>Touche le bouton <b>Partager</b> <span style="display:inline-block;border:1px solid var(--muted);border-radius:4px;padding:0 5px;font-size:11px;">⎋</span> en bas au centre de l'écran.</li>
-        <li>Fais défiler la liste et touche <b>« Sur l'écran d'accueil »</b>.</li>
-        <li>Touche <b>Ajouter</b> en haut à droite : l'icône AI-dhésif apparaît sur ton écran d'accueil.</li>
-      </ol>
+      <div id="pwa-guide-ios">
+        <ol class="pwa-guide">
+          <li>Sur ton iPhone, ouvre <b>ai-dhesif.fr/app</b> dans <b>Safari</b> (obligatoire — pas Chrome).</li>
+          <li>Touche le bouton <b>Partager</b> <span style="display:inline-block;border:1px solid var(--muted);border-radius:4px;padding:0 5px;font-size:11px;">⎋</span> en bas au centre de l'écran.</li>
+          <li>Fais défiler la liste et touche <b>« Sur l'écran d'accueil »</b>.</li>
+          <li>Touche <b>Ajouter</b> en haut à droite : l'icône AI-dhésif apparaît sur ton écran d'accueil.</li>
+        </ol>
+        <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:8px;">ℹ️ Sur iPhone, Apple n'autorise pas les sites à proposer un bouton d'installation en 1 clic — ces 4 étapes dans Safari sont le seul chemin (10 secondes chrono).</div>
+      </div>
       <ol class="pwa-guide" id="pwa-guide-android" style="display:none;">
         <li>Sur ton téléphone, ouvre <b>ai-dhesif.fr/app</b> dans <b>Chrome</b>.</li>
         <li>Touche le menu <b>⋮</b> en haut à droite.</li>
@@ -1674,8 +1680,9 @@ function initPwaCard() {
   // Déjà lancé depuis l'icône installée ?
   const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
   document.getElementById('pwa-installed').style.display = standalone ? 'block' : 'none';
+  // Le bouton 1-clic n'existe que là où le navigateur le permet (Android/Chrome, PC) — jamais sur iPhone (interdit par Apple)
   const b = document.getElementById('pwa-install-btn');
-  if (b) b.style.display = (!standalone && _pwaPrompt) ? 'block' : 'none';
+  if (b) b.style.display = (!standalone && !isIOS && _pwaPrompt) ? 'block' : 'none';
 }
 
 async function saveReglages() {
