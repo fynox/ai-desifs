@@ -565,6 +565,20 @@ textarea:focus { border-color: var(--accent); }
       <button class="btn-new-analyse" onclick="newAnalyse()">＋ Nouvelle analyse</button>
     </div>
 
+    <div id="histo-search" style="padding:10px 10px 4px;display:flex;flex-direction:column;gap:6px;">
+      <input id="histo-q" placeholder="🔎 Rechercher (client, titre...)" oninput="histoSearchChanged()"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;">
+      <select id="histo-f" onchange="histoSearchChanged()"
+        style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'DM Mono',monospace;font-size:11.5px;padding:6px 8px;outline:none;">
+        <option value="">Toutes les analyses</option>
+        <option value="nonlus">● Non lues</option>
+        <option value="encours">⏳ Missions en cours</option>
+        <option value="termines">✅ Terminées</option>
+        <option value="devis_envoye">✉ Devis envoyé</option>
+        <option value="devis_accepte">✓ Devis accepté</option>
+        <option value="devis_refuse">✗ Devis refusé</option>
+      </select>
+    </div>
     <div class="sidebar-histo" id="sidebar-histo">
       <div class="sidebar-section-label">Historique</div>
       <div class="histo-empty">Aucune analyse pour le moment</div>
@@ -2485,20 +2499,49 @@ function renderMissionsList() {
     + section('✅ Terminées', done, 'done');
 }
 
+// ----- Recherche & filtre de l'historique -----
+let _histoQ = '', _histoF = '', _histoQTimer = null;
+function histoSearchChanged() {
+  clearTimeout(_histoQTimer);
+  _histoQTimer = setTimeout(() => {
+    _histoQ = (document.getElementById('histo-q').value || '').toLowerCase().trim();
+    _histoF = document.getElementById('histo-f').value;
+    renderSidebarHisto();
+  }, 150);
+}
+function histoMatch(h) {
+  if (h._pending) return true; // une analyse en cours reste toujours visible
+  if (_histoQ) {
+    const hay = `${h.result?.titre || ''} ${h.result?.resume || ''} ${h.client_email || ''} ${(h.mail_content || '').slice(0, 600)}`.toLowerCase();
+    if (!hay.includes(_histoQ)) return false;
+  }
+  if (_histoF === 'nonlus' && h.lu) return false;
+  if (_histoF === 'encours' && !(h.job_status && h.job_status !== 'termine')) return false;
+  if (_histoF === 'termines' && h.job_status !== 'termine') return false;
+  if (_histoF === 'devis_envoye' && h.devis_status !== 'envoye') return false;
+  if (_histoF === 'devis_accepte' && h.devis_status !== 'accepte') return false;
+  if (_histoF === 'devis_refuse' && h.devis_status !== 'refuse') return false;
+  return true;
+}
+
 function renderSidebarHisto() {
   const container = document.getElementById('sidebar-histo');
   const unread = historique.filter(h => !h.lu).length;
   // Le secrétariat a la vision globale (toutes les analyses, comme le patron) ; les autres employés une vue missions
   const vueMissions = isEmploye && !hasRole('secretariat');
+  const searchBox = document.getElementById('histo-search');
+  if (searchBox) searchBox.style.display = vueMissions ? 'none' : 'flex';
   let html = `<div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
     <span>${vueMissions ? 'Mes missions' : 'Historique'} ${unread > 0 ? `<span style="background:var(--danger);color:#fff;font-size:10px;border-radius:20px;padding:1px 7px;margin-left:4px;">${unread}</span>` : ''}</span>
     <button id="btn-refresh-histo" onclick="refreshHisto()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Actualiser">↻</button>
   </div>`;
   // Employé : vue missions dédiée (tri par échéance, à faire en haut, faites en bas)
   if (vueMissions) { container.innerHTML = html + renderMissionsList(); return; }
+  const listeFiltree = (_histoQ || _histoF) ? historique.filter(histoMatch) : historique;
   if (!historique.length) { html += '<div class="histo-empty">Aucune analyse pour le moment</div>'; }
+  else if (!listeFiltree.length) { html += '<div class="histo-empty">Aucun résultat pour cette recherche</div>'; }
   else {
-    html += historique.map(h => {
+    html += listeFiltree.map(h => {
       if (h._pending) {
         const src = h.source === 'email' ? '📧 Mail' : '✍️ Manuel';
         const clickable = h.id && h.id !== '_pending';
