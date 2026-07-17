@@ -1,0 +1,16 @@
+{
+  "name": "AI-dhésif — l'assistant IA des pros de l'adhésif",
+  "short_name": "AI-dhésif",
+  "description": "Analyse des demandes clients, recommandation d'adhésifs, plan de lés, devis et missions d'équipe.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0e0c",
+  "theme_color": "#111210",
+  "lang": "fr",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
