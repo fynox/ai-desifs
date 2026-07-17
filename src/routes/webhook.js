@@ -95,9 +95,16 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
       pendingId = pendingRow.lastInsertRowid;
     } catch { /* colonne status pas encore migrée, on continue sans pending */ }
 
+    // Notification temps réel : le mail est arrivé, l'analyse démarre
+    const { emitToOwnerTeam } = require('../utils/events');
+    if (pendingId) emitToOwnerTeam(user.id, 'mail_recu', { analyse_id: pendingId });
+
     // Marque l'analyse en échec avec un message clair (visible dans l'historique)
     const failItem = (msg) => {
-      if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run(msg, pendingId);
+      if (pendingId) {
+        db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run(msg, pendingId);
+        emitToOwnerTeam(user.id, 'analyse_done', { analyse_id: pendingId, failed: true });
+      }
     };
 
     // Garde-fous — désormais VISIBLES (l'analyse apparaît en échec avec la raison au lieu de disparaître)
@@ -247,15 +254,28 @@ Réponds UNIQUEMENT en JSON valide :
     }
     const visuelsJson = visuelsToStore.length > 1 ? JSON.stringify(visuelsToStore) : null;
 
+    // Fiche client : adresse du client final. Mail transféré → l'expéditeur d'origine est dans le corps
+    // ("De :/From: ... <adresse>") ; mail direct → le champ from (sauf si c'est l'utilisateur lui-même).
+    let clientEmail = null;
+    try {
+      const fwd = text.match(/(?:De|From)\s*:\s*[^\n<]*<([\w.+-]+@[\w-]+\.[\w.-]+)>/i) || text.match(/(?:De|From)\s*:\s*([\w.+-]+@[\w-]+\.[\w.-]+)/i);
+      if (fwd) clientEmail = fwd[1].toLowerCase();
+      else {
+        const m = String(from).match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+        if (m && m[0].toLowerCase() !== user.email.toLowerCase()) clientEmail = m[0].toLowerCase();
+      }
+    } catch {}
+
     if (pendingId) {
       db.prepare(
-        "UPDATE analyses SET result_json=?, status='done', error_msg=NULL, visuel_b64=?, visuel_type=?, visuels_json=?, mail_content=? WHERE id=?"
-      ).run(JSON.stringify(result), visuel_b64, visuel_type, visuelsJson, mailContent, pendingId);
+        "UPDATE analyses SET result_json=?, status='done', error_msg=NULL, visuel_b64=?, visuel_type=?, visuels_json=?, mail_content=?, client_email=? WHERE id=?"
+      ).run(JSON.stringify(result), visuel_b64, visuel_type, visuelsJson, mailContent, clientEmail, pendingId);
     } else {
       db.prepare(
-        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type, visuels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson);
+        'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type, visuels_json, client_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson, clientEmail);
     }
+    emitToOwnerTeam(user.id, 'analyse_done', { analyse_id: pendingId || null });
   } catch (e) {
     console.error('Webhook inbound error:', e);
     try { if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run('Erreur interne pendant l\'analyse.', pendingId); } catch {}

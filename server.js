@@ -31,6 +31,10 @@ app.use('/webhooks/stripe', require('./src/routes/webhook'));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+// Notifications temps réel (SSE) — enregistrée AVANT le rate limit : la connexion reste ouverte
+// longtemps et les reconnexions automatiques ne doivent pas consommer le quota d'API
+app.get('/api/events', require('./src/utils/events').sseHandler);
+
 // Rate limiting
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);

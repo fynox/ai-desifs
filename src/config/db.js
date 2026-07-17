@@ -141,6 +141,29 @@ for (const sql of migrations) {
 // Adresse inbound sur le domaine racine @ai-dhesif.fr : on annule l'ancienne bascule vers @mail.ai-dhesif.fr
 db.prepare(`UPDATE users SET inbound_email = REPLACE(inbound_email, '@mail.ai-dhesif.fr', '@ai-dhesif.fr') WHERE inbound_email LIKE '%@mail.ai-dhesif.fr'`).run();
 
+// Fiches clients : renseigner client_email sur les analyses existantes reçues par mail.
+// Mail transféré → l'expéditeur d'origine est dans le corps ("De :/From: ... <adresse>") ;
+// sinon → l'adresse de la 1re ligne ("De : ..."), sauf si c'est l'utilisateur lui-même.
+try {
+  const rows = db.prepare(`
+    SELECT a.id, a.mail_content, u.email AS user_email
+    FROM analyses a JOIN users u ON u.id = a.user_id
+    WHERE a.client_email IS NULL AND a.mail_content LIKE 'De :%'
+  `).all();
+  const upd = db.prepare('UPDATE analyses SET client_email = ? WHERE id = ?');
+  for (const r of rows) {
+    const txt = r.mail_content || '';
+    const body = txt.split('\n').slice(1).join('\n');
+    const fwd = body.match(/(?:De|From)\s*:\s*[^\n<]*<([\w.+-]+@[\w-]+\.[\w.-]+)>/i) || body.match(/(?:De|From)\s*:\s*([\w.+-]+@[\w-]+\.[\w.-]+)/i);
+    let email = fwd ? fwd[1].toLowerCase() : null;
+    if (!email) {
+      const first = (txt.split('\n')[0] || '').match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      if (first && first[0].toLowerCase() !== (r.user_email || '').toLowerCase()) email = first[0].toLowerCase();
+    }
+    if (email) upd.run(email, r.id);
+  }
+} catch {}
+
 // Migration stock : élargir les catégories si l'ancienne contrainte est encore présente
 try {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();

@@ -55,6 +55,34 @@ function canAccessAnalyse(req, item) {
 function hasRoleServ(roleStr, role) { return String(roleStr || '').split(',').includes(role); }
 // Slot d'affectation correspondant à chaque étape du flux
 const STAGE_SLOT = { a_creer: 'assigned_design_id', a_preparer: 'assigned_prep_id', pret_a_poser: 'assigned_pose_id', retour_client: 'assigned_secr_id' };
+const STAGE_LABELS = { a_creer: 'Création du visuel', a_preparer: 'Préparation atelier', pret_a_poser: 'Pose sur site', retour_client: 'Retour client', termine: 'Terminé' };
+
+// Prévenir un employé qu'une mission lui arrive : notification temps réel + mail (si SendGrid configuré)
+function notifyMission(empId, analyseId, status) {
+  if (!empId) return;
+  try { require('../utils/events').emitTo(empId, 'mission', { analyse_id: analyseId, status }); } catch {}
+  (async () => {
+    try {
+      const { sendMail, mailTemplate, mailReady, APP_URL } = require('../utils/mailer');
+      if (!mailReady()) return;
+      const emp = db.prepare('SELECT email FROM users WHERE id = ?').get(empId);
+      const a = db.prepare('SELECT result_json, job_date, job_lieu FROM analyses WHERE id = ?').get(analyseId);
+      if (!emp || !a) return;
+      let titre = 'Nouvelle mission';
+      try { titre = JSON.parse(a.result_json || '{}').titre || titre; } catch {}
+      await sendMail({
+        to: emp.email,
+        subject: `🎯 Nouvelle mission : ${titre}`,
+        html: mailTemplate({
+          titre: 'Une mission vient de t\'être confiée',
+          corps: `<b>${titre}</b><br>Étape : ${STAGE_LABELS[status] || status}${a.job_date ? '<br>Date : ' + a.job_date : ''}${a.job_lieu ? '<br>Lieu : ' + a.job_lieu : ''}<br><br>Connecte-toi à AI-dhésif pour voir le détail.`,
+          boutonTexte: 'Voir la mission',
+          boutonUrl: APP_URL + '/app',
+        }),
+      });
+    } catch (e) { console.error('Mission mail error:', e.message); }
+  })();
+}
 
 router.get('/', (req, res) => {
   const sc = employeScope(req);
@@ -118,7 +146,7 @@ router.patch('/:id/job', (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (me.parent_user_id) return res.status(403).json({ error: 'Réservé au compte principal (employeur).' });
   const ftM = checkFeature(me, 'multi_user'); if (ftM) return res.status(403).json(ftM);
-  const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  const item = db.prepare('SELECT id, assigned_design_id, assigned_secr_id, assigned_prep_id, assigned_pose_id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
 
   const empOk = id => {
@@ -138,6 +166,18 @@ router.patch('/:id/job', (req, res) => {
   const status = statuts.includes(req.body.status) ? req.body.status : defaut;
   db.prepare('UPDATE analyses SET assigned_design_id=?, assigned_secr_id=?, assigned_prep_id=?, assigned_pose_id=?, job_date=?, job_lieu=?, job_status=? WHERE id=?')
     .run(design, secr, prep, pose, date, lieu, status, item.id);
+
+  // Prévenir les employés NOUVELLEMENT affectés (notification temps réel + mail), chacun pour son étape
+  const nouveaux = [
+    [design, item.assigned_design_id, 'a_creer'],
+    [prep, item.assigned_prep_id, 'a_preparer'],
+    [pose, item.assigned_pose_id, 'pret_a_poser'],
+    [secr, item.assigned_secr_id, 'retour_client'],
+  ];
+  for (const [nv, ancien, etape] of nouveaux) {
+    if (nv && nv !== ancien) notifyMission(nv, item.id, etape);
+  }
+
   res.json({ ok: true, design_id: design, secr_id: secr, prep_id: prep, pose_id: pose, date, lieu, status });
 });
 
@@ -161,6 +201,7 @@ router.patch('/:id/job-status', (req, res) => {
 
   // Transfert : la mission passe à l'étape suivante. Si le patron a attitré quelqu'un sur cette étape,
   // SEUL cet employé peut la recevoir (un employé ne peut pas re-router vers quelqu'un d'autre).
+  let nextEmp = null;
   if (status !== 'termine' && req.body.to_emp_id) {
     const target = db.prepare('SELECT id, role FROM users WHERE id = ? AND parent_user_id = ?').get(Number(req.body.to_emp_id), sc.ownerId);
     if (!target) return res.status(400).json({ error: 'Destinataire introuvable dans l\'équipe.' });
@@ -170,8 +211,11 @@ router.patch('/:id/job-status', (req, res) => {
         return res.status(403).json({ error: 'Le patron a déjà attitré quelqu\'un à cette étape — transfert possible uniquement vers cette personne.' });
       }
       db.prepare(`UPDATE analyses SET ${slot} = ? WHERE id = ?`).run(target.id, item.id);
+      nextEmp = target.id;
     }
   }
+  // Pas de destinataire explicite mais un employé déjà attitré à la nouvelle étape → c'est lui qu'on prévient
+  if (!nextEmp && status !== 'termine' && STAGE_SLOT[status]) nextEmp = item[STAGE_SLOT[status]] || null;
 
   // Photos du résultat posé (jointes à la fin de pose) — max 6, ~2 Mo chacune
   if (Array.isArray(req.body.photos) && req.body.photos.length) {
@@ -182,6 +226,14 @@ router.patch('/:id/job-status', (req, res) => {
   }
 
   db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(status, item.id);
+
+  // Notifications : le prochain employé du parcours (sauf s'il est l'auteur de l'action),
+  // et le patron quand la mission est terminée par un employé
+  if (nextEmp && nextEmp !== req.user.id) notifyMission(nextEmp, item.id, status);
+  if (status === 'termine' && sc.empId) {
+    try { require('../utils/events').emitTo(item.user_id, 'mission_finie', { analyse_id: item.id }); } catch {}
+  }
+
   res.json({ ok: true, status });
 });
 

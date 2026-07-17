@@ -1179,6 +1179,7 @@ async function startSession(token, email, status, used, iEmail) {
   renderTrialBanner();
   applyRoleUI();
   startPolling();
+  startEvents();
   // Bouton d'aide flottant (revoir la visite) — visible une fois connecté
   const fab = document.getElementById('help-fab');
   if (fab) fab.style.display = 'flex';
@@ -1441,6 +1442,7 @@ function logout() {
   localStorage.removeItem('aidesif_session');
   sessionStorage.removeItem('aidesif_token');
   stopPolling();
+  stopEvents();
   try { endTour(); } catch {}
   const fab = document.getElementById('help-fab'); if (fab) fab.style.display = 'none';
   document.getElementById('sub-wall').style.display = 'none';
@@ -3882,6 +3884,34 @@ function stopPolling() {
   _pollActive = false;
   clearTimeout(pollingInterval);
   pollingInterval = null;
+}
+
+// ===================== NOTIFICATIONS TEMPS RÉEL (SSE) =====================
+// Complète le polling : dès qu'un événement arrive (mail reçu, mission...), on
+// affiche un toast et on déclenche un rafraîchissement immédiat de l'historique.
+let _sse = null;
+function startEvents() {
+  if (_sse || !window.EventSource || !authToken) return;
+  try {
+    _sse = new EventSource('/api/events?token=' + encodeURIComponent(authToken));
+    _sse.addEventListener('notif', (e) => {
+      let d = {};
+      try { d = JSON.parse(e.data); } catch {}
+      const msgs = {
+        mail_recu: '📬 Nouveau mail reçu — analyse en cours...',
+        analyse_done: d.failed ? '⚠ Une analyse par mail a échoué — voir l\'historique' : '✅ Nouvelle analyse prête dans l\'historique',
+        mission: '🎯 Nouvelle mission pour toi',
+        mission_finie: '🏁 Une mission vient d\'être terminée',
+      };
+      if (msgs[d.type]) showImportToast(msgs[d.type], d.failed ? 'error' : 'success');
+      // Rafraîchissement immédiat via le mécanisme de polling existant
+      if (_pollActive) { clearTimeout(pollingInterval); pollingInterval = setTimeout(_doPoll, 300); }
+    });
+    // En cas d'erreur, EventSource se reconnecte tout seul (retry côté serveur : 5 s)
+  } catch {}
+}
+function stopEvents() {
+  if (_sse) { try { _sse.close(); } catch {} _sse = null; }
 }
 
 // ===================== AUTO-LOGIN =====================
