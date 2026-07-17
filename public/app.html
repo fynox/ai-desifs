@@ -525,6 +525,7 @@ textarea:focus { border-color: var(--accent); }
         </div>
         <button onclick="openClear()" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:4px 0 0;text-decoration:underline;">🧹 Libérer de l'espace</button>
       </div>
+      <button class="btn-stock" id="btn-dash" onclick="openDash()" style="margin-bottom:8px;">📊 Tableau de bord</button>
       <button class="btn-stock" id="btn-team" onclick="openTeam()" style="margin-bottom:8px;display:none;">👥 Mon équipe</button>
       <button class="btn-stock" id="btn-stock-side" onclick="openStock()" style="margin-bottom:8px;">⬡ Gérer le stock adhésifs</button>
       <div style="display:flex;gap:8px;">
@@ -574,6 +575,17 @@ textarea:focus { border-color: var(--accent); }
       <div class="analyse-output" id="output-panel"></div>
     </div>
   </main>
+</div>
+
+<!-- TABLEAU DE BORD OVERLAY -->
+<div class="stock-overlay" id="dash-overlay" onclick="if(event.target===this)closeDash()">
+  <div class="stock-panel">
+    <div class="stock-panel-header">
+      <h2>📊 Tableau de bord</h2>
+      <button class="btn-close-stock" onclick="closeDash()">✕ Fermer</button>
+    </div>
+    <div class="stock-panel-body" id="dash-body"></div>
+  </div>
 </div>
 
 <!-- STOCK OVERLAY -->
@@ -1199,7 +1211,9 @@ function applyRoleUI() {
   const teamBtn = document.getElementById('btn-team');
   if (teamBtn) teamBtn.style.display = (!isEmploye && userPlan === 'entreprise' && subscriptionStatus === 'active') ? 'block' : 'none';
   if (!isEmploye) { if (userPlan === 'entreprise') loadTeam(); return; }
-  // Compte employé : interface allégée
+  // Compte employé : interface allégée (le tableau de bord reste pour le secrétariat, vision globale)
+  const dashBtn = document.getElementById('btn-dash');
+  if (dashBtn) dashBtn.style.display = hasRole('secretariat') ? 'block' : 'none';
   const inputPanel = document.querySelector('.analyse-input');
   if (inputPanel) inputPanel.style.display = 'none';
   const newBtn = document.querySelector('.btn-new-analyse');
@@ -1622,7 +1636,8 @@ const TOUR_STEPS = [
   { target: tourSection('analyse', 'Mission'), title: '🗂 Transfert à l\'équipe', text: 'Plan Entreprise : attitre un designer, un préparateur, un poseur — chacun voit SA mission, la termine et la transmet au suivant. Toi, tu vois tout.' },
   { target: '#sidebar-histo', title: '🗂 Ton historique', text: 'Toutes tes analyses, avec l\'étape en cours en couleur. Astuce : transfère les mails clients à ton adresse dédiée (voir profil) et les analyses arrivent toutes seules.' },
   { target: '#jeton-wrap', title: '🪙 Tes jetons', text: 'Les actions premium (devis, mails, HD, vectorisation...) coûtent quelques jetons. Ton forfait en inclut chaque mois, et tu peux recharger — les jetons achetés n\'expirent jamais.' },
-  { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock.' },
+  { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock. Astuce : renseigne quantité + seuil pour être alerté quand un adhésif est bientôt épuisé.' },
+  { target: '#btn-dash', title: '📊 Ton tableau de bord', text: 'Vue d\'ensemble de ton activité : analyses du mois, taux de devis acceptés, CA estimé, devis à relancer, planning des poses de la semaine et fiches clients.' },
   { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment avec le bouton « ? » en bas à droite, ou dans ⚙ Réglages. Bonne découverte !' },
 ];
 let _tourIdx = -1;
@@ -2102,6 +2117,163 @@ function updateStats() {
   });
 }
 function renderAll() { ALL_CATS.forEach(cat => renderCat(cat)); updateStats(); }
+
+// ===================== TABLEAU DE BORD (patron + secrétariat) =====================
+let _dashData = null, _dashWeek = 0, _dashClient = null;
+
+async function openDash() {
+  document.getElementById('dash-overlay').classList.add('open');
+  document.getElementById('dash-body').innerHTML = '<div style="color:var(--muted);font-family:\'DM Mono\',monospace;font-size:12px;">Chargement…</div>';
+  try {
+    _dashData = await api('GET', '/analyses/dashboard');
+    _dashWeek = 0; _dashClient = null;
+    renderDash();
+  } catch (e) {
+    document.getElementById('dash-body').innerHTML = `<div style="color:var(--danger);font-size:13px;">${e.message}</div>`;
+  }
+}
+function closeDash() { document.getElementById('dash-overlay').classList.remove('open'); }
+function dashOpenAnalyse(id) { closeDash(); openHisto(id); }
+
+function dashCard(val, label, color) {
+  return `<div style="flex:1;min-width:150px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;">
+    <div style="font-size:23px;font-weight:800;color:${color || 'var(--text)'};font-family:'DM Mono',monospace;">${val}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;">${label}</div>
+  </div>`;
+}
+function dashSection(titre, inner) {
+  return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;">${titre}</div>${inner}
+  </div>`;
+}
+
+function renderDash() {
+  const d = _dashData; if (!d) return;
+  const dv = d.devis || {};
+  const rep = (dv.accepte || 0) + (dv.refuse || 0);
+  const taux = rep > 0 ? Math.round((dv.accepte / rep) * 100) + ' %' : '—';
+  const fmtD = s => { const dt = new Date(s); return isNaN(dt) ? (s || '') : dt.toLocaleDateString('fr-FR'); };
+  const muted = 'font-size:12px;color:var(--muted);';
+
+  // Cartes du haut
+  let html = `<div style="display:flex;gap:12px;flex-wrap:wrap;">`
+    + dashCard(d.analyses_mois, 'Analyses ce mois-ci (' + d.analyses_total + ' au total)')
+    + dashCard('🪙 ' + (document.getElementById('jeton-count')?.textContent || '—'), 'Jetons restants')
+    + dashCard(taux, `Devis acceptés — ${dv.accepte || 0}✓ ${dv.refuse || 0}✗ ${dv.envoye || 0} en attente`, 'var(--accent)')
+    + dashCard((dv.ca_accepte || 0).toLocaleString('fr-FR') + ' €', 'CA estimé (devis acceptés, HT)', 'var(--accent)')
+    + `</div>`;
+
+  // Devis à relancer
+  html += dashSection(`📮 Devis à relancer <span style="${muted}font-weight:400;">(envoyés il y a plus de ${d.relance_jours} jours, sans réponse)</span>`,
+    (d.relances || []).length
+      ? d.relances.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+          <span style="flex:1;min-width:140px;font-size:12.5px;">${r.titre}</span>
+          <span style="${muted}">${r.client_email || ''}</span>
+          <span style="${muted}">envoyé le ${fmtD(r.devis_sent_at)}</span>
+          ${r.total ? `<span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);">${r.total.toFixed(2)} €</span>` : ''}
+          <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="dashOpenAnalyse(${r.id})">Ouvrir</button>
+        </div>`).join('')
+      : `<span style="${muted}">Aucun devis en attente de relance 👍</span>`);
+
+  // Stock bas (calculé depuis le stock chargé — patron)
+  const bas = (stock || []).filter(isStockBas);
+  if (bas.length) {
+    html += dashSection('⚠ Stock bas',
+      bas.map(i => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span style="flex:1;font-size:12.5px;">${i.nom}</span>
+        <span style="font-size:12px;color:var(--danger);font-family:'DM Mono',monospace;">${i.quantite_m2} m² restants (seuil ${i.seuil_alerte})</span>
+      </div>`).join(''));
+  }
+
+  // Planning de la semaine
+  html += dashSection(`🗓 Planning des poses
+      <span style="float:right;display:flex;gap:6px;align-items:center;">
+        <button class="btn-cancel" style="font-size:11px;padding:3px 10px;" onclick="_dashWeek--;renderDash()">←</button>
+        <span id="dash-week-label" style="${muted}"></span>
+        <button class="btn-cancel" style="font-size:11px;padding:3px 10px;" onclick="_dashWeek++;renderDash()">→</button>
+      </span>`,
+    dashPlanningHTML());
+
+  // Fiches clients
+  html += dashSection('👥 Clients', dashClientsHTML());
+
+  document.getElementById('dash-body').innerHTML = html;
+  // Étiquette de semaine (calculée dans dashPlanningHTML)
+  const wl = document.getElementById('dash-week-label');
+  if (wl && window._dashWeekLabel) wl.textContent = window._dashWeekLabel;
+}
+
+// Grille lundi→dimanche de la semaine courante + décalage _dashWeek
+function dashPlanningHTML() {
+  const d = _dashData; if (!d) return '';
+  const start = new Date();
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + _dashWeek * 7);
+  start.setHours(0, 0, 0, 0);
+  const pad = n => String(n).padStart(2, '0');
+  const key = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const days = [...Array(7)].map((_, i) => { const dt = new Date(start); dt.setDate(dt.getDate() + i); return dt; });
+  const end = days[6];
+  window._dashWeekLabel = `${days[0].getDate()}/${pad(days[0].getMonth() + 1)} → ${end.getDate()}/${pad(end.getMonth() + 1)}`;
+
+  const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const todayKey = key(new Date());
+  const dated = (d.poses || []).filter(p => /^\d{4}-\d{2}-\d{2}/.test(p.job_date));
+  const sansDate = (d.poses || []).filter(p => !/^\d{4}-\d{2}-\d{2}/.test(p.job_date));
+
+  let grid = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:640px;">`;
+  for (let i = 0; i < 7; i++) {
+    const k = key(days[i]);
+    const jour = dated.filter(p => p.job_date.slice(0, 10) === k);
+    const isToday = k === todayKey;
+    grid += `<div style="background:var(--bg);border:1px solid ${isToday ? 'var(--accent)' : 'var(--border)'};border-radius:9px;padding:8px;min-height:74px;">
+      <div style="font-size:10px;font-weight:700;color:${isToday ? 'var(--accent)' : 'var(--muted)'};margin-bottom:6px;">${JOURS[i]} ${days[i].getDate()}</div>
+      ${jour.map(p => `<div onclick="dashOpenAnalyse(${p.id})" title="${p.job_lieu || ''}${p.poseur_email ? ' — ' + p.poseur_email : ''}" style="cursor:pointer;background:#4a8af022;border:1px solid #4a8af055;border-radius:6px;padding:4px 6px;margin-bottom:4px;font-size:10.5px;line-height:1.4;color:#8ab4f8;overflow:hidden;">${p.titre}${p.job_lieu ? `<br><span style="font-size:9.5px;opacity:.75;">📍 ${p.job_lieu}</span>` : ''}</div>`).join('')}
+    </div>`;
+  }
+  grid += `</div>`;
+  const extra = sansDate.length
+    ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;">Sans date précise : ${sansDate.map(p => `<a style="color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="dashOpenAnalyse(${p.id})">${p.titre}</a> (« ${p.job_date} »)`).join(' · ')}</div>`
+    : '';
+  return `<div style="overflow-x:auto;">${grid}</div>${extra}
+    ${!(_dashData.poses || []).length ? '<div style="font-size:12px;color:var(--muted);">Aucune pose planifiée — renseigne une date d\'intervention en assignant une mission.</div>' : ''}`;
+}
+
+function dashClientsHTML() {
+  const d = _dashData; if (!d) return '';
+  if (!(d.clients || []).length) {
+    return `<span style="font-size:12px;color:var(--muted);">Aucun client identifié pour le moment — l'adresse du client est détectée automatiquement sur les analyses reçues ou transférées par mail.</span>`;
+  }
+  const fmtD = s => { const dt = new Date(s); return isNaN(dt) ? '' : dt.toLocaleDateString('fr-FR'); };
+  // Détail d'un client sélectionné : ses analyses (depuis l'historique déjà chargé)
+  if (_dashClient) {
+    const liste = historique.filter(h => h.client_email === _dashClient && !h._pending);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="_dashClient=null;renderDash()">← Tous les clients</button>
+        <b style="font-size:13px;">${_dashClient}</b>
+      </div>` +
+      (liste.length ? liste.map(h => `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <span style="flex:1;min-width:140px;font-size:12.5px;">${h.result?.titre || 'Analyse #' + h.id}</span>
+        <span style="font-size:11px;color:var(--muted);">${fmtD(h.created_at)}</span>
+        ${h.devis_status ? `<span style="font-size:10.5px;font-weight:700;color:${h.devis_status === 'accepte' ? 'var(--accent)' : h.devis_status === 'refuse' ? 'var(--danger)' : '#4a9eff'};">${{ envoye: '✉ envoyé', accepte: '✓ accepté', refuse: '✗ refusé' }[h.devis_status]}</span>` : ''}
+        <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="dashOpenAnalyse(${h.id})">Ouvrir</button>
+      </div>`).join('') : `<span style="font-size:12px;color:var(--muted);">Les analyses de ce client ne sont pas dans l'historique chargé.</span>`);
+  }
+  return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:520px;">
+    <thead><tr>
+      <th style="text-align:left;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Client</th>
+      <th style="text-align:center;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Demandes</th>
+      <th style="text-align:center;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Devis ✓ / ⏳ / ✗</th>
+      <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">CA accepté</th>
+      <th style="text-align:right;padding:5px 8px;font-size:10px;color:var(--muted);text-transform:uppercase;">Dernier contact</th>
+    </tr></thead><tbody>` +
+    d.clients.map(c => `<tr onclick="_dashClient='${String(c.client_email).replace(/'/g, "\\'")}';renderDash()" style="cursor:pointer;" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+      <td style="padding:8px;border-bottom:1px solid var(--border);font-size:12.5px;">${c.client_email}</td>
+      <td style="padding:8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;">${c.nb}</td>
+      <td style="padding:8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center;"><span style="color:var(--accent);">${c.acceptes || 0}</span> / <span style="color:#4a9eff;">${c.en_attente || 0}</span> / <span style="color:var(--danger);">${c.refuses || 0}</span></td>
+      <td style="padding:8px;border-bottom:1px solid var(--border);font-size:12px;text-align:right;font-family:'DM Mono',monospace;">${c.ca ? c.ca.toLocaleString('fr-FR') + ' €' : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid var(--border);font-size:11.5px;text-align:right;color:var(--muted);">${fmtD(c.dernier)}</td>
+    </tr>`).join('') + `</tbody></table></div>`;
+}
 
 // ===================== HISTORIQUE =====================
 let historique = [];

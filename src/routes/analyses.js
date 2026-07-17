@@ -133,6 +133,76 @@ router.get('/', (req, res) => {
   }));
 });
 
+// Tableau de bord (patron + secrétariat) : stats du mois, suivi devis, relances, poses à venir, fiches clients
+router.get('/dashboard', (req, res) => {
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const oid = sc.ownerId;
+
+  // Total d'un devis stocké : prix perso si saisi, sinon prix conseillé par l'IA
+  const totalDevis = (dj) => {
+    try {
+      const d = JSON.parse(dj || 'null');
+      if (!d || !Array.isArray(d.lignes)) return 0;
+      return d.lignes.reduce((s, l) => s + (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0), 0);
+    } catch { return 0; }
+  };
+  const titreDe = (rj, id) => { try { return JSON.parse(rj || '{}').titre || 'Analyse #' + id; } catch { return 'Analyse #' + id; } };
+
+  const analyses_mois = db.prepare("SELECT COUNT(*) c FROM analyses WHERE user_id=? AND created_at >= datetime('now','start of month')").get(oid).c;
+  const analyses_total = db.prepare('SELECT COUNT(*) c FROM analyses WHERE user_id=?').get(oid).c;
+
+  const devis = { envoye: 0, accepte: 0, refuse: 0 };
+  for (const r of db.prepare('SELECT devis_status, COUNT(*) c FROM analyses WHERE user_id=? AND devis_status IS NOT NULL GROUP BY devis_status').all(oid)) {
+    if (devis[r.devis_status] !== undefined) devis[r.devis_status] = r.c;
+  }
+  const ca_accepte = db.prepare("SELECT devis_json FROM analyses WHERE user_id=? AND devis_status='accepte'").all(oid)
+    .reduce((s, r) => s + totalDevis(r.devis_json), 0);
+
+  // Devis envoyés il y a plus de N jours restés sans réponse → à relancer
+  const RELANCE_JOURS = 7;
+  const relances = db.prepare(`
+    SELECT id, devis_json, devis_sent_at, client_email, result_json FROM analyses
+    WHERE user_id=? AND devis_status='envoye' AND devis_sent_at <= datetime('now', '-${RELANCE_JOURS} days')
+    ORDER BY devis_sent_at ASC LIMIT 20
+  `).all(oid).map(r => ({
+    id: r.id, titre: titreDe(r.result_json, r.id), client_email: r.client_email,
+    devis_sent_at: r.devis_sent_at, total: Math.round(totalDevis(r.devis_json) * 100) / 100,
+  }));
+
+  // Poses planifiées non terminées (planning)
+  const poses = db.prepare(`
+    SELECT a.id, a.result_json, a.job_date, a.job_lieu, a.job_status, u.email AS poseur_email
+    FROM analyses a LEFT JOIN users u ON u.id = a.assigned_pose_id
+    WHERE a.user_id=? AND a.job_date IS NOT NULL AND a.job_date != '' AND (a.job_status IS NULL OR a.job_status != 'termine')
+    ORDER BY a.job_date ASC LIMIT 80
+  `).all(oid).map(r => ({
+    id: r.id, titre: titreDe(r.result_json, r.id), job_date: r.job_date,
+    job_lieu: r.job_lieu, job_status: r.job_status, poseur_email: r.poseur_email,
+  }));
+
+  // Fiches clients : regroupement par adresse du client final
+  const clients = db.prepare(`
+    SELECT client_email, COUNT(*) nb, MAX(created_at) dernier,
+      SUM(CASE WHEN devis_status='accepte' THEN 1 ELSE 0 END) acceptes,
+      SUM(CASE WHEN devis_status='envoye' THEN 1 ELSE 0 END) en_attente,
+      SUM(CASE WHEN devis_status='refuse' THEN 1 ELSE 0 END) refuses
+    FROM analyses WHERE user_id=? AND client_email IS NOT NULL
+    GROUP BY client_email ORDER BY dernier DESC LIMIT 200
+  `).all(oid);
+  const caParClient = {};
+  for (const r of db.prepare("SELECT client_email, devis_json FROM analyses WHERE user_id=? AND client_email IS NOT NULL AND devis_status='accepte'").all(oid)) {
+    caParClient[r.client_email] = (caParClient[r.client_email] || 0) + totalDevis(r.devis_json);
+  }
+  for (const c of clients) c.ca = Math.round((caParClient[c.client_email] || 0) * 100) / 100;
+
+  res.json({
+    analyses_mois, analyses_total,
+    devis: { ...devis, ca_accepte: Math.round(ca_accepte * 100) / 100 },
+    relances, poses, clients, relance_jours: RELANCE_JOURS,
+  });
+});
+
 // Visuel(s) d'une analyse (chargé à la demande pour ne pas alourdir l'historique)
 router.get('/:id/visuel', (req, res) => {
   const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, visuel_b64, visuel_type, visuels_json FROM analyses WHERE id = ?').get(req.params.id);
