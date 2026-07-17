@@ -195,12 +195,26 @@ tr:hover td { background: var(--surface2); }
             <input type="password" id="key-replicate" placeholder="r8_..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
             <span id="key-replicate-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
           </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);width:90px;">SendGrid</span>
+            <input type="password" id="key-sendgrid" placeholder="SG...." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;">
+            <span id="key-sendgrid-cur" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
+          </div>
           <div style="display:flex;align-items:center;gap:12px;">
             <button class="btn-sm" onclick="saveApiKeys()" style="background:var(--accent);color:#111;border:none;font-weight:700;">Enregistrer les clés</button>
             <span id="keys-status" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
           </div>
-          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">La clé enregistrée ici prime sur la variable Railway. Replicate active le bouton "Améliorer la résolution". Laisser un champ vide ne change rien.</div>
+          <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);">La clé enregistrée ici prime sur la variable Railway. Replicate active le bouton "Améliorer la résolution". SendGrid (permission Mail Send) active l'envoi de mails : mot de passe oublié, notifications de mission, sauvegardes. Laisser un champ vide ne change rien.</div>
         </div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:20px;padding:16px 20px;">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:6px;">💾 Sauvegardes de la base</h3>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Copie quotidienne automatique conservée sur le serveur (7 dernières) et envoyée par mail à l'admin si l'envoi SendGrid est configuré. Pense à en télécharger une régulièrement : c'est ta copie hors-serveur.</p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <button class="btn-sm" onclick="runBackupNow()" style="background:var(--accent);color:#111;border:none;font-weight:700;">Sauvegarder maintenant</button>
+          <span id="backup-status" style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);"></span>
+        </div>
+        <div id="backups-list" style="font-size:12px;font-family:'DM Mono',monospace;color:var(--muted);">Chargement...</div>
       </div>
       <div class="stats-grid" id="usage-stats">
         <div class="loading" style="grid-column:1/-1">Chargement...</div>
@@ -338,7 +352,7 @@ function showPage(name, btn) {
   if (name === 'users') loadUsers();
   if (name === 'analyses') loadAnalyses();
   if (name === 'bugs') loadBugs();
-  if (name === 'usage') { loadUsage(); loadApiKeys(); }
+  if (name === 'usage') { loadUsage(); loadApiKeys(); loadBackups(); }
 }
 
 function fmtEur(v) { const n = Number(v) || 0; return (Number.isInteger(n) ? n : n.toFixed(2)) + ' €'; }
@@ -390,15 +404,54 @@ async function loadApiKeys() {
     const d = await api('/api/admin/apikeys');
     document.getElementById('key-anthropic-cur').textContent = d.ANTHROPIC_API_KEY ? 'actuelle : ' + d.ANTHROPIC_API_KEY : 'non définie';
     document.getElementById('key-replicate-cur').textContent = d.REPLICATE_API_TOKEN ? 'actuelle : ' + d.REPLICATE_API_TOKEN : 'non définie';
+    document.getElementById('key-sendgrid-cur').textContent = d.SENDGRID_API_KEY ? 'actuelle : ' + d.SENDGRID_API_KEY : 'non définie';
   } catch {}
+}
+
+async function loadBackups() {
+  const el = document.getElementById('backups-list');
+  try {
+    const d = await api('/api/admin/backups');
+    if (!d.list.length) { el.innerHTML = 'Aucune sauvegarde pour le moment — la première se fera automatiquement, ou clique sur "Sauvegarder maintenant".'; return; }
+    el.innerHTML = d.list.map(b => `<div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="flex:1;">${b.name}</span>
+      <span>${(b.size / 1024 / 1024).toFixed(2)} Mo</span>
+      <button class="btn-sm" onclick="downloadBackup('${b.name}')">⬇ Télécharger</button>
+    </div>`).join('');
+  } catch { el.innerHTML = 'Erreur de chargement.'; }
+}
+
+async function runBackupNow() {
+  const st = document.getElementById('backup-status');
+  st.textContent = 'Sauvegarde en cours...';
+  try {
+    const r = await api('/api/admin/backups/run', { method: 'POST' });
+    st.textContent = `✓ ${r.file} (${(r.size / 1024 / 1024).toFixed(2)} Mo)` + (r.mailed ? ' — envoyée par mail' : (r.mailError ? ' — mail non envoyé : ' + r.mailError : ''));
+    loadBackups();
+  } catch (e) { st.textContent = 'Erreur : ' + e.message; }
+}
+
+async function downloadBackup(name) {
+  try {
+    const r = await fetch('/api/admin/backups/' + encodeURIComponent(name) + '/download', { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error('Téléchargement refusé');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert('Erreur : ' + e.message); }
 }
 
 async function saveApiKeys() {
   const body = {};
   const a = document.getElementById('key-anthropic').value.trim();
   const r = document.getElementById('key-replicate').value.trim();
+  const s = document.getElementById('key-sendgrid').value.trim();
   if (a) body.ANTHROPIC_API_KEY = a;
   if (r) body.REPLICATE_API_TOKEN = r;
+  if (s) body.SENDGRID_API_KEY = s;
   const st = document.getElementById('keys-status');
   if (!Object.keys(body).length) { st.textContent = 'Rien à enregistrer.'; return; }
   try {
@@ -406,6 +459,7 @@ async function saveApiKeys() {
     st.textContent = '✓ Enregistré';
     document.getElementById('key-anthropic').value = '';
     document.getElementById('key-replicate').value = '';
+    document.getElementById('key-sendgrid').value = '';
     loadApiKeys();
   } catch(e) { st.textContent = 'Erreur : ' + e.message; }
 }

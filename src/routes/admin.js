@@ -243,8 +243,29 @@ router.get('/users/:id/usage', (req, res) => {
   res.json(rows);
 });
 
-// Clés API globales (Claude / Replicate) — la valeur en base prime sur les variables Railway
-const API_KEY_NAMES = ['ANTHROPIC_API_KEY', 'REPLICATE_API_TOKEN'];
+// Sauvegardes de la base de données
+const backup = require('../utils/backup');
+const path = require('path');
+const fs = require('fs');
+
+router.get('/backups', (req, res) => {
+  res.json({ list: backup.listBackups(), last: getSetting('LAST_BACKUP_AT') });
+});
+
+router.post('/backups/run', async (req, res) => {
+  try { res.json(await backup.runBackup('manuel')); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/backups/:name/download', (req, res) => {
+  if (!/^aidesifs-[\w.-]+\.db\.gz$/.test(req.params.name)) return res.status(400).json({ error: 'Nom invalide.' });
+  const p = path.join(backup.backupDir, req.params.name);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'Sauvegarde introuvable.' });
+  res.download(p);
+});
+
+// Clés API globales (Claude / Replicate / SendGrid) — la valeur en base prime sur les variables Railway
+const API_KEY_NAMES = ['ANTHROPIC_API_KEY', 'REPLICATE_API_TOKEN', 'SENDGRID_API_KEY'];
 
 router.get('/apikeys', (req, res) => {
   const out = {};

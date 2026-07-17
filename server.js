@@ -59,3 +59,6 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`AI-désifs démarré sur le port ${PORT}`));
+
+// Sauvegarde quotidienne automatique de la base (copie locale + mail à l'admin si possible)
+try { require('./src/utils/backup').scheduleBackups(); } catch (e) { console.error('Backup scheduler:', e.message); }
