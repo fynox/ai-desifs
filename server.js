@@ -67,3 +67,6 @@ app.listen(PORT, () => console.log(`AI-désifs démarré sur le port ${PORT}`));
 
 // Sauvegarde quotidienne automatique de la base (copie locale + mail à l'admin si possible)
 try { require('./src/utils/backup').scheduleBackups(); } catch (e) { console.error('Backup scheduler:', e.message); }
+
+// Relances automatiques des comptes d'essai (J+2 / J+7)
+try { require('./src/utils/relances').scheduleRelances(); } catch (e) { console.error('Relances scheduler:', e.message); }

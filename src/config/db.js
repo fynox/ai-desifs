@@ -133,6 +133,13 @@ const migrations = [
   // Alerte stock bas
   'ALTER TABLE stock ADD COLUMN quantite_m2 REAL',              // quantité restante estimée (m² ou ml, au choix de l utilisateur)
   'ALTER TABLE stock ADD COLUMN seuil_alerte REAL',             // en dessous → alerte stock bas
+  // Mails de suivi d essai (J+2 / J+7) — flags anti-doublon
+  'ALTER TABLE users ADD COLUMN trial_mail_j2 INTEGER DEFAULT 0',
+  'ALTER TABLE users ADD COLUMN trial_mail_j7 INTEGER DEFAULT 0',
+  // Facturation
+  'ALTER TABLE users ADD COLUMN facture_seq INTEGER DEFAULT 0', // compteur de numéros de facture du compte
+  'ALTER TABLE analyses ADD COLUMN facture_num TEXT',           // numéro de facture attribué (FA-AAAA-NNN)
+  'ALTER TABLE analyses ADD COLUMN facture_at TEXT',            // date d émission de la facture
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}
