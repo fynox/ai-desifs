@@ -95,6 +95,7 @@ router.get('/', (req, res) => {
   const args = (sc.empId && !sc.secr) ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
+      devis_status, devis_sent_at, client_email,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
@@ -563,6 +564,23 @@ router.post('/:id/devis/feedback', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+// Suivi commercial du devis : envoyé au client / accepté / refusé (patron + secrétariat)
+router.patch('/:id/devis-status', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, devis_status FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const status = req.body.status === null ? null : String(req.body.status);
+  if (status !== null && !['envoye', 'accepte', 'refuse'].includes(status)) return res.status(400).json({ error: 'Statut invalide.' });
+  // La date d'envoi sert au calcul des relances : posée à la 1re bascule en "envoyé"
+  if (status === 'envoye' && item.devis_status !== 'envoye') {
+    db.prepare("UPDATE analyses SET devis_status=?, devis_sent_at=datetime('now') WHERE id=?").run(status, item.id);
+  } else {
+    db.prepare('UPDATE analyses SET devis_status=? WHERE id=?').run(status, item.id);
+  }
+  res.json({ ok: true, devis_status: status });
 });
 
 // Renvoie les infos émetteur mémorisées (pré-remplissage du PDF de devis) — celles du patron

@@ -2193,13 +2193,19 @@ function renderSidebarHisto() {
       const stLine = h.job_status
         ? `<div style="margin-top:4px;"><span style="display:inline-block;font-size:10px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:${stCol}22;color:${stCol};border:1px solid ${stCol}55;">${JOB_STAGES[h.job_status] ? JOB_STAGES[h.job_status].label : h.job_status}</span>${h.has_job_photos ? ' <span title="Photos du résultat posé disponibles" style="font-size:11px;">📷</span>' : ''}</div>`
         : '';
+      // Badge de suivi commercial du devis (envoyé / accepté / refusé)
+      const DV_BADGE = { envoye: ['✉ Devis envoyé', '#4a9eff'], accepte: ['✓ Devis accepté', '#4ecd7b'], refuse: ['✗ Devis refusé', '#f05050'] };
+      const dv = DV_BADGE[h.devis_status];
+      const dvLine = dv
+        ? `<div style="margin-top:3px;"><span style="display:inline-block;font-size:10px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;background:${dv[1]}22;color:${dv[1]};border:1px solid ${dv[1]}55;">${dv[0]}</span></div>`
+        : '';
       return `<div class="histo-item" id="histo-${h.id}" onclick="openHisto(${h.id})" style="position:relative;${stCol ? `border-left:4px solid ${stCol};padding-left:8px;border-radius:0 9px 9px 0;` : ''}">
         <div class="histo-item-row">
           ${!h.lu ? '<div class="histo-unread-dot"></div>' : '<div style="width:7px;flex-shrink:0"></div>'}
           <div class="histo-item-text">
             <div class="histo-item-title">${titre}${h.nb_visuels > 1 ? ` <span style="font-size:10px;color:var(--muted)">🖼${h.nb_visuels}</span>` : ''}</div>
             <div class="histo-item-sub">${date}</div>
-            ${stLine}
+            ${stLine}${dvLine}
           </div>
         </div>
         ${!isEmploye ? `<button class="histo-delete-btn" onclick="deleteHisto(event,${h.id})" title="Supprimer">🗑</button>` : ``}
@@ -4262,15 +4268,51 @@ function afficherDevis(d, id) {
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('libre')">＋ Ligne libre</button>
     </div>
     <div style="text-align:right;margin-top:14px;font-size:16px;font-weight:700;">Total : <span id="dv-total-live" style="color:var(--accent);">—</span> € HT</div>
+    <div id="dv-suivi" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;">Suivi du devis</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="dv-suivi-btns"></div>
+    </div>
     ${d.marge_conseillee ? `<div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;">Repère IA — marge conseillée : ${d.marge_conseillee}</div>` : ''}
     ${(d.hypotheses || []).length ? `<div style="margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">⚠ Hypothèses (à vérifier)</div>${d.hypotheses.map(h => `<div style="font-size:11px;line-height:1.6;">• ${h}</div>`).join('')}</div>` : ''}
     <div style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5;">💡 Modifie un prix dans « Ton prix » → le total s'ajuste <b>immédiatement</b>. La croix rouge retire une ligne. Pas besoin de régénérer (« Régénérer » relance l'IA et recalcule tout).</div>`;
   renderDevisLignes();
+  renderDevisSuivi(id);
   document.getElementById('devis-error').textContent = '';
   document.getElementById('devis-copied').style.display = 'none';
   document.getElementById('btn-regen-devis').onclick = () => { if (confirm('Régénérer relance l\'IA et REMPLACE toutes tes modifications. Continuer ?')) { closeDevis(); genererDevis(id, true); } };
   prefillDevisInfos();
   document.getElementById('modal-devis').classList.add('open');
+}
+
+// Suivi commercial du devis : envoyé / accepté / refusé
+const DEVIS_STATUS = {
+  envoye: { label: '✉ Envoyé', color: '#4a9eff' },
+  accepte: { label: '✓ Accepté', color: 'var(--accent)' },
+  refuse: { label: '✗ Refusé', color: 'var(--danger)' },
+};
+function renderDevisSuivi(id) {
+  const wrap = document.getElementById('dv-suivi');
+  const btns = document.getElementById('dv-suivi-btns');
+  if (!wrap || !btns) return;
+  // Seuls le patron et le secrétariat gèrent le suivi commercial
+  if (isEmploye && !String(userRole).split(',').includes('secretariat')) { wrap.style.display = 'none'; return; }
+  const item = historique.find(a => a.id === id);
+  const cur = item ? item.devis_status : null;
+  btns.innerHTML = Object.entries(DEVIS_STATUS).map(([k, v]) => {
+    const actif = cur === k;
+    return `<button onclick="setDevisStatus(${id}, ${actif ? 'null' : `'${k}'`})" title="${actif ? 'Cliquer pour annuler ce statut' : ''}"
+      style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:${actif ? '700' : '400'};
+      background:${actif ? v.color : 'none'};color:${actif ? '#111' : v.color};border:1px solid ${v.color};">${v.label}</button>`;
+  }).join('');
+}
+async function setDevisStatus(id, status) {
+  try {
+    await api('PATCH', `/analyses/${id}/devis-status`, { status });
+    const item = historique.find(a => a.id === id);
+    if (item) { item.devis_status = status; if (status === 'envoye' && !item.devis_sent_at) item.devis_sent_at = new Date().toISOString(); }
+    renderDevisSuivi(id);
+    renderSidebarHisto();
+  } catch (e) { alert('Erreur : ' + e.message); }
 }
 
 // (Re)dessine les lignes du devis depuis _devisData.lignes (source de vérité)
