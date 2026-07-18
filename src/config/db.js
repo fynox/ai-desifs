@@ -140,6 +140,11 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN facture_seq INTEGER DEFAULT 0', // compteur de numéros de facture du compte
   'ALTER TABLE analyses ADD COLUMN facture_num TEXT',           // numéro de facture attribué (FA-AAAA-NNN)
   'ALTER TABLE analyses ADD COLUMN facture_at TEXT',            // date d émission de la facture
+  // Page devis publique (le client accepte/refuse/signe en ligne, puis suit sa commande)
+  'ALTER TABLE analyses ADD COLUMN devis_public_token TEXT',    // jeton du lien /d/:token
+  'ALTER TABLE analyses ADD COLUMN devis_vu_at TEXT',           // 1re ouverture de la page par le client
+  'ALTER TABLE analyses ADD COLUMN devis_signature_b64 TEXT',   // signature électronique (bon pour accord)
+  'ALTER TABLE analyses ADD COLUMN devis_client_commentaire TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

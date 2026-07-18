@@ -96,6 +96,7 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       devis_status, devis_sent_at, client_email, facture_num,
+      devis_vu_at, devis_client_commentaire, devis_public_token, (devis_signature_b64 IS NOT NULL) as devis_signe,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
@@ -756,6 +757,23 @@ router.patch('/:id/titre', (req, res) => {
   rj.titre = titre;
   db.prepare('UPDATE analyses SET result_json = ? WHERE id = ?').run(JSON.stringify(rj), item.id);
   res.json({ ok: true, titre });
+});
+
+// Lien public du devis : le client l'ouvre sans compte pour accepter/refuser/signer en ligne
+router.post('/:id/devis-lien', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, devis_json, devis_public_token FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  if (!item.devis_json) return res.status(400).json({ error: 'Génère d\'abord le devis de cette analyse.' });
+
+  let token = item.devis_public_token;
+  if (!token) {
+    token = require('crypto').randomBytes(16).toString('hex');
+    db.prepare('UPDATE analyses SET devis_public_token = ? WHERE id = ?').run(token, item.id);
+  }
+  const APP_URL = process.env.APP_URL || 'https://ai-dhesif.fr';
+  res.json({ url: `${APP_URL}/d/${token}` });
 });
 
 // Suivi commercial du devis : envoyé au client / accepté / refusé (patron + secrétariat)

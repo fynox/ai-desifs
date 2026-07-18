@@ -50,6 +50,7 @@ app.use('/api/stripe', require('./src/routes/stripe'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/bugs', require('./src/routes/bugs'));
 app.use('/api/team', require('./src/routes/team'));
+app.use('/api/public', require('./src/routes/public'));
 
 // SendGrid inbound (pas rate limité)
 app.use('/webhooks', require('./src/routes/webhook'));
@@ -59,6 +60,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('/pricing', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pricing.html')));
 app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+app.get('/d/:token', (req, res) => res.sendFile(path.join(__dirname, 'public', 'devis-public.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 

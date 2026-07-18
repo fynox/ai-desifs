@@ -758,6 +758,10 @@ textarea:focus { border-color: var(--accent); }
       <input type="checkbox" id="relance-attach" checked style="accent-color:var(--accent);width:16px;height:16px;">
       📎 Joindre le devis en PDF <span style="color:var(--muted);font-size:11px;">(le suivi passera à « envoyé »)</span>
     </label>
+    <label id="relance-lien-wrap" style="display:none;align-items:center;gap:8px;font-size:12.5px;color:var(--text);cursor:pointer;margin-top:2px;">
+      <input type="checkbox" id="relance-lien" checked style="accent-color:var(--accent);width:16px;height:16px;">
+      🔗 Inclure le lien d'acceptation en ligne <span style="color:var(--muted);font-size:11px;">(le client accepte et signe en 1 clic)</span>
+    </label>
     <div class="auth-error" id="relance-error"></div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="relance-copied">✓ Copié dans le presse-papier</div>
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="relance-sent">📤 Mail envoyé au client — les réponses arriveront sur ta boîte mail habituelle</div>
@@ -4241,7 +4245,8 @@ function documentDevisBlob(mode, lignes, infos, meta = {}) {
   const fmt = v => (typeof v === 'number' && isFinite(v) ? v.toFixed(2).replace('.', ',') + ' €' : '—');
   const today = meta.date ? new Date(meta.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
   const tvaPct = Number(userSettings.tva_pct);
-  const totalHT = lignes.reduce((s, l) => s + (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0), 0);
+  // Options non retenues : affichées mais hors total (le client les coche sur la page en ligne)
+  const totalHT = lignes.reduce((s, l) => s + ((l.option && !l.option_choisie) ? 0 : (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0)), 0);
   const tva = isFinite(tvaPct) && tvaPct > 0 ? totalHT * tvaPct / 100 : 0;
   const validite = Number(userSettings.devis_validite_jours) >= 1 ? Math.round(Number(userSettings.devis_validite_jours)) : 30;
 
@@ -4275,7 +4280,7 @@ function documentDevisBlob(mode, lignes, infos, meta = {}) {
     const montant = l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0;
     const qte = parseFloat(l.quantite) || null;
     const rowTop = d.y;
-    d.text(l.designation || '', cDes, { size: 21, maxW: wDes });
+    d.text((l.option ? (l.option_choisie ? '[OPTION retenue] ' : '[OPTION — à valider en ligne] ') : '') + (l.designation || ''), cDes, { size: 21, maxW: wDes });
     if (l.details) d.text(l.details, cDes, { size: 17, color: '#999999', maxW: wDes });
     const rowBot = d.y;
     d.y = rowTop;
@@ -4619,6 +4624,8 @@ function startEvents() {
         mission: '🎯 Nouvelle mission pour toi',
         mission_finie: '🏁 Une mission vient d\'être terminée',
         stock_bas: '⚠ Stock bas : ' + ((d.noms || []).join(', ') || 'un adhésif') + ' sous le seuil d\'alerte',
+        devis_vu: '👁 Ton client vient d\'ouvrir la page du devis',
+        devis_reponse: d.action === 'accepte' ? '🎉 Devis ACCEPTÉ et signé par le client !' : '❌ Le client a refusé le devis — voir son commentaire',
       };
       if (msgs[d.type]) showImportToast(msgs[d.type], (d.failed || d.type === 'stock_bas') ? 'error' : 'success');
       if (d.type === 'stock_bas') { try { loadStock().then(renderAll); } catch {} }
@@ -4973,7 +4980,8 @@ function afficherDevis(d, id) {
     const facturables = [], notes = [];
     (d.lignes || []).forEach(l => {
       const t = Number(l.total);
-      (isFinite(t) && t > 0 ? facturables : notes).push(l);
+      // t < 0 = ligne de remise, parfaitement valable
+      (isFinite(t) && t !== 0 ? facturables : notes).push(l);
     });
     if (notes.length) {
       d.hypotheses = [...(d.hypotheses || []), ...notes.map(l => [l.designation, l.details].filter(Boolean).join(' — ')).filter(Boolean)];
@@ -4998,6 +5006,7 @@ function afficherDevis(d, id) {
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('upscale')">＋ Amélioration HD</button>
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('vecto')">＋ Vectorisation</button>
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('libre')">＋ Ligne libre</button>
+      <button class="btn-cancel" style="font-size:11px;padding:6px 12px;color:#f0a030;border-color:#f0a03066;" onclick="addDevisRemise()">－ Remise</button>
     </div>
     <div style="text-align:right;margin-top:14px;font-size:16px;font-weight:700;">Total : <span id="dv-total-live" style="color:var(--accent);">—</span> € HT</div>
     <div id="dv-suivi" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
@@ -5040,7 +5049,27 @@ function renderDevisSuivi(id) {
   + (cur === 'accepte'
     ? `<button onclick="genererFacture(${id})" title="${item && item.facture_num ? 'Retélécharger la facture ' + item.facture_num : 'Attribue un numéro définitif et télécharge le PDF'}"
         style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:700;background:var(--accent);color:#111;border:1px solid var(--accent);">🧾 ${item && item.facture_num ? item.facture_num : 'Générer la facture'}</button>`
-    : '');
+    : '')
+  // Lien public : le client accepte/refuse/signe en ligne sur /d/:token
+  + `<button onclick="copierLienDevis(${id})" id="btn-lien-devis" title="Le client ouvre ce lien sans compte : il voit le devis, coche les options, signe et accepte (ou refuse) en ligne — le statut se met à jour tout seul"
+      style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;background:none;color:var(--text);border:1px solid var(--border);">🔗 Lien client</button>`;
+
+  // Badges d'état de la page en ligne : vu / signé / commentaire du client
+  const badges = [];
+  if (item && item.devis_vu_at) badges.push(`<span title="Le client a ouvert la page du devis" style="font-size:10.5px;color:#4a9eff;">👁 Vu le ${new Date(item.devis_vu_at).toLocaleDateString('fr-FR')}</span>`);
+  if (item && item.devis_signe) badges.push(`<span title="Signature électronique enregistrée (bon pour accord)" style="font-size:10.5px;color:var(--accent);">✍ Signé en ligne</span>`);
+  if (item && item.devis_client_commentaire) badges.push(`<span style="font-size:10.5px;color:var(--muted);">💬 « ${String(item.devis_client_commentaire).slice(0, 120)} »</span>`);
+  if (badges.length) btns.innerHTML += `<div style="flex-basis:100%;display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">${badges.join('')}</div>`;
+}
+
+async function copierLienDevis(id) {
+  const btn = document.getElementById('btn-lien-devis');
+  try {
+    const r = await api('POST', `/analyses/${id}/devis-lien`);
+    await navigator.clipboard.writeText(r.url);
+    if (btn) { btn.textContent = '✓ Lien copié !'; setTimeout(() => { btn.textContent = '🔗 Lien client'; }, 2200); }
+    showImportToast('🔗 Lien copié — colle-le dans ton mail au client (ou coche l\'option dans la fenêtre mail)', 'success');
+  } catch (e) { alert('Erreur : ' + e.message); }
 }
 async function setDevisStatus(id, status) {
   try {
@@ -5058,7 +5087,8 @@ function renderDevisLignes() {
   const fmt = v => { const n = Number(v); return isFinite(n) ? n.toFixed(2) + ' €' : '—'; };
   const bd = 'border-bottom:1px solid var(--border);';
   const rows = (d.lignes || []).map((l, i) => `<tr>
-      <td style="padding:9px 8px;${bd}font-size:12.5px;line-height:1.45;">${l.designation || ''}${l.details ? `<br><span style="font-size:10.5px;color:var(--muted);">${l.details}</span>` : ''}</td>
+      <td style="padding:9px 8px;${bd}font-size:12.5px;line-height:1.45;">${l.designation || ''}${l.details ? `<br><span style="font-size:10.5px;color:var(--muted);">${l.details}</span>` : ''}
+        <br><button onclick="toggleDevisOption(${i})" title="Une ligne « option » n'est pas comptée d'office : le client la coche lui-même sur la page de devis en ligne s'il la veut" style="background:none;border:1px solid ${l.option ? 'var(--accent)' : 'var(--border)'};color:${l.option ? 'var(--accent)' : 'var(--muted)'};border-radius:12px;font-size:9.5px;padding:1px 8px;cursor:pointer;margin-top:3px;">${l.option ? '☑ Option client' : '☐ Marquer en option'}</button>${l.option_choisie ? ' <span style="font-size:9.5px;color:var(--accent);">✓ retenue par le client</span>' : ''}</td>
       <td style="padding:9px 8px;${bd}font-size:12px;text-align:center;white-space:nowrap;">${l.quantite || '—'}</td>
       <td style="padding:9px 8px;${bd}font-size:12px;text-align:right;color:var(--muted);white-space:nowrap;">${fmt(l.total)}</td>
       <td style="padding:9px 8px;${bd}text-align:right;white-space:nowrap;">
@@ -5079,6 +5109,8 @@ function recomputeDevisTotal() {
   (d.lignes || []).forEach((l, i) => {
     const el = document.getElementById('dv-perso-' + i);
     if (el) { const v = el.value.trim(); l.perso = (v !== '' && isFinite(Number(v))) ? Number(v) : null; }
+    // Les options non retenues par le client ne comptent pas dans le total
+    if (l.option && !l.option_choisie) return;
     tot += (l.perso != null) ? l.perso : (Number(l.total) || 0);
   });
   const t = document.getElementById('dv-total-live');
@@ -5088,6 +5120,38 @@ function recomputeDevisTotal() {
 function deleteDevisLigne(i) {
   recomputeDevisTotal();                 // fige les prix saisis avant de re-render
   _devisData.lignes.splice(i, 1);
+  renderDevisLignes();
+}
+
+// Ligne « option » : non comptée d'office, le client la coche sur la page de devis en ligne
+function toggleDevisOption(i) {
+  recomputeDevisTotal();
+  const l = _devisData.lignes[i];
+  l.option = !l.option;
+  if (!l.option) delete l.option_choisie;
+  renderDevisLignes();
+}
+
+// Remise : en % du total courant ou en montant fixe → ligne négative
+function addDevisRemise() {
+  recomputeDevisTotal();
+  const saisie = prompt('Remise : entre un pourcentage (ex : 10%) ou un montant en € (ex : 50)', '10%');
+  if (saisie === null) return;
+  const s = saisie.trim().replace(',', '.');
+  let montant = 0, libelle = '';
+  const tot = (_devisData.lignes || []).reduce((sum, l) => sum + (l.option ? 0 : (l.perso != null ? l.perso : Number(l.total) || 0)), 0);
+  if (s.endsWith('%')) {
+    const pct = parseFloat(s);
+    if (!isFinite(pct) || pct <= 0 || pct >= 100) { alert('Pourcentage invalide.'); return; }
+    montant = -Math.round(tot * pct) / 100;
+    libelle = `Remise commerciale (−${String(pct).replace('.', ',')} %)`;
+  } else {
+    const v = parseFloat(s);
+    if (!isFinite(v) || v <= 0) { alert('Montant invalide.'); return; }
+    montant = -Math.round(v * 100) / 100;
+    libelle = 'Remise commerciale';
+  }
+  _devisData.lignes.push({ designation: libelle, details: '', quantite: '1', total: montant, prix_unitaire: montant, perso: null });
   renderDevisLignes();
 }
 
@@ -5304,10 +5368,12 @@ async function genererRelance(id, ton = 'pro', points = []) {
     document.getElementById('relance-sent').style.display = 'none';
     const btnEnv = document.getElementById('btn-envoyer-relance');
     if (btnEnv) { btnEnv.disabled = false; btnEnv.textContent = '📤 Envoyer maintenant'; }
-    // Proposer la pièce jointe uniquement si un devis existe sur ce dossier
+    // Proposer la pièce jointe et le lien d'acceptation uniquement si un devis existe sur ce dossier
     const aDevis = item && item.devis && (item.devis.lignes || []).length;
     document.getElementById('relance-attach-wrap').style.display = aDevis ? 'flex' : 'none';
     document.getElementById('relance-attach').checked = Boolean(aDevis);
+    document.getElementById('relance-lien-wrap').style.display = aDevis ? 'flex' : 'none';
+    document.getElementById('relance-lien').checked = Boolean(aDevis);
     document.getElementById('modal-relance').classList.add('open');
   } catch(e) {
     handleActionError(e);
@@ -5328,8 +5394,15 @@ async function envoyerRelance() {
   if (!to) { err.textContent = 'Renseigne l\'adresse email du destinataire.'; return; }
   btn.disabled = true; btn.textContent = '📤 Envoi en cours…';
   try {
-    const body = { to, objet, corps };
+    let corpsFinal = corps;
     const item = historique.find(a => a.id === id);
+    // Lien d'acceptation en ligne ajouté au corps du mail
+    const lienCb = document.getElementById('relance-lien');
+    if (lienCb && lienCb.checked && document.getElementById('relance-lien-wrap').style.display !== 'none') {
+      const r = await api('POST', `/analyses/${id}/devis-lien`);
+      corpsFinal += `\n\n————\nConsulter et accepter le devis en ligne (signature électronique) :\n${r.url}`;
+    }
+    const body = { to, objet, corps: corpsFinal };
     const attach = document.getElementById('relance-attach');
     if (attach && attach.checked && document.getElementById('relance-attach-wrap').style.display !== 'none'
         && item && item.devis && (item.devis.lignes || []).length) {

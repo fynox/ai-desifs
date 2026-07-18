@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Devis</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#f4f5f2; color:#1a1c17; font-family:'Inter',Arial,sans-serif; line-height:1.6; padding:24px 14px 60px; }
+.wrap { max-width:760px; margin:0 auto; }
+.card { background:#fff; border:1px solid #e3e5df; border-radius:14px; padding:26px 28px; margin-bottom:16px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+.ent-nom { font-size:20px; font-weight:800; }
+.ent-sub { font-size:12.5px; color:#6b7062; margin-top:2px; }
+.doc-titre { font-size:30px; font-weight:800; letter-spacing:1px; margin:18px 0 2px; }
+.doc-meta { font-size:13px; color:#6b7062; margin-bottom:4px; }
+table { width:100%; border-collapse:collapse; margin:18px 0 10px; }
+th { font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:#8a8f80; text-align:left; border-bottom:2px solid #1a1c17; padding:8px 8px; }
+td { padding:11px 8px; border-bottom:1px solid #eceee8; vertical-align:top; font-size:14px; }
+td.r, th.r { text-align:right; white-space:nowrap; }
+.details { font-size:12px; color:#8a8f80; margin-top:2px; }
+.opt-badge { display:inline-block; font-size:10px; font-weight:700; background:#eef3e0; color:#5a7a1a; border-radius:20px; padding:1px 8px; margin-left:6px; vertical-align:middle; }
+.totaux { text-align:right; font-size:14.5px; margin-top:8px; }
+.totaux .grand { font-size:20px; font-weight:800; margin-top:4px; }
+.zone-titre { font-size:15px; font-weight:700; margin-bottom:10px; }
+textarea { width:100%; min-height:70px; border:1px solid #d6d9d0; border-radius:9px; padding:10px 12px; font-family:inherit; font-size:14px; resize:vertical; }
+.sig-wrap { border:2px dashed #c9cdc2; border-radius:10px; background:#fbfbf9; position:relative; }
+.sig-wrap canvas { display:block; width:100%; height:150px; touch-action:none; border-radius:9px; cursor:crosshair; }
+.sig-hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#b9beb0; font-size:13.5px; pointer-events:none; }
+.sig-clear { position:absolute; top:8px; right:8px; background:#fff; border:1px solid #d6d9d0; border-radius:7px; font-size:11.5px; padding:4px 10px; cursor:pointer; color:#6b7062; }
+.btns { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.btn { border:none; border-radius:10px; padding:13px 22px; font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; flex:1; min-width:170px; }
+.btn-ok { background:#79b52c; color:#fff; }
+.btn-ok:hover { background:#699e24; }
+.btn-ko { background:#fff; color:#c0392b; border:1.5px solid #e5b4ae; }
+.btn-ko:hover { background:#fdf3f2; }
+.msg-err { color:#c0392b; font-size:13.5px; margin-top:10px; display:none; }
+.banner { border-radius:12px; padding:16px 20px; font-size:15px; font-weight:600; margin-bottom:16px; }
+.banner.ok { background:#eef7e2; border:1px solid #bcd98c; color:#3f6212; }
+.banner.ko { background:#fdf0ee; border:1px solid #eec3bc; color:#a33325; }
+.steps { display:flex; gap:0; margin-top:14px; }
+.step { flex:1; text-align:center; position:relative; padding-top:26px; font-size:12px; color:#8a8f80; }
+.step::before { content:''; position:absolute; top:8px; left:50%; transform:translateX(-50%); width:16px; height:16px; border-radius:50%; background:#d6d9d0; z-index:2; }
+.step::after { content:''; position:absolute; top:15px; left:-50%; width:100%; height:3px; background:#d6d9d0; z-index:1; }
+.step:first-child::after { display:none; }
+.step.done { color:#3f6212; font-weight:600; }
+.step.done::before { background:#79b52c; }
+.step.done::after { background:#79b52c; }
+.footer { text-align:center; font-size:11.5px; color:#a3a89a; margin-top:24px; }
+.footer a { color:#a3a89a; }
+.loading { text-align:center; color:#8a8f80; padding:60px 0; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap"><div class="loading">Chargement du devis…</div></div>
+
+<script>
+const token = location.pathname.split('/').pop();
+let DATA = null;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const eur = v => (Number(v) || 0).toFixed(2).replace('.', ',') + ' €';
+
+async function boot() {
+  let d;
+  try {
+    const r = await fetch('/api/public/devis/' + encodeURIComponent(token));
+    d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erreur');
+  } catch (e) {
+    document.getElementById('wrap').innerHTML = `<div class="card" style="text-align:center;color:#6b7062;">${esc(e.message)}</div>`;
+    return;
+  }
+  DATA = d;
+  render();
+}
+
+function totalCourant() {
+  let t = 0;
+  DATA.lignes.forEach((l, i) => {
+    if (l.option) {
+      const cb = document.getElementById('opt-' + i);
+      const coche = cb ? cb.checked : l.option_choisie;
+      if (coche) t += l.montant;
+    } else t += l.montant;
+  });
+  return t;
+}
+
+function majTotaux() {
+  const t = totalCourant();
+  const tva = DATA.tva_pct > 0 ? t * DATA.tva_pct / 100 : 0;
+  document.getElementById('tot-ht').textContent = eur(t);
+  if (DATA.tva_pct > 0) {
+    document.getElementById('tot-tva').textContent = eur(tva);
+    document.getElementById('tot-ttc').textContent = eur(t + tva);
+  } else {
+    document.getElementById('tot-ttc').textContent = eur(t) + ' HT';
+  }
+}
+
+function render() {
+  const d = DATA;
+  const e = d.entreprise;
+  const repondu = d.statut === 'accepte' || d.statut === 'refuse';
+
+  const lignesHtml = d.lignes.map((l, i) => `<tr>
+      <td>${l.option && !repondu ? `<input type="checkbox" id="opt-${i}" ${l.option_choisie ? 'checked' : ''} onchange="majTotaux()" style="accent-color:#79b52c;width:16px;height:16px;vertical-align:middle;margin-right:8px;">` : ''}
+        ${esc(l.designation)}${l.option ? '<span class="opt-badge">OPTION' + (repondu ? (l.option_choisie ? ' ✓ retenue' : ' non retenue') : ' — cochez si vous la souhaitez') + '</span>' : ''}
+        ${l.details ? `<div class="details">${esc(l.details)}</div>` : ''}</td>
+      <td class="r">${esc(l.quantite || '—')}</td>
+      <td class="r"${l.option && !l.option_choisie && repondu ? ' style="text-decoration:line-through;color:#b9beb0;"' : ''}><b>${eur(l.montant)}</b></td>
+    </tr>`).join('');
+
+  let reponseHtml = '';
+  if (!repondu) {
+    reponseHtml = `
+    <div class="card">
+      <div class="zone-titre">Votre réponse</div>
+      <div style="font-size:13px;color:#6b7062;margin-bottom:10px;">Un commentaire, une question ? (optionnel)</div>
+      <textarea id="commentaire" placeholder="Ex : d'accord pour la semaine 32, merci de m'appeler avant la pose…"></textarea>
+      <div style="font-size:13px;color:#6b7062;margin:16px 0 8px;">Pour accepter, signez ci-dessous (précédé de « Bon pour accord ») :</div>
+      <div class="sig-wrap">
+        <canvas id="sig" width="700" height="150"></canvas>
+        <div class="sig-hint" id="sig-hint">✍ Signez ici (au doigt ou à la souris)</div>
+        <button class="sig-clear" onclick="clearSig()">Effacer</button>
+      </div>
+      <div class="btns">
+        <button class="btn btn-ok" id="btn-ok" onclick="repondre('accepte')">✓ J'accepte le devis</button>
+        <button class="btn btn-ko" onclick="repondre('refuse')">Je refuse</button>
+      </div>
+      <div class="msg-err" id="err"></div>
+    </div>`;
+  } else if (d.statut === 'accepte') {
+    const et = (d.suivi && d.suivi.etape) || 'acceptee';
+    const ordre = ['acceptee', 'production', 'prete', 'pose'];
+    const idx = ordre.indexOf(et);
+    reponseHtml = `
+    <div class="banner ok">✅ Devis accepté${d.signe ? ' et signé' : ''} — merci !</div>
+    <div class="card">
+      <div class="zone-titre">Suivi de votre commande</div>
+      <div class="steps">
+        <div class="step ${idx >= 0 ? 'done' : ''}">Devis accepté</div>
+        <div class="step ${idx >= 1 ? 'done' : ''}">En production</div>
+        <div class="step ${idx >= 2 ? 'done' : ''}">Prête${d.suivi && d.suivi.date_pose ? '<br>pose : ' + esc(d.suivi.date_pose) : ''}</div>
+        <div class="step ${idx >= 3 ? 'done' : ''}">Posée / livrée</div>
+      </div>
+      ${d.commentaire ? `<div style="font-size:12.5px;color:#6b7062;margin-top:16px;">Votre commentaire : « ${esc(d.commentaire)} »</div>` : ''}
+      <div style="font-size:12.5px;color:#6b7062;margin-top:12px;">Cette page se met à jour automatiquement — vous pouvez la consulter à tout moment.</div>
+    </div>`;
+  } else {
+    reponseHtml = `
+    <div class="banner ko">Ce devis a été refusé.${d.commentaire ? '<br><span style="font-weight:400;font-size:13px;">Votre commentaire : « ' + esc(d.commentaire) + ' »</span>' : ''}</div>
+    <div class="card" style="font-size:14px;color:#6b7062;">Un changement d'avis ou une question ? Contactez ${esc(e.nom)}${e.tel ? ' au ' + esc(e.tel) : ''}${e.mail ? ' ou par mail : ' + esc(e.mail) : ''}.</div>`;
+  }
+
+  document.getElementById('wrap').innerHTML = `
+    <div class="card">
+      <div class="ent-nom">${esc(e.nom)}</div>
+      <div class="ent-sub">${[e.adr, e.cp].filter(Boolean).map(esc).join(' — ')}${e.tel ? '<br>' + esc(e.tel) : ''}${e.mail ? ' · ' + esc(e.mail) : ''}${e.siret ? '<br>SIRET/TVA : ' + esc(e.siret) : ''}</div>
+      <div class="doc-titre">DEVIS</div>
+      <div class="doc-meta">${esc(d.titre)} — établi le ${esc(d.date)} · valable ${d.validite_jours} jours</div>
+      <table>
+        <thead><tr><th>Désignation</th><th class="r">Qté</th><th class="r">Montant HT</th></tr></thead>
+        <tbody>${lignesHtml}</tbody>
+      </table>
+      <div class="totaux">
+        <div>Total HT : <b id="tot-ht"></b></div>
+        ${d.tva_pct > 0 ? `<div>TVA ${String(d.tva_pct).replace('.', ',')} % : <b id="tot-tva"></b></div>` : ''}
+        <div class="grand">TOTAL ${d.tva_pct > 0 ? 'TTC' : ''} : <span id="tot-ttc"></span></div>
+      </div>
+    </div>
+    ${reponseHtml}
+    <div class="footer">Devis en ligne sécurisé — propulsé par <a href="https://ai-dhesif.fr" target="_blank" rel="noopener">AI-dhésif</a></div>`;
+
+  majTotaux();
+  if (!repondu) initSig();
+}
+
+// ----- Signature (canvas) -----
+let _sigDirty = false, _ctx = null;
+function initSig() {
+  const cv = document.getElementById('sig');
+  _ctx = cv.getContext('2d');
+  _ctx.lineWidth = 2.4; _ctx.lineCap = 'round'; _ctx.strokeStyle = '#1a1c17';
+  let draw = false, last = null;
+  const pos = ev => {
+    const r = cv.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) * cv.width / r.width, y: (ev.clientY - r.top) * cv.height / r.height };
+  };
+  cv.addEventListener('pointerdown', ev => { draw = true; last = pos(ev); cv.setPointerCapture(ev.pointerId); });
+  cv.addEventListener('pointermove', ev => {
+    if (!draw) return;
+    const p = pos(ev);
+    _ctx.beginPath(); _ctx.moveTo(last.x, last.y); _ctx.lineTo(p.x, p.y); _ctx.stroke();
+    last = p; _sigDirty = true;
+    document.getElementById('sig-hint').style.display = 'none';
+  });
+  const stop = () => { draw = false; };
+  cv.addEventListener('pointerup', stop);
+  cv.addEventListener('pointercancel', stop);
+}
+function clearSig() {
+  const cv = document.getElementById('sig');
+  _ctx.clearRect(0, 0, cv.width, cv.height);
+  _sigDirty = false;
+  document.getElementById('sig-hint').style.display = 'flex';
+}
+
+async function repondre(action) {
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  if (action === 'accepte' && !_sigDirty) {
+    err.textContent = 'Merci de signer dans le cadre pour accepter le devis.';
+    err.style.display = 'block';
+    return;
+  }
+  if (action === 'refuse' && !confirm('Confirmer le refus de ce devis ?')) return;
+  const body = { action, commentaire: document.getElementById('commentaire').value.trim() };
+  if (action === 'accepte') {
+    // Signature sur fond blanc (le canvas est transparent)
+    const cv = document.getElementById('sig');
+    const out = document.createElement('canvas');
+    out.width = cv.width; out.height = cv.height;
+    const c2 = out.getContext('2d');
+    c2.fillStyle = '#ffffff'; c2.fillRect(0, 0, out.width, out.height);
+    c2.drawImage(cv, 0, 0);
+    body.signature_b64 = out.toDataURL('image/png');
+    body.options = DATA.lignes.map((l, i) => (l.option && document.getElementById('opt-' + i) && document.getElementById('opt-' + i).checked) ? i : -1).filter(i => i >= 0);
+  }
+  const btn = document.getElementById('btn-ok');
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    const r = await fetch('/api/public/devis/' + encodeURIComponent(token) + '/reponse', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erreur');
+    boot(); // recharge la page dans son nouvel état
+  } catch (e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = '✓ J\'accepte le devis'; }
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
