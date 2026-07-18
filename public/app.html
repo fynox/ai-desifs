@@ -3818,9 +3818,28 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     // Le préparateur/patron doit VOIR le visuel sur lequel il travaille (pas seulement les boutons)
     let prepVisuel = '';
     if (isImgGlobal) {
-      prepVisuel = (Array.isArray(visuels) && visuels.length > 1)
-        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:6px;">${visuels.map(v => `<img src="data:${v.type};base64,${v.b64}" style="max-height:170px;max-width:190px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`).join('')}</div>`
-        : `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;margin:0 auto 6px;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`;
+      if (Array.isArray(visuels) && visuels.length > 1) {
+        // En préparation, on ne montre en grand QUE les fichiers à imprimer.
+        // Les références client (rendu 3D, photo du lieu...) restent visibles mais à part, réduites et marquées.
+        const prints = visuels.filter(v => v.role !== 'reference');
+        const refs = visuels.filter(v => v.role === 'reference');
+        const imgTag = v => `<img src="data:${v.type};base64,${v.b64}" style="max-height:170px;max-width:190px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Fichier de production — cliquer pour agrandir">`;
+        prepVisuel = prints.length
+          ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:6px;">${prints.map(imgTag).join('')}</div>`
+          : '';
+        if (refs.length) {
+          prepVisuel += `<div style="border:1px dashed #c8a04a66;border-radius:9px;padding:8px 10px;margin:4px 0 6px;">
+            <div style="font-size:10.5px;font-weight:700;color:#c8a04a;margin-bottom:6px;">👁 Références client — ne s'impriment PAS (rendu attendu / photo du lieu)</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">${refs.map(v => `
+              <span style="position:relative;display:inline-block;opacity:.8;">
+                <img src="data:${v.type};base64,${v.b64}" style="max-height:90px;max-width:120px;object-fit:contain;border-radius:7px;border:1px solid #c8a04a66;background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="${(v.role_note || 'Référence client — ne pas imprimer').replace(/"/g, '&quot;')} — cliquer pour agrandir">
+                <span style="position:absolute;top:4px;left:4px;font-size:9px;font-weight:700;background:#c8a04a;color:#111;border-radius:4px;padding:1px 6px;">👁 RENDU</span>
+              </span>`).join('')}</div>
+          </div>`;
+        }
+      } else {
+        prepVisuel = `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;margin:0 auto 6px;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`;
+      }
     }
     const tabPrep = ((prepVisuel || toolsBtns) ? accSection('Visuel & outils', prepVisuel + toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection + bonProdBtn;
     const tabPose = secRendu + ownerNoteView + secPoseChk + secPhotos;
