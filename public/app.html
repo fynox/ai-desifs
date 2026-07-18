@@ -1047,6 +1047,7 @@ textarea:focus { border-color: var(--accent); }
       <div class="reg-grid">
         <label class="reg-field">TVA<input type="number" id="reglage-tva" min="0" max="30" step="0.1" class="devis-inp"><span class="reg-unit">% — ajoutée au PDF (0 = HT seul)</span></label>
         <label class="reg-field">Validité du devis<input type="number" id="reglage-validite" min="1" max="365" step="1" class="devis-inp"><span class="reg-unit">jours (affiché sur le PDF)</span></label>
+        <label class="reg-field">Objectif de CA mensuel<input type="number" id="reglage-objectif" min="0" step="100" class="devis-inp" placeholder="Ex: 8000"><span class="reg-unit">€ HT — barre de progression dans le tableau de bord (vide = désactivé)</span></label>
       </div>
     </div>
 
@@ -1692,6 +1693,7 @@ function openReglages() {
   document.getElementById('reglage-nest-esp').value = userSettings.nest_espace_mm ?? (userSettings.marge_impression_mm ?? 5);
   document.getElementById('reglage-tva').value = userSettings.tva_pct ?? 20;
   document.getElementById('reglage-validite').value = userSettings.devis_validite_jours ?? 30;
+  document.getElementById('reglage-objectif').value = userSettings.objectif_ca_mensuel ?? '';
   document.getElementById('reglage-ton').value = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
   document.getElementById('reglage-signature').value = userSettings.mail_signature || '';
   document.getElementById('reglages-success').style.display = 'none';
@@ -1799,6 +1801,7 @@ async function saveReglages() {
   userSettings.nest_espace_mm = lire('reglage-nest-esp', 5, 100);
   userSettings.tva_pct = lire('reglage-tva', 20, 30);
   userSettings.devis_validite_jours = Math.round(lire('reglage-validite', 30, 365, 1));
+  { const v = parseFloat(String(document.getElementById('reglage-objectif').value).replace(',', '.')); userSettings.objectif_ca_mensuel = isFinite(v) && v > 0 ? Math.round(v) : null; }
   userSettings.mail_ton_defaut = document.getElementById('reglage-ton').value === 'familier' ? 'familier' : 'pro';
   userSettings.mail_signature = document.getElementById('reglage-signature').value.trim().slice(0, 400);
   userSettings.prestations = readPrestas();
@@ -2463,6 +2466,38 @@ function renderDash() {
     + dashCard((dv.ca_accepte || 0).toLocaleString('fr-FR') + ' €', 'CA estimé (devis acceptés, HT)', 'var(--accent)')
     + `</div>`;
 
+  // Chiffre d'affaires : graphique 12 mois + objectif + marge matière + panier moyen
+  {
+    const objectif = Number(userSettings.objectif_ca_mensuel) || 0;
+    const moisCourant = new Date().toISOString().slice(0, 7);
+    const caCourant = ((d.ca_par_mois || []).find(m => m.mois === moisCourant) || {}).ca || 0;
+    let inner = `<div style="overflow-x:auto;"><canvas id="dash-ca-chart" width="960" height="150" style="width:100%;max-width:960px;height:auto;display:block;"></canvas></div>`;
+    if (objectif > 0) {
+      const pct = Math.min(100, Math.round(caCourant / objectif * 100));
+      inner += `<div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+          <span>Objectif du mois : ${objectif.toLocaleString('fr-FR')} €</span>
+          <span style="color:${pct >= 100 ? 'var(--accent)' : 'var(--text)'};font-weight:700;">${caCourant.toLocaleString('fr-FR')} € (${pct} %)${pct >= 100 ? ' 🎉' : ''}</span>
+        </div>
+        <div style="height:9px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${pct >= 100 ? 'var(--accent)' : '#4a8af0'};transition:width .3s;"></div>
+        </div></div>`;
+    }
+    const badges2 = [];
+    if (d.panier_moyen) badges2.push(`Panier moyen : <b style="color:var(--accent);">${d.panier_moyen.toLocaleString('fr-FR')} €</b>`);
+    if (d.marge && d.marge.ca_base > 0) {
+      const margeBrute = d.marge.ca_base - d.marge.cout_matiere;
+      const pctM = Math.round(margeBrute / d.marge.ca_base * 100);
+      badges2.push(`Marge matière (sur ${d.marge.nb} commande${d.marge.nb > 1 ? 's' : ''} acceptée${d.marge.nb > 1 ? 's' : ''}) : <b style="color:${pctM >= 50 ? 'var(--accent)' : '#f0a030'};">${pctM} %</b> <span style="${muted}">(${margeBrute.toLocaleString('fr-FR')} € après ${d.marge.cout_matiere.toLocaleString('fr-FR')} € de matière)</span>`);
+    }
+    if (badges2.length) inner += `<div style="display:flex;gap:22px;flex-wrap:wrap;font-size:12px;margin-top:12px;">${badges2.map(b => `<span>${b}</span>`).join('')}</div>`;
+    inner += `<div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="exportAnalysesCSV()">⬇ Analyses CSV</button>
+      <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="exportClientsCSV()">⬇ Clients CSV</button>
+    </div>`;
+    html += dashSection('📈 Chiffre d\'affaires (devis acceptés, 12 mois)', inner);
+  }
+
   // Devis à relancer
   html += dashSection(`📮 Devis à relancer <span style="${muted}font-weight:400;">(envoyés il y a plus de ${d.relance_jours} jours, sans réponse)</span>`,
     (d.relances || []).length
@@ -2521,6 +2556,71 @@ function renderDash() {
   // Étiquette de semaine (calculée dans dashPlanningHTML)
   const wl = document.getElementById('dash-week-label');
   if (wl && window._dashWeekLabel) wl.textContent = window._dashWeekLabel;
+  drawCaChart();
+}
+
+// Graphique CA 12 mois — barres dessinées à la main (aucune librairie)
+function drawCaChart() {
+  const cv = document.getElementById('dash-ca-chart');
+  if (!cv || !_dashData || !(_dashData.ca_par_mois || []).length) return;
+  const ctx = cv.getContext('2d');
+  const serie = _dashData.ca_par_mois;
+  const W = cv.width, H = cv.height, padB = 26, padT = 20;
+  ctx.clearRect(0, 0, W, H);
+  const max = Math.max(...serie.map(m => m.ca), 1);
+  const bw = Math.floor(W / serie.length);
+  const css = getComputedStyle(document.documentElement);
+  const accent = (css.getPropertyValue('--accent') || '#c8f04a').trim();
+  const mutedC = (css.getPropertyValue('--muted') || '#8a8f80').trim();
+  const MOIS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  serie.forEach((m, i) => {
+    const h = Math.round((H - padB - padT) * m.ca / max);
+    const x = i * bw + Math.round(bw * 0.18), w = Math.round(bw * 0.64);
+    const estCourant = m.mois === new Date().toISOString().slice(0, 7);
+    ctx.fillStyle = m.ca > 0 ? (estCourant ? accent : accent + '77') : 'rgba(128,128,128,0.14)';
+    const hh = m.ca > 0 ? Math.max(h, 3) : 2;
+    ctx.fillRect(x, H - padB - hh, w, hh);
+    // valeur au-dessus de la barre
+    if (m.ca > 0) {
+      ctx.fillStyle = estCourant ? accent : mutedC;
+      ctx.font = '600 11px "DM Mono", monospace';
+      ctx.textAlign = 'center';
+      const lbl = m.ca >= 1000 ? (m.ca / 1000).toFixed(1).replace('.', ',') + 'k' : String(Math.round(m.ca));
+      ctx.fillText(lbl, x + w / 2, H - padB - hh - 6);
+    }
+    // mois
+    ctx.fillStyle = mutedC;
+    ctx.font = '10px "DM Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(MOIS[parseInt(m.mois.slice(5), 10) - 1] || '', x + w / 2, H - 10);
+  });
+}
+
+// Exports CSV : analyses + clients (pour tableur / compta)
+function exportAnalysesCSV() {
+  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const DV = { envoye: 'Envoyé', accepte: 'Accepté', refuse: 'Refusé' };
+  const lignes = [['Date', 'Titre', 'Client', 'Source', 'Étape', 'Devis', 'Total devis', 'Facture'].join(';')];
+  for (const h of historique.filter(x => !x._pending && !x._failed && x.result)) {
+    const tot = h.devis && h.devis.lignes ? h.devis.lignes.reduce((s, l) => s + ((l.option && !l.option_choisie) ? 0 : (l.perso != null ? l.perso : Number(l.total) || 0)), 0) : '';
+    lignes.push([esc((h.created_at || '').slice(0, 10)), esc(h.result.titre || ''), esc(h.client_email || ''),
+      h.source === 'email' ? 'Mail' : 'Manuel', esc(h.job_status ? (JOB_STAGES[h.job_status] || {}).short || h.job_status : ''),
+      DV[h.devis_status] || '', tot !== '' ? String(tot.toFixed(2)).replace('.', ',') : '', esc(h.facture_num || '')].join(';'));
+  }
+  const blob = new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  _downloadBlob(blob, `analyses-${new Date().toISOString().slice(0, 10)}.csv`);
+}
+function exportClientsCSV() {
+  const rows = (_dashData && _dashData.clients) || [];
+  if (!rows.length) { alert('Aucun client identifié pour le moment.'); return; }
+  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lignes = [['Client', 'Demandes', 'Devis acceptés', 'En attente', 'Refusés', 'CA accepté', 'Dernier contact'].join(';')];
+  for (const c of rows) {
+    lignes.push([esc(c.client_email), c.nb, c.acceptes || 0, c.en_attente || 0, c.refuses || 0,
+      String((c.ca || 0).toFixed(2)).replace('.', ','), esc((c.dernier || '').slice(0, 10))].join(';'));
+  }
+  const blob = new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  _downloadBlob(blob, `clients-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 // Grille lundi→dimanche de la semaine courante + décalage _dashWeek

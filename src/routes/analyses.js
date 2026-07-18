@@ -199,6 +199,40 @@ router.get('/dashboard', (req, res) => {
   }
   for (const c of clients) c.ca = Math.round((caParClient[c.client_email] || 0) * 100) / 100;
 
+  // CA par mois (12 derniers) + marge matière réelle sur les devis acceptés
+  const stockPrix = {};
+  for (const s of db.prepare('SELECT nom, prix_m2 FROM stock WHERE user_id=?').all(oid)) stockPrix[s.nom] = s.prix_m2;
+  const caMois = {};
+  let coutMatiere = 0, caBaseMarge = 0, nbMarge = 0;
+  for (const r of db.prepare("SELECT devis_json, result_json, COALESCE(devis_sent_at, created_at) AS d FROM analyses WHERE user_id=? AND devis_status='accepte'").all(oid)) {
+    const tot = totalDevis(r.devis_json);
+    const mois = String(r.d || '').slice(0, 7);
+    if (mois) caMois[mois] = (caMois[mois] || 0) + tot;
+    // Coût matière : surface du montage × prix au m² du stock (principal + complément)
+    try {
+      const rj = JSON.parse(r.result_json || '{}');
+      const m = rj.montage || {};
+      const surf = (Number(m.largeur_cm) > 0 && Number(m.hauteur_cm) > 0)
+        ? Number(m.largeur_cm) * Number(m.hauteur_cm) * (Number(m.quantite) || 1) / 10000 : 0;
+      if (surf > 0) {
+        let cout = 0, trouve = false;
+        for (const ad of (rj.adhesifs || [])) {
+          if ((ad.priorite === 'principal' || ad.priorite === 'complement') && stockPrix[ad.nom] != null) {
+            cout += surf * Number(stockPrix[ad.nom]); trouve = true;
+          }
+        }
+        if (trouve) { coutMatiere += cout; caBaseMarge += tot; nbMarge++; }
+      }
+    } catch {}
+  }
+  const ca_par_mois = [];
+  const maintenant = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const dt = new Date(maintenant.getFullYear(), maintenant.getMonth() - i, 1);
+    const k = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+    ca_par_mois.push({ mois: k, ca: Math.round((caMois[k] || 0) * 100) / 100 });
+  }
+
   // Factures émises : suivi payée / en attente / en retard (30 jours)
   const factures = db.prepare(`
     SELECT id, facture_num, facture_at, facture_payee_at, client_email, devis_json, result_json
@@ -214,6 +248,13 @@ router.get('/dashboard', (req, res) => {
     analyses_mois, analyses_total,
     devis: { ...devis, ca_accepte: Math.round(ca_accepte * 100) / 100 },
     relances, poses, clients, factures, relance_jours: RELANCE_JOURS,
+    ca_par_mois,
+    marge: nbMarge > 0 ? {
+      nb: nbMarge,
+      cout_matiere: Math.round(coutMatiere * 100) / 100,
+      ca_base: Math.round(caBaseMarge * 100) / 100,
+    } : null,
+    panier_moyen: devis.accepte > 0 ? Math.round(ca_accepte / devis.accepte * 100) / 100 : null,
   });
 });
 
