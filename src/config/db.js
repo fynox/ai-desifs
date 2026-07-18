@@ -145,6 +145,7 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN devis_vu_at TEXT',           // 1re ouverture de la page par le client
   'ALTER TABLE analyses ADD COLUMN devis_signature_b64 TEXT',   // signature électronique (bon pour accord)
   'ALTER TABLE analyses ADD COLUMN devis_client_commentaire TEXT',
+  'ALTER TABLE analyses ADD COLUMN facture_payee_at TEXT',      // date d encaissement (suivi payee / en retard)
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

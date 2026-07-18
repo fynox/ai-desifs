@@ -97,6 +97,7 @@ router.get('/', (req, res) => {
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       devis_status, devis_sent_at, client_email, facture_num,
       devis_vu_at, devis_client_commentaire, devis_public_token, (devis_signature_b64 IS NOT NULL) as devis_signe,
+      facture_at, facture_payee_at,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
@@ -145,7 +146,8 @@ router.get('/dashboard', (req, res) => {
     try {
       const d = JSON.parse(dj || 'null');
       if (!d || !Array.isArray(d.lignes)) return 0;
-      return d.lignes.reduce((s, l) => s + (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0), 0);
+      // Options non retenues par le client : hors total
+      return d.lignes.reduce((s, l) => s + ((l.option && !l.option_choisie) ? 0 : (l.perso != null ? Number(l.perso) || 0 : Number(l.total) || 0)), 0);
     } catch { return 0; }
   };
   const titreDe = (rj, id) => { try { return JSON.parse(rj || '{}').titre || 'Analyse #' + id; } catch { return 'Analyse #' + id; } };
@@ -197,10 +199,21 @@ router.get('/dashboard', (req, res) => {
   }
   for (const c of clients) c.ca = Math.round((caParClient[c.client_email] || 0) * 100) / 100;
 
+  // Factures émises : suivi payée / en attente / en retard (30 jours)
+  const factures = db.prepare(`
+    SELECT id, facture_num, facture_at, facture_payee_at, client_email, devis_json, result_json
+    FROM analyses WHERE user_id=? AND facture_num IS NOT NULL ORDER BY facture_at DESC LIMIT 200
+  `).all(oid).map(r => ({
+    id: r.id, num: r.facture_num, date: r.facture_at, payee_at: r.facture_payee_at,
+    client_email: r.client_email, titre: titreDe(r.result_json, r.id),
+    total: Math.round(totalDevis(r.devis_json) * 100) / 100,
+    en_retard: !r.facture_payee_at && r.facture_at && (Date.now() - new Date(r.facture_at + 'Z').getTime()) > 30 * 864e5,
+  }));
+
   res.json({
     analyses_mois, analyses_total,
     devis: { ...devis, ca_accepte: Math.round(ca_accepte * 100) / 100 },
-    relances, poses, clients, relance_jours: RELANCE_JOURS,
+    relances, poses, clients, factures, relance_jours: RELANCE_JOURS,
   });
 });
 
@@ -774,6 +787,18 @@ router.post('/:id/devis-lien', (req, res) => {
   }
   const APP_URL = process.env.APP_URL || 'https://ai-dhesif.fr';
   res.json({ url: `${APP_URL}/d/${token}` });
+});
+
+// Statut d'encaissement d'une facture (payée / en attente) — patron + secrétariat
+router.patch('/:id/facture-statut', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, facture_num FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  if (!item.facture_num) return res.status(400).json({ error: 'Aucune facture sur cette analyse.' });
+  if (req.body.payee) db.prepare("UPDATE analyses SET facture_payee_at = datetime('now') WHERE id = ?").run(item.id);
+  else db.prepare('UPDATE analyses SET facture_payee_at = NULL WHERE id = ?').run(item.id);
+  res.json({ ok: true, payee: Boolean(req.body.payee) });
 });
 
 // Suivi commercial du devis : envoyé au client / accepté / refusé (patron + secrétariat)

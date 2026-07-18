@@ -2337,9 +2337,29 @@ function renderDash() {
           <span style="${muted}">${r.client_email || ''}</span>
           <span style="${muted}">envoyé le ${fmtD(r.devis_sent_at)}</span>
           ${r.total ? `<span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);">${r.total.toFixed(2)} €</span>` : ''}
+          <button class="btn-cancel" style="font-size:11px;padding:4px 10px;color:var(--accent);border-color:var(--accent-dim);" onclick="relanceRapide(${r.id})" title="Mail de relance prérédigé, prêt à envoyer (gratuit)">✉ Relancer</button>
           <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="dashOpenAnalyse(${r.id})">Ouvrir</button>
         </div>`).join('')
       : `<span style="${muted}">Aucun devis en attente de relance 👍</span>`);
+
+  // Factures : encaissements à suivre + export comptable
+  const facts = d.factures || [];
+  if (facts.length) {
+    const enAttente = facts.filter(f => !f.payee_at);
+    html += dashSection(`🧾 Factures <span style="${muted}font-weight:400;">(${enAttente.length} en attente d'encaissement)</span>
+        <span style="float:right;"><button class="btn-cancel" style="font-size:11px;padding:3px 10px;" onclick="exportFacturesCSV()" title="CSV pour le comptable : numéro, date, client, HT, TVA, TTC, statut">⬇ Export CSV</button></span>`,
+      facts.slice(0, 15).map(f => `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+          <span style="font-family:'DM Mono',monospace;font-size:12px;">${f.num}</span>
+          <span style="flex:1;min-width:120px;font-size:12.5px;">${f.titre}</span>
+          <span style="${muted}">${f.client_email || ''}</span>
+          <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);">${f.total.toFixed(2)} €</span>
+          ${f.payee_at
+            ? `<span style="font-size:10.5px;font-weight:700;color:#4ecd7b;">💰 payée le ${fmtD(f.payee_at)}</span>`
+            : `<span style="font-size:10.5px;font-weight:700;color:${f.en_retard ? 'var(--danger)' : '#f0a030'};">${f.en_retard ? '⚠ EN RETARD (+30 j)' : '⏳ en attente'}</span>
+               <button class="btn-cancel" style="font-size:11px;padding:4px 10px;" onclick="toggleFacturePayee(${f.id}, true)">💰 Payée</button>
+               <button class="btn-cancel" style="font-size:11px;padding:4px 10px;color:#f0a030;border-color:#f0a03066;" onclick="relancePaiement(${f.id})" title="Mail de rappel de règlement prérédigé">✉ Relancer</button>`}
+        </div>`).join(''));
+  }
 
   // Stock bas (calculé depuis le stock chargé — patron)
   const bas = (stock || []).filter(isStockBas);
@@ -5050,6 +5070,12 @@ function renderDevisSuivi(id) {
     ? `<button onclick="genererFacture(${id})" title="${item && item.facture_num ? 'Retélécharger la facture ' + item.facture_num : 'Attribue un numéro définitif et télécharge le PDF'}"
         style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:700;background:var(--accent);color:#111;border:1px solid var(--accent);">🧾 ${item && item.facture_num ? item.facture_num : 'Générer la facture'}</button>`
     : '')
+  // Facture émise → suivi de l'encaissement
+  + (item && item.facture_num
+    ? (item.facture_payee_at
+      ? `<button onclick="toggleFacturePayee(${id}, false)" title="Encaissée le ${new Date(item.facture_payee_at).toLocaleDateString('fr-FR')} — cliquer pour repasser en attente" style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;font-weight:700;background:#4ecd7b;color:#111;border:1px solid #4ecd7b;">💰 Payée</button>`
+      : `<button onclick="toggleFacturePayee(${id}, true)" title="Cliquer quand le règlement est encaissé" style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;background:none;color:#f0a030;border:1px solid #f0a030;">💰 Marquer payée</button>`)
+    : '')
   // Lien public : le client accepte/refuse/signe en ligne sur /d/:token
   + `<button onclick="copierLienDevis(${id})" id="btn-lien-devis" title="Le client ouvre ce lien sans compte : il voit le devis, coche les options, signe et accepte (ou refuse) en ligne — le statut se met à jour tout seul"
       style="font-size:11.5px;padding:5px 12px;border-radius:20px;cursor:pointer;background:none;color:var(--text);border:1px solid var(--border);">🔗 Lien client</button>`;
@@ -5060,6 +5086,93 @@ function renderDevisSuivi(id) {
   if (item && item.devis_signe) badges.push(`<span title="Signature électronique enregistrée (bon pour accord)" style="font-size:10.5px;color:var(--accent);">✍ Signé en ligne</span>`);
   if (item && item.devis_client_commentaire) badges.push(`<span style="font-size:10.5px;color:var(--muted);">💬 « ${String(item.devis_client_commentaire).slice(0, 120)} »</span>`);
   if (badges.length) btns.innerHTML += `<div style="flex-basis:100%;display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">${badges.join('')}</div>`;
+}
+
+// Bascule payée / en attente sur la facture
+async function toggleFacturePayee(id, payee) {
+  try {
+    await api('PATCH', `/analyses/${id}/facture-statut`, { payee });
+    const item = historique.find(a => a.id === id);
+    if (item) item.facture_payee_at = payee ? new Date().toISOString() : null;
+    try { renderDevisSuivi(id); } catch {}
+    if (_dashData) { const f = (_dashData.factures || []).find(x => x.id === id); if (f) { f.payee_at = payee ? new Date().toISOString() : null; f.en_retard = false; } renderDash(); }
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
+// Relance devis prérédigée (sans coût IA) — ouvre la fenêtre mail prête à envoyer
+function relanceRapide(id) {
+  const item = historique.find(a => a.id === id);
+  const titre = (item && item.result && item.result.titre) || 'votre projet';
+  _relanceId = id;
+  document.getElementById('relance-to').value = (item && item.client_email) || '';
+  document.getElementById('relance-objet').value = `Votre devis — ${titre}`;
+  const signature = (userSettings.mail_signature || '').trim();
+  document.getElementById('relance-corps').value =
+`Bonjour,
+
+Nous vous avons transmis récemment un devis pour « ${titre} » et souhaitions savoir s'il vous convenait ou si vous aviez des questions.
+
+Nous restons à votre disposition pour ajuster la proposition si besoin.
+
+Bien cordialement${signature ? '\n\n' + signature : ''}`;
+  document.getElementById('relance-error').textContent = '';
+  document.getElementById('relance-copied').style.display = 'none';
+  document.getElementById('relance-sent').style.display = 'none';
+  const aDevis = item && item.devis && (item.devis.lignes || []).length;
+  document.getElementById('relance-attach-wrap').style.display = aDevis ? 'flex' : 'none';
+  document.getElementById('relance-attach').checked = Boolean(aDevis);
+  document.getElementById('relance-lien-wrap').style.display = aDevis ? 'flex' : 'none';
+  document.getElementById('relance-lien').checked = Boolean(aDevis);
+  const b = document.getElementById('btn-envoyer-relance');
+  if (b) { b.disabled = false; b.textContent = '📤 Envoyer maintenant'; }
+  closeDash();
+  document.getElementById('modal-relance').classList.add('open');
+}
+
+// Relance de paiement de facture prérédigée
+function relancePaiement(id) {
+  const item = historique.find(a => a.id === id);
+  const f = _dashData ? (_dashData.factures || []).find(x => x.id === id) : null;
+  const num = (item && item.facture_num) || (f && f.num) || '';
+  const total = f ? f.total.toFixed(2).replace('.', ',') + ' €' : '';
+  _relanceId = id;
+  document.getElementById('relance-to').value = (item && item.client_email) || (f && f.client_email) || '';
+  document.getElementById('relance-objet').value = `Rappel — facture ${num} en attente de règlement`;
+  const signature = (userSettings.mail_signature || '').trim();
+  document.getElementById('relance-corps').value =
+`Bonjour,
+
+Sauf erreur de notre part, la facture ${num}${total ? ' (' + total + ' HT)' : ''} reste en attente de règlement.
+
+Merci de procéder au paiement à réception de ce message, ou de nous contacter si vous rencontrez une difficulté.
+
+Bien cordialement${signature ? '\n\n' + signature : ''}`;
+  document.getElementById('relance-error').textContent = '';
+  document.getElementById('relance-copied').style.display = 'none';
+  document.getElementById('relance-sent').style.display = 'none';
+  document.getElementById('relance-attach-wrap').style.display = 'none';
+  document.getElementById('relance-lien-wrap').style.display = 'none';
+  const b = document.getElementById('btn-envoyer-relance');
+  if (b) { b.disabled = false; b.textContent = '📤 Envoyer maintenant'; }
+  closeDash();
+  document.getElementById('modal-relance').classList.add('open');
+}
+
+// Export CSV des factures (pour le comptable)
+function exportFacturesCSV() {
+  const rows = (_dashData && _dashData.factures) || [];
+  if (!rows.length) { alert('Aucune facture émise pour le moment.'); return; }
+  const tvaPct = Number(userSettings.tva_pct) || 0;
+  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lignes = [['Numéro', 'Date', 'Client', 'Objet', 'Total HT', 'TVA %', 'Total TTC', 'Statut', 'Payée le'].join(';')];
+  for (const f of rows) {
+    const ttc = tvaPct > 0 ? f.total * (1 + tvaPct / 100) : f.total;
+    lignes.push([esc(f.num), esc((f.date || '').slice(0, 10)), esc(f.client_email || ''), esc(f.titre),
+      f.total.toFixed(2).replace('.', ','), tvaPct, ttc.toFixed(2).replace('.', ','),
+      f.payee_at ? 'Payée' : (f.en_retard ? 'En retard' : 'En attente'), esc((f.payee_at || '').slice(0, 10))].join(';'));
+  }
+  const blob = new Blob(['﻿' + lignes.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  _downloadBlob(blob, `factures-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 async function copierLienDevis(id) {
