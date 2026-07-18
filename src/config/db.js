@@ -147,6 +147,9 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN devis_client_commentaire TEXT',
   'ALTER TABLE analyses ADD COLUMN facture_payee_at TEXT',      // date d encaissement (suivi payee / en retard)
   'ALTER TABLE stock ADD COLUMN chutes TEXT DEFAULT \'[]\'',    // chutes réutilisables [{l_cm, h_cm, note}]
+  // Bon de réception signé par le client sur le téléphone du poseur (fin de pose)
+  'ALTER TABLE analyses ADD COLUMN job_signature_b64 TEXT',
+  'ALTER TABLE analyses ADD COLUMN job_signature_nom TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

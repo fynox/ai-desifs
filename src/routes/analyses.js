@@ -351,6 +351,12 @@ router.patch('/:id/job-status', (req, res) => {
     if (photos.length) db.prepare('UPDATE analyses SET job_photos_json=? WHERE id=?').run(JSON.stringify(photos), item.id);
   }
 
+  // Bon de réception : signature du client sur place (fin de pose)
+  if (typeof req.body.signature_b64 === 'string' && req.body.signature_b64.startsWith('data:image/') && req.body.signature_b64.length < 300000) {
+    db.prepare('UPDATE analyses SET job_signature_b64=?, job_signature_nom=? WHERE id=?')
+      .run(req.body.signature_b64, String(req.body.signature_nom || '').trim().slice(0, 120) || null, item.id);
+  }
+
   db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(status, item.id);
 
   // Pose terminée pour la PREMIÈRE fois → décompte automatique du stock utilisé
@@ -391,13 +397,13 @@ router.patch('/:id/job-status', (req, res) => {
   res.json({ ok: true, status });
 });
 
-// Photos de fin de pose (patron + employés affectés)
+// Photos de fin de pose + bon de réception signé (patron + employés affectés)
 router.get('/:id/job-photos', (req, res) => {
-  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, job_photos_json FROM analyses WHERE id = ?').get(req.params.id);
+  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_photos_json, job_signature_b64, job_signature_nom FROM analyses WHERE id = ?').get(req.params.id);
   if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
   let photos = [];
   try { photos = item.job_photos_json ? JSON.parse(item.job_photos_json) : []; } catch {}
-  res.json({ photos });
+  res.json({ photos, signature: item.job_signature_b64 || null, signature_nom: item.job_signature_nom || null });
 });
 
 // Note du préparateur pour le poseur (précisions sur les lés, la pose...) — préparateur affecté ou patron

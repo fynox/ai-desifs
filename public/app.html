@@ -917,6 +917,15 @@ textarea:focus { border-color: var(--accent); }
       <button class="btn-cancel" style="width:100%;font-size:12px;" onclick="document.getElementById('pose-photos-input').click()">📷 Ajouter des photos</button>
       <div id="pose-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
     </div>
+    <div style="margin-top:12px;">
+      <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:6px;">✍ Signature du client sur place <span style="text-transform:none;letter-spacing:0;">(optionnel — bon de réception, conservé sur le dossier)</span></div>
+      <input type="text" id="pose-sig-nom" class="devis-inp" placeholder="Nom du signataire (ex : M. Dupont, gérant)" style="margin-bottom:6px;">
+      <div style="border:2px dashed var(--border);border-radius:10px;background:var(--surface2);position:relative;">
+        <canvas id="pose-sig" width="640" height="130" style="display:block;width:100%;height:110px;touch-action:none;cursor:crosshair;"></canvas>
+        <div id="pose-sig-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;pointer-events:none;">Le client signe ici (au doigt)</div>
+        <button type="button" onclick="clearPoseSig()" style="position:absolute;top:6px;right:6px;background:var(--surface);border:1px solid var(--border);border-radius:7px;font-size:10.5px;padding:3px 8px;cursor:pointer;color:var(--muted);">Effacer</button>
+      </div>
+    </div>
     <div class="auth-error" id="pose-fini-error"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closePoseFini()">Annuler</button>
@@ -1510,6 +1519,7 @@ const ROLE_TO_STAGE = { designer: 'a_creer', preparateur: 'a_preparer', poseur: 
 async function openTransfert(id) {
   _poseFiniId = id; _posePhotos = [];
   renderPosePhotos();
+  initPoseSig();
   document.getElementById('pose-fini-error').textContent = '';
   document.getElementById('pose-photos-input').value = '';
   const host = document.getElementById('transfert-options');
@@ -1554,6 +1564,39 @@ function renderPosePhotos() {
     `<div style="position:relative"><img src="${src}" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)"><button type="button" onclick="removePosePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:none;background:var(--danger,#f06060);color:#fff;font-size:11px;line-height:1;cursor:pointer">✕</button></div>`
   ).join('');
 }
+// Pavé de signature client (bon de réception sur place)
+let _poseSigDirty = false;
+function initPoseSig() {
+  const cv = document.getElementById('pose-sig');
+  if (!cv || cv._sigInit) { clearPoseSig(); return; }
+  cv._sigInit = true;
+  const ctx = cv.getContext('2d');
+  ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#f2f4ee';
+  let draw = false, last = null;
+  const pos = ev => { const r = cv.getBoundingClientRect(); return { x: (ev.clientX - r.left) * cv.width / r.width, y: (ev.clientY - r.top) * cv.height / r.height }; };
+  cv.addEventListener('pointerdown', ev => { draw = true; last = pos(ev); cv.setPointerCapture(ev.pointerId); });
+  cv.addEventListener('pointermove', ev => {
+    if (!draw) return;
+    const p = pos(ev);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last = p; _poseSigDirty = true;
+    document.getElementById('pose-sig-hint').style.display = 'none';
+  });
+  cv.addEventListener('pointerup', () => { draw = false; });
+  cv.addEventListener('pointercancel', () => { draw = false; });
+  clearPoseSig();
+}
+function clearPoseSig() {
+  const cv = document.getElementById('pose-sig');
+  if (!cv) return;
+  cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+  _poseSigDirty = false;
+  const h = document.getElementById('pose-sig-hint');
+  if (h) h.style.display = 'flex';
+  const n = document.getElementById('pose-sig-nom');
+  if (n) n.value = '';
+}
+
 async function validerTransfert() {
   const sel = document.querySelector('input[name="transfert-choice"]:checked');
   if (!sel) { document.getElementById('pose-fini-error').textContent = 'Choisis une destination.'; return; }
@@ -1561,7 +1604,21 @@ async function validerTransfert() {
   const btn = document.getElementById('btn-pose-fini');
   btn.disabled = true; btn.textContent = 'Envoi…';
   try {
-    await api('PATCH', `/analyses/${_poseFiniId}/job-status`, { status, to_emp_id: empId || null, photos: _posePhotos });
+    const body = { status, to_emp_id: empId || null, photos: _posePhotos };
+    // Bon de réception : signature sur fond blanc, lisible partout
+    if (_poseSigDirty) {
+      const cv = document.getElementById('pose-sig');
+      const out = document.createElement('canvas');
+      out.width = cv.width; out.height = cv.height;
+      const c2 = out.getContext('2d');
+      c2.fillStyle = '#ffffff'; c2.fillRect(0, 0, out.width, out.height);
+      // le trait clair du thème sombre est réencré en noir
+      c2.filter = 'invert(1)';
+      c2.drawImage(cv, 0, 0);
+      body.signature_b64 = out.toDataURL('image/png');
+      body.signature_nom = document.getElementById('pose-sig-nom').value.trim();
+    }
+    await api('PATCH', `/analyses/${_poseFiniId}/job-status`, body);
     const item = historique.find(h => h.id === _poseFiniId);
     if (item) { item.job_status = status; if (_posePhotos.length) item.has_job_photos = 1; }
     closePoseFini();
@@ -1580,9 +1637,16 @@ async function loadJobPhotos(id) {
   host.innerHTML = '<span style="font-size:11px;color:var(--muted);">Chargement…</span>';
   try {
     const r = await api('GET', `/analyses/${id}/job-photos`);
-    host.innerHTML = (r.photos || []).length
+    let html = (r.photos || []).length
       ? r.photos.map(p => `<img src="${p}" style="width:130px;height:130px;object-fit:cover;border-radius:9px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`).join('')
       : '<span style="font-size:11px;color:var(--muted);">Aucune photo jointe.</span>';
+    if (r.signature) {
+      html += `<div style="flex-basis:100%;margin-top:8px;">
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:4px;">✍ Bon de réception signé sur place${r.signature_nom ? ' par <b style="color:var(--text);">' + r.signature_nom + '</b>' : ''}</div>
+        <img src="${r.signature}" style="max-width:260px;background:#fff;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;" onclick="zoomVisuel(this.src)">
+      </div>`;
+    }
+    host.innerHTML = html;
   } catch (e) { host.innerHTML = `<span style="font-size:11px;color:var(--danger);">${e.message}</span>`; }
 }
 
@@ -2743,8 +2807,46 @@ function dashClientsHTML() {
 let historique = [];
 
 async function loadHistorique() {
-  try { historique = await api('GET', '/analyses'); } catch { historique = []; }
+  try {
+    historique = await api('GET', '/analyses');
+    sauverSnapshotOffline();
+  } catch { historique = []; }
   renderSidebarHisto();
+}
+
+// ----- Mode hors-ligne (poseur sur chantier sans réseau) -----
+// Un instantané léger des dossiers est gardé en local : si l'app démarre sans réseau,
+// elle s'ouvre quand même en LECTURE SEULE avec les missions et leurs infos de pose.
+function sauverSnapshotOffline() {
+  try {
+    const light = historique.filter(h => !h._pending && !h._failed && h.result).slice(0, 80).map(h => ({
+      id: h.id, created_at: h.created_at, client_email: h.client_email,
+      job_date: h.job_date, job_lieu: h.job_lieu, job_status: h.job_status,
+      prep_note: h.prep_note, my_stages: h.my_stages, devis_status: h.devis_status,
+      source: h.source, lu: true,
+      result: {
+        titre: h.result.titre, resume: h.result.resume, adhesifs: h.result.adhesifs,
+        specs: h.result.specs, preparation: h.result.preparation, pose: h.result.pose,
+        attention: h.result.attention, montage: h.result.montage,
+      },
+    }));
+    localStorage.setItem('aidesif_offline', JSON.stringify({ at: Date.now(), items: light }));
+  } catch {} // quota plein → tant pis, pas bloquant
+}
+function demarrerModeOffline() {
+  let snap = null;
+  try { snap = JSON.parse(localStorage.getItem('aidesif_offline') || 'null'); } catch {}
+  if (!snap || !Array.isArray(snap.items) || !snap.items.length) return false;
+  historique = snap.items;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  renderSidebarHisto();
+  const b = document.createElement('div');
+  b.id = 'offline-banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:900;background:#f0a030;color:#111;font-family:Syne,sans-serif;font-size:12.5px;font-weight:700;text-align:center;padding:7px 12px;padding-top:calc(7px + env(safe-area-inset-top,0px));';
+  b.innerHTML = `📴 Mode hors ligne — consultation seule (missions du ${new Date(snap.at).toLocaleDateString('fr-FR')}). <a onclick="location.reload()" style="text-decoration:underline;cursor:pointer;color:#111;">Réessayer</a>`;
+  document.body.appendChild(b);
+  return true;
 }
 
 async function deleteHisto(e, id) {
@@ -4051,7 +4153,8 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     missionBanner = `<div style="margin-bottom:12px;padding:12px 16px;border:1px solid var(--accent);border-radius:12px;background:#141f03;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="font-size:12px;font-weight:700;color:var(--accent);">🗂 Ta mission : ${monRole}</span>
       ${jobItem.job_date ? `<span style="font-size:12px;">📅 ${jobItem.job_date}</span>` : ''}
-      ${jobItem.job_lieu ? `<span style="font-size:12px;">📍 ${jobItem.job_lieu}</span>` : ''}
+      ${jobItem.job_lieu ? `<span style="font-size:12px;">📍 ${jobItem.job_lieu}</span>
+      <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(jobItem.job_lieu)}" target="_blank" rel="noopener" style="font-size:11.5px;font-weight:700;color:#4a8af0;border:1px solid #4a8af066;border-radius:20px;padding:3px 11px;text-decoration:none;" title="Ouvre l'itinéraire GPS vers le lieu de pose">🧭 Y aller</a>` : ''}
       <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">${JOB_LABELS[st] || ''}</span>
       ${nextBtn}
     </div>`;
@@ -5060,8 +5163,15 @@ if ('serviceWorker' in navigator) {
     try {
       const s = JSON.parse(savedSession);
       // Vérifier que le token est encore valide
-      const res = await fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + savedToken } });
-      if (res.ok) {
+      let res;
+      try {
+        res = await fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + savedToken } });
+      } catch {
+        // Pas de réseau : on n'invalide PAS la session — mode hors-ligne en lecture seule
+        if (demarrerModeOffline()) return;
+        res = null;
+      }
+      if (res && res.ok) {
         const profile = await res.json();
         userPlan = profile.plan || 'free';
         userPlanPeriod = profile.plan_period || 'monthly';
@@ -5070,7 +5180,10 @@ if ('serviceWorker' in navigator) {
         await startSession(savedToken, profile.email || s.email, profile.subscription_status || s.status, profile.trial_analyses_used ?? s.used, profile.inbound_email || s.iEmail);
         return;
       }
+      // Pas de réseau et pas d'instantané : on garde la session pour le prochain démarrage
+      if (!res) { switchAuthTab('login'); return; }
     } catch {}
+    // Token réellement invalide/expiré (réponse du serveur) → déconnexion propre
     localStorage.removeItem('aidesif_token');
     localStorage.removeItem('aidesif_session');
   }
