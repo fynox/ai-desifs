@@ -171,6 +171,22 @@ Réponds UNIQUEMENT en JSON valide :
     const imageFiles = files.filter(f => f.mimetype && f.mimetype.startsWith('image/'));
     const pdfFiles = files.filter(f => f.mimetype === 'application/pdf' || f.originalname?.endsWith('.pdf'));
 
+    // Briefs complexes (.pptx / .docx) — fonctionnalité Pro et supérieur :
+    // on extrait le texte (specs, quantités, matières) + les images (rendus 3D, maquettes)
+    const { extractOffice, isOfficeFile } = require('../utils/officeExtract');
+    const { checkFeature } = require('../utils/limits');
+    const officeFiles = files.filter(isOfficeFile);
+    const briefOk = !checkFeature(user, 'brief_complexe');
+    let briefTexte = '';
+    const briefImages = [];
+    if (officeFiles.length && briefOk) {
+      for (const of of officeFiles.slice(0, 2)) {
+        const ext = extractOffice(of.buffer, of.originalname);
+        if (ext.texts) briefTexte += `\n\n[CONTENU DU BRIEF JOINT « ${of.originalname || 'brief'} »] :\n${ext.texts}`;
+        briefImages.push(...ext.images);
+      }
+    }
+
     // Fichiers joints via lien Google Drive : Gmail insère un LIEN, pas une pièce jointe.
     if (!imageFiles.length && !pdfFiles.length) {
       const driveIds = [...new Set(
@@ -204,21 +220,33 @@ Réponds UNIQUEMENT en JSON valide :
     // Tous les visuels ORIGINAUX (pleine qualité, conservés pour l'export) — jusqu'à 6 — avec nom + dims
     const { shrinkForApi } = require('../utils/image');
     const visuels = [];
-    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype, ...parseDims(img.originalname) });
+    for (const img of imageFiles) visuels.push({ b64: img.buffer.toString('base64'), type: img.mimetype, name: img.originalname || undefined, ...parseDims(img.originalname) });
     for (const pdf of pdfFiles) {
       const pages = await pdfToImages(pdf.buffer);
       const dims = parseDims(pdf.originalname);
       pages.forEach((p, idx) => visuels.push({ b64: p.data, type: 'image/png', ...(idx === 0 ? dims : {}) }));
     }
+    // Images extraites des briefs pptx/docx (rendus, maquettes) — souvent des références, l'IA tranchera
+    for (const bi of briefImages) visuels.push({ b64: bi.buffer.toString('base64'), type: bi.mimetype, name: bi.originalname, ...parseDims(bi.originalname) });
     const allVisuels = visuels.slice(0, 6);
+
+    // Bloc de classification des fichiers (Pro et +) : distinguer production et référence
+    const rolesBloc = (briefOk && allVisuels.length > 1) ? `
+
+RÔLE DES FICHIERS (IMPORTANT) : certains fichiers joints ne sont PAS à imprimer. Classe CHAQUE image numérotée (dans l'ordre exact où elles te sont fournies) :
+- "imprimer" = fichier de PRODUCTION : le visuel/logo/motif à imprimer ou découper.
+- "reference" = ne s'imprime PAS : rendu 3D ou maquette du résultat final, photo du lieu/support existant, page de brief avec zones annotées (A/B/C...) ou tableau de spécifications, plan. Ces fichiers servent à comprendre la demande, préparer le travail et guider le poseur sur site.
+Indices "reference" : mise en scène en perspective, personnages, mobilier, plusieurs produits visibles dans un décor, annotations/lettres de zones, tableaux de texte.
+Renseigne "fichiers":[{"n":1,"role":"imprimer|reference","note":"raison en 3-6 mots"}] pour CHAQUE image, dans l'ordre. Le "montage" (dimensions, lés, quantité) ne concerne QUE les fichiers "imprimer". Utilise les fichiers "reference" pour enrichir le résumé et les conseils de pose (emplacement, hauteur, environnement).` : '';
 
     // Récap fichiers (noms + tailles) pour informer l'IA
     const filesList = allVisuels.filter(v => v.name).map((v, i) => `Fichier ${i + 1}: ${v.name}${v.w && v.h ? ` (${v.w}×${v.h} mm)` : ''}`).join('\n');
 
     // Pour l'IA : copie réduite si > 8000 px (l'original stocké reste intact)
+    const mailContentFinal = (mailContent + briefTexte).slice(0, 9000);
     const userContent = [{ type: 'text', text: allVisuels.length > 1
-      ? `${mailContent}\n\n[${allVisuels.length} fichiers joints à cette demande — analyse-les tous. Ce sont des visuels distincts à imprimer (souvent de TAILLES DIFFÉRENTES — voir les noms de fichiers).${filesList ? '\nFichiers :\n' + filesList : ''}\nListe-les dans le résumé avec leur taille si connue.]`
-      : `${mailContent}${filesList ? '\n\n[Fichier joint : ' + filesList + ']' : ''}` }];
+      ? `${mailContentFinal}\n\n[${allVisuels.length} fichiers joints à cette demande — analyse-les tous${briefOk ? ' et classe chacun (imprimer/reference)' : '. Ce sont des visuels distincts à imprimer'} (souvent de TAILLES DIFFÉRENTES — voir les noms de fichiers).${filesList ? '\nFichiers :\n' + filesList : ''}\nListe-les dans le résumé avec leur taille si connue.]`
+      : `${mailContentFinal}${filesList ? '\n\n[Fichier joint : ' + filesList + ']' : ''}` }];
     for (const v of allVisuels) {
       const s = await shrinkForApi(Buffer.from(v.b64, 'base64'), v.type);
       userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
@@ -229,7 +257,7 @@ Réponds UNIQUEMENT en JSON valide :
       claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt, messages: [{ role: 'user', content: userContent }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt + rolesBloc, messages: [{ role: 'user', content: userContent }] }),
       });
     } catch (e) { failItem('Impossible de joindre l\'API Anthropic.'); return; }
 
@@ -245,11 +273,28 @@ Réponds UNIQUEMENT en JSON valide :
     if (!result.adhesifs || !result.specs) { failItem('Structure de réponse incomplète.'); return; }
     if (mailOverQuota) consumeJetons(user, JETON_COSTS.analyse_extra, 'analyse_extra');
 
+    // Rôles des fichiers (Pro+) : reportés sur les visuels stockés (imprimer / reference)
+    if (briefOk && Array.isArray(result.fichiers)) {
+      for (const f of result.fichiers) {
+        const v = allVisuels[Number(f.n) - 1];
+        if (v) {
+          v.role = f.role === 'reference' ? 'reference' : 'imprimer';
+          if (f.note) v.role_note = String(f.note).slice(0, 120);
+        }
+      }
+    }
+    // Brief joint mais forfait insuffisant → on le signale clairement (upsell honnête)
+    if (officeFiles.length && !briefOk) {
+      result.attention = [result.attention, 'Un brief PowerPoint/Word était joint mais n\'a pas été analysé : l\'analyse des briefs complexes (lecture des specs, tri fichiers à imprimer / rendus) est disponible à partir du forfait Pro.'].filter(Boolean).join(' — ');
+    }
+
     // Stocker tous les visuels (sauf si le quota de stockage est plein)
     let visuel_b64 = null, visuel_type = null, visuelsToStore = [];
     const storageFull = (() => { try { return require('../utils/storage').isStorageFull(user.id); } catch { return false; } })();
     if (!storageFull && allVisuels.length) {
-      visuel_b64 = allVisuels[0].b64; visuel_type = allVisuels[0].type;
+      // Vignette principale : le premier fichier À IMPRIMER (jamais un rendu de référence si possible)
+      const firstPrint = allVisuels.find(v => v.role !== 'reference') || allVisuels[0];
+      visuel_b64 = firstPrint.b64; visuel_type = firstPrint.type;
       visuelsToStore = allVisuels;
     }
     const visuelsJson = visuelsToStore.length > 1 ? JSON.stringify(visuelsToStore) : null;
@@ -269,11 +314,11 @@ Réponds UNIQUEMENT en JSON valide :
     if (pendingId) {
       db.prepare(
         "UPDATE analyses SET result_json=?, status='done', error_msg=NULL, visuel_b64=?, visuel_type=?, visuels_json=?, mail_content=?, client_email=? WHERE id=?"
-      ).run(JSON.stringify(result), visuel_b64, visuel_type, visuelsJson, mailContent, clientEmail, pendingId);
+      ).run(JSON.stringify(result), visuel_b64, visuel_type, visuelsJson, mailContentFinal, clientEmail, pendingId);
     } else {
       db.prepare(
         'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type, visuels_json, client_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(user.id, mailContent, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson, clientEmail);
+      ).run(user.id, mailContentFinal, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson, clientEmail);
     }
     emitToOwnerTeam(user.id, 'analyse_done', { analyse_id: pendingId || null });
   } catch (e) {

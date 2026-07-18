@@ -7,6 +7,7 @@ const FEATURE_NAMES = {
   upscale: 'amélioration HD',
   import_catalogue: 'import de catalogue',
   mail_inbound: 'adresse mail dédiée',
+  brief_complexe: 'analyse de brief complexe (PowerPoint/Word, tri fichiers à imprimer / rendus)',
 };
 
 // Plan effectif. Abonné → son plan (s'il est valide) ; sinon 'free' (0 jeton) ; essai gratuit → 'smart'.

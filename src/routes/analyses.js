@@ -1016,7 +1016,11 @@ Réponds UNIQUEMENT en JSON valide :
   const finalSystem = systemPrompt + forceLine;
 
   const { shrinkForApi } = require('../utils/image');
+  const { extractOffice } = require('../utils/officeExtract');
   const userContent = [{ type: 'text', text: `Mail client :\n${mail_content}${consignes ? `\n\nConsignes : ${consignes}` : ''}` }];
+  const briefOk = !checkFeature(user, 'brief_complexe');
+  let briefVisuels = null; // visuels extraits d'un brief pptx/docx uploadé (stockés ensuite)
+  let nbImages = 0;
   if (reItem) {
     // Relance : on réutilise les visuels déjà stockés sur l'analyse
     let storedVis = [];
@@ -1026,12 +1030,36 @@ Réponds UNIQUEMENT en JSON valide :
       if (!v.b64 || !(v.type || '').startsWith('image/')) continue;
       const s = await shrinkForApi(Buffer.from(v.b64, 'base64'), v.type);
       userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
+      nbImages++;
     }
   } else if (file_base64 && file_type && file_type.startsWith('image/')) {
     // Pour l'IA : copie réduite si > 8000 px (l'original uploadé reste stocké intact)
     const s = await shrinkForApi(Buffer.from(file_base64, 'base64'), file_type);
     userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
+    nbImages++;
+  } else if (file_base64 && /officedocument\.(presentationml|wordprocessingml)/.test(file_type || '')) {
+    // Brief PowerPoint/Word uploadé directement — Pro et supérieur
+    const ftB = checkFeature(user, 'brief_complexe');
+    if (ftB) return res.status(403).json(ftB);
+    const ext = extractOffice(Buffer.from(file_base64, 'base64'), req.body.file_name || 'brief');
+    if (!ext.images.length && !ext.texts) return res.status(400).json({ error: 'Impossible de lire ce fichier PowerPoint/Word (aucun contenu exploitable).' });
+    if (ext.texts) userContent[0].text += `\n\n[CONTENU DU BRIEF JOINT (PowerPoint/Word)] :\n${ext.texts}`;
+    briefVisuels = [];
+    for (const im of ext.images) {
+      const s = await shrinkForApi(im.buffer, im.mimetype);
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: s.type, data: s.b64 } });
+      briefVisuels.push({ b64: im.buffer.toString('base64'), type: im.mimetype, name: im.originalname });
+      nbImages++;
+    }
   }
+
+  // Classification des fichiers (Pro+) quand il y a plusieurs images : production vs référence
+  const rolesBloc = (briefOk && nbImages > 1) ? `
+
+RÔLE DES FICHIERS (IMPORTANT) : certains fichiers ne sont PAS à imprimer. Classe CHAQUE image numérotée (dans l'ordre fourni) :
+- "imprimer" = fichier de PRODUCTION (visuel/logo/motif à imprimer ou découper).
+- "reference" = ne s'imprime PAS : rendu 3D ou maquette du résultat final, photo du lieu/support, page de brief (zones annotées A/B/C, tableau de specs), plan. Sert à comprendre, préparer et guider le poseur.
+Renseigne "fichiers":[{"n":1,"role":"imprimer|reference","note":"raison en 3-6 mots"}] pour CHAQUE image. Le "montage" ne concerne QUE les fichiers "imprimer". Utilise les "reference" pour enrichir le résumé et les conseils de pose.` : '';
 
   let claudeRes;
   try {
@@ -1045,7 +1073,7 @@ Réponds UNIQUEMENT en JSON valide :
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 2000,
-        system: finalSystem,
+        system: finalSystem + rolesBloc,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
@@ -1082,12 +1110,31 @@ Réponds UNIQUEMENT en JSON valide :
     const analyse = db.prepare('SELECT * FROM analyses WHERE id = ?').get(reItem.id);
     let visuels = [];
     try { visuels = reItem.visuels_json ? JSON.parse(reItem.visuels_json) : []; } catch {}
+    // Rôles des fichiers (Pro+) : la relance peut (re)classer les visuels stockés
+    if (briefOk && Array.isArray(result.fichiers) && visuels.length > 1) {
+      for (const f of result.fichiers) {
+        const v = visuels[Number(f.n) - 1];
+        if (v) { v.role = f.role === 'reference' ? 'reference' : 'imprimer'; if (f.note) v.role_note = String(f.note).slice(0, 120); }
+      }
+      db.prepare('UPDATE analyses SET visuels_json = ? WHERE id = ?').run(JSON.stringify(visuels), reItem.id);
+    }
     return res.json({ ...analyse, result, visuels, lu: false });
   }
 
   // Stocker le visuel ORIGINAL en pleine qualité (export fidèle)
-  let visuel_b64 = null, visuel_type = null;
-  if (file_base64 && file_type) {
+  let visuel_b64 = null, visuel_type = null, visuels_json = null;
+  if (briefVisuels && briefVisuels.length) {
+    // Brief pptx/docx : rôles de l'IA reportés, vignette = premier fichier à imprimer si possible
+    if (Array.isArray(result.fichiers)) {
+      for (const f of result.fichiers) {
+        const v = briefVisuels[Number(f.n) - 1];
+        if (v) { v.role = f.role === 'reference' ? 'reference' : 'imprimer'; if (f.note) v.role_note = String(f.note).slice(0, 120); }
+      }
+    }
+    const firstPrint = briefVisuels.find(v => v.role !== 'reference') || briefVisuels[0];
+    visuel_b64 = firstPrint.b64; visuel_type = firstPrint.type;
+    if (briefVisuels.length > 1) visuels_json = JSON.stringify(briefVisuels);
+  } else if (file_base64 && file_type) {
     if (file_type.startsWith('image/')) {
       visuel_b64 = file_base64; visuel_type = file_type;
     } else if (file_type === 'application/pdf') {
@@ -1097,8 +1144,8 @@ Réponds UNIQUEMENT en JSON valide :
   }
 
   const inserted = db.prepare(
-    'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(req.user.id, mail_content.slice(0, 5000), consignes, JSON.stringify(result), 'manual', visuel_b64, visuel_type);
+    'INSERT INTO analyses (user_id, mail_content, consignes, result_json, source, visuel_b64, visuel_type, visuels_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(req.user.id, mail_content.slice(0, 5000), consignes, JSON.stringify(result), 'manual', visuel_b64, visuel_type, visuels_json);
 
   const analyse = db.prepare('SELECT * FROM analyses WHERE id = ?').get(inserted.lastInsertRowid);
   res.json({ ...analyse, result, lu: false });

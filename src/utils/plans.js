@@ -29,6 +29,7 @@ const FEATURE_MIN_PLAN = {
   mail_inbound: 'pro',
   admin_panel: 'entreprise',
   multi_user: 'entreprise',
+  brief_complexe: 'pro',   // briefs PowerPoint/Word + tri fichiers à imprimer / rendus de référence
 };
 
 // Packs de jetons (achat ponctuel via Stripe)

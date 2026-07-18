@@ -635,7 +635,7 @@ textarea:focus { border-color: var(--accent); }
           <div class="field-group">
             <label class="field-label">Fichier joint</label>
             <div class="file-drop" id="file-drop">
-              <input type="file" id="file-input" accept="image/*,.pdf,.ai,.eps,.svg">
+              <input type="file" id="file-input" accept="image/*,.pdf,.ai,.eps,.svg,.pptx,.docx">
               <div class="file-drop-icon">📎</div>
               <p>Glisse le fichier ici ou clique pour parcourir</p>
               <div class="file-name-display" id="file-name"></div>
@@ -2717,20 +2717,25 @@ fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.style.
 fileDrop.addEventListener('dragleave', () => { fileDrop.style.borderColor = ''; });
 fileDrop.addEventListener('drop', e => { e.preventDefault(); fileDrop.style.borderColor = ''; if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 
+let uploadedFileName = null;
 function handleFile(f) {
   fileNameEl.textContent = f.name;
   document.getElementById('btn-remove-file').style.display = 'inline-block';
-  uploadedFileBase64 = null; uploadedFileType = null;
+  uploadedFileBase64 = null; uploadedFileType = null; uploadedFileName = f.name;
   const r = new FileReader();
   r.onload = ev => {
     uploadedFileBase64 = ev.target.result.split(',')[1];
-    uploadedFileType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+    uploadedFileType = f.type
+      || (f.name.endsWith('.pdf') ? 'application/pdf'
+        : f.name.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        : f.name.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/octet-stream');
   };
   r.readAsDataURL(f);
 }
 
 function removeFile(e) {
-  e.stopPropagation(); uploadedFileBase64 = null; uploadedFileType = null;
+  e.stopPropagation(); uploadedFileBase64 = null; uploadedFileType = null; uploadedFileName = null;
   fileNameEl.textContent = ''; fileInput.value = '';
   document.getElementById('btn-remove-file').style.display = 'none';
 }
@@ -2765,6 +2770,7 @@ async function analyzeRequest() {
       consignes: document.getElementById('consignes-input').value.trim(),
       file_base64: uploadedFileBase64,
       file_type: uploadedFileType,
+      file_name: uploadedFileName,
     });
     if (subscriptionStatus === 'trial') { trialUsed++; renderTrialBanner(); }
     historique = historique.filter(h => !h._pending);
@@ -3524,17 +3530,36 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         : '';
       const inlineBtns = vOwner ? '' : toolsBtns; // employés : outils sous l'image ; patron : onglet Préparation
       if (Array.isArray(visuels) && visuels.length > 1) {
-        // Plusieurs fichiers (souvent de tailles différentes) : chacun avec sa taille + son bouton plan de lés
+        // Plusieurs fichiers : séparés en PRODUCTION (à imprimer) et RÉFÉRENCE (rendus, maquettes, briefs — non imprimés)
         window._visuels = visuels;
-        const grid = visuels.map((v, i) => `<div style="flex:1;min-width:130px;max-width:200px;text-align:center;">
-            <img src="data:${v.type};base64,${v.b64}" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">
+        const carte = (v, i, ref) => `<div style="flex:1;min-width:130px;max-width:200px;text-align:center;">
+            <div style="position:relative;">
+              <img src="data:${v.type};base64,${v.b64}" style="width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid ${ref ? '#c8a04a88' : 'var(--border)'};background:#111;cursor:zoom-in;${ref ? 'opacity:.92;' : ''}" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">
+              ${ref ? '<span style="position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:700;background:#c8a04a;color:#111;border-radius:5px;padding:2px 7px;">👁 RENDU</span>' : ''}
+            </div>
             <div style="font-size:11px;color:var(--text);margin-top:5px;font-weight:600;">${v.name ? v.name.replace(/\.[^.]+$/, '').slice(-22) : 'Fichier ' + (i + 1)}</div>
-            <div style="font-size:10px;color:${v.w && v.h ? 'var(--accent)' : 'var(--muted)'};font-family:'DM Mono',monospace;">${v.w && v.h ? v.w + '×' + v.h + ' mm' : 'taille ?'}</div>
-            <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="planPourFichier(${i})">📐 Plan de lés</button>
+            ${ref
+              ? `<div style="font-size:10px;color:#c8a04a;font-family:'DM Mono',monospace;">${v.role_note || 'référence — ne pas imprimer'}</div>`
+              : `<div style="font-size:10px;color:${v.w && v.h ? 'var(--accent)' : 'var(--muted)'};font-family:'DM Mono',monospace;">${v.w && v.h ? v.w + '×' + v.h + ' mm' : 'taille ?'}</div>
+            <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="planPourFichier(${i})">📐 Plan de lés</button>`}
             <button class="btn-stock" style="font-size:10px;padding:4px 10px;margin-top:5px;" onclick="openExportVisuel(${analyseId}, ${i})" title="Télécharger ce fichier en PNG, JPG, PDF taille réelle ou AI">⬇ Exporter</button>
-          </div>`).join('');
-        previewTitle = `${visuels.length} fichiers à imprimer`;
-        previewInner = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${grid}</div><div id="dpi-check"></div>${inlineBtns}`;
+          </div>`;
+        const prints = visuels.map((v, i) => ({ v, i })).filter(x => x.v.role !== 'reference');
+        const refs = visuels.map((v, i) => ({ v, i })).filter(x => x.v.role === 'reference');
+        const gridPrints = `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${prints.map(x => carte(x.v, x.i, false)).join('')}</div>`;
+        const gridRefs = refs.length
+          ? `<div style="margin-top:16px;border:1px dashed #c8a04a66;border-radius:10px;padding:12px;">
+              <div style="font-size:11px;font-weight:700;color:#c8a04a;margin-bottom:8px;">👁 Références du client — à NE PAS imprimer (rendu attendu, brief, photo du lieu)</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${refs.map(x => carte(x.v, x.i, true)).join('')}</div>
+            </div>` : '';
+        // Upsell : plusieurs fichiers sans classification et forfait sous Pro
+        const briefUpsell = (!refs.length && !visuels.some(v => v.role) && !['pro', 'ultra', 'entreprise'].includes(userPlan))
+          ? `<div style="margin-top:12px;font-size:11px;color:var(--muted);border:1px dashed var(--border);border-radius:8px;padding:9px 12px;">🎯 <b style="color:var(--text);">Forfait Pro :</b> l'IA lit les briefs PowerPoint/Word et distingue automatiquement les fichiers à imprimer des maquettes/rendus — <a href="/pricing" style="color:var(--accent);">voir les forfaits</a></div>`
+          : '';
+        previewTitle = refs.length
+          ? `${prints.length} fichier${prints.length > 1 ? 's' : ''} à imprimer + ${refs.length} référence${refs.length > 1 ? 's' : ''}`
+          : `${visuels.length} fichiers à imprimer`;
+        previewInner = `${gridPrints}${gridRefs}${briefUpsell}<div id="dpi-check"></div>${inlineBtns}`;
       } else {
         previewInner = `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:300px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir"><div id="dpi-check"></div>${inlineBtns}`;
       }
@@ -3780,6 +3805,14 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const bonProdBtn = (analyseId && analyseId !== '_pending' && (vOwner || vPrep))
     ? `<div style="padding:16px 0 6px;"><button class="btn-stock" id="btn-bon-prod" style="width:100%;margin:0;font-size:12.5px;padding:11px 14px;" onclick="genererBonProduction(${analyseId})" title="Fiche A4 pour l'atelier : visuel, matière, dimensions, checklist de préparation à cocher, note pour le poseur">🖨 Bon de production — fiche atelier à imprimer (PDF)</button></div>`
     : '';
+  // Rendu attendu (fichiers "référence" du client) : montré au poseur pour visualiser le résultat sur site
+  const refsVis = Array.isArray(visuels) ? visuels.filter(v => v.role === 'reference') : [];
+  const secRendu = refsVis.length
+    ? accSection('Rendu attendu sur site (référence client)', `
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">Fournies par le client pour visualiser le résultat final — ces images ne s'impriment pas.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${refsVis.map(v => `<img src="data:${v.type};base64,${v.b64}" style="max-height:200px;max-width:240px;object-fit:contain;border-radius:8px;border:1px solid #c8a04a66;background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="${(v.role_note || '').replace(/"/g, '&quot;')} — cliquer pour agrandir">`).join('')}</div>`,
+      { icon: '🎯', open: true })
+    : '';
   let corps;
   if (vOwner) {
     // Le préparateur/patron doit VOIR le visuel sur lequel il travaille (pas seulement les boutons)
@@ -3790,7 +3823,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         : `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;margin:0 auto 6px;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`;
     }
     const tabPrep = ((prepVisuel || toolsBtns) ? accSection('Visuel & outils', prepVisuel + toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection + bonProdBtn;
-    const tabPose = ownerNoteView + secPoseChk + secPhotos;
+    const tabPose = secRendu + ownerNoteView + secPoseChk + secPhotos;
     corps = `
       <div style="display:flex;gap:8px;margin:2px 0 14px;">
         <button class="rtab active" id="rtab-btn-analyse" onclick="switchResultTab('analyse')">📝 Analyse</button>
@@ -3801,7 +3834,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       <div id="rtab-prep" style="display:none">${tabPrep || tabVide('préparation')}</div>
       <div id="rtab-pose" style="display:none">${tabPose || tabVide('pose')}</div>`;
   } else {
-    corps = `${secResume}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
+    corps = `${secResume}${vPose ? secRendu : ''}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
   }
 
   const panel = document.getElementById('output-panel');
