@@ -150,7 +150,7 @@ router.put('/profile', requireAuth, async (req, res) => {
   }
 
   if (settings && typeof settings === 'object') {
-    db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(settings).slice(0, 2000), user.id);
+    db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(settings).slice(0, 8000), user.id);
     changed = true;
   }
 

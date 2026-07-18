@@ -1046,6 +1046,13 @@ textarea:focus { border-color: var(--accent); }
     </div>
 
     <div class="reg-card">
+      <div class="reg-title">💶 Mes prestations & tarifs</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Tes tarifs fixes (pose, déplacement, échenillage…). L'IA les utilise <b>tels quels</b> dans les devis au lieu d'estimer, et tu peux les ajouter en 1 clic dans l'éditeur de devis.</div>
+      <div id="prestas-rows"></div>
+      <button type="button" onclick="addPrestaRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;">+ Ajouter une prestation</button>
+    </div>
+
+    <div class="reg-card">
       <div class="reg-title">📱 Sur ton téléphone — appli web</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Installe AI-dhésif sur l'écran d'accueil de ton téléphone : le site s'ouvre alors comme une vraie appli, en plein écran, avec le logo. Pratique pour consulter les missions sur chantier.</div>
       <div id="pwa-installed" style="display:none;font-size:12.5px;color:var(--accent);margin-bottom:10px;">✓ Tu utilises déjà l'appli installée sur cet appareil.</div>
@@ -1673,10 +1680,54 @@ function openReglages() {
   document.getElementById('reglage-ton').value = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
   document.getElementById('reglage-signature').value = userSettings.mail_signature || '';
   document.getElementById('reglages-success').style.display = 'none';
+  renderPrestasRows();
   initPwaCard();
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== CATALOGUE DE PRESTATIONS (réglages) =====================
+function renderPrestasRows() {
+  const wrap = document.getElementById('prestas-rows');
+  if (!wrap) return;
+  const prestas = Array.isArray(userSettings.prestations) ? userSettings.prestations : [];
+  wrap.innerHTML = prestas.map((p, i) => prestaRowHTML(p, i)).join('') ||
+    '<div style="font-size:11px;color:var(--muted);">Aucune prestation — ajoute par exemple « Pose sur site » à 45 €/h ou « Forfait déplacement » à 30 €.</div>';
+}
+function prestaRowHTML(p, i) {
+  const esc = s => String(s || '').replace(/"/g, '&quot;');
+  return `<div class="presta-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+    <input class="devis-inp presta-nom" placeholder="Nom (ex : Pose sur site)" value="${esc(p.nom)}" style="flex:2;min-width:150px;margin:0;">
+    <input class="devis-inp presta-prix" type="number" min="0" step="0.5" placeholder="Prix €" value="${p.prix != null ? p.prix : ''}" style="width:84px;margin:0;">
+    <select class="devis-inp presta-unite" style="width:92px;margin:0;">
+      ${['forfait', 'h', 'm²', 'ml', 'unité'].map(u => `<option value="${u}"${(p.unite || 'forfait') === u ? ' selected' : ''}>${u}</option>`).join('')}
+    </select>
+    <button onclick="this.parentElement.remove()" title="Supprimer" style="background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:2px 6px;">×</button>
+  </div>`;
+}
+function addPrestaRow() {
+  const wrap = document.getElementById('prestas-rows');
+  if (!wrap) return;
+  if (wrap.querySelector('.presta-row') === null) wrap.innerHTML = '';
+  wrap.insertAdjacentHTML('beforeend', prestaRowHTML({ nom: '', prix: '', unite: 'forfait' }, 99));
+  const rows = wrap.querySelectorAll('.presta-nom');
+  rows[rows.length - 1].focus();
+}
+function readPrestas() {
+  return [...document.querySelectorAll('#prestas-rows .presta-row')].map(r => ({
+    nom: r.querySelector('.presta-nom').value.trim(),
+    prix: parseFloat(r.querySelector('.presta-prix').value),
+    unite: r.querySelector('.presta-unite').value,
+  })).filter(p => p.nom && isFinite(p.prix) && p.prix >= 0).slice(0, 30);
+}
+// Ajout d'une ligne de devis depuis le catalogue
+function addDevisLignePresta(i) {
+  const p = (userSettings.prestations || [])[i];
+  if (!p) return;
+  recomputeDevisTotal();
+  _devisData.lignes.push({ designation: p.nom, details: p.unite && p.unite !== 'forfait' ? `Tarif : ${p.prix} € / ${p.unite}` : '', quantite: '1', total: Number(p.prix), prix_unitaire: Number(p.prix), perso: null });
+  renderDevisLignes();
+}
 
 // ===================== CARTE "APPLI SUR TÉLÉPHONE" (réglages) =====================
 // Chrome/Android propose une installation directe : on capture l'invitation pour
@@ -1735,6 +1786,7 @@ async function saveReglages() {
   userSettings.devis_validite_jours = Math.round(lire('reglage-validite', 30, 365, 1));
   userSettings.mail_ton_defaut = document.getElementById('reglage-ton').value === 'familier' ? 'familier' : 'pro';
   userSettings.mail_signature = document.getElementById('reglage-signature').value.trim().slice(0, 400);
+  userSettings.prestations = readPrestas();
   try {
     await api('PUT', '/auth/profile', { settings: userSettings });
     document.getElementById('reglages-success').style.display = 'block';
@@ -5027,6 +5079,10 @@ function afficherDevis(d, id) {
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('vecto')">＋ Vectorisation</button>
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;" onclick="addDevisLigne('libre')">＋ Ligne libre</button>
       <button class="btn-cancel" style="font-size:11px;padding:6px 12px;color:#f0a030;border-color:#f0a03066;" onclick="addDevisRemise()">－ Remise</button>
+      ${(userSettings.prestations || []).length ? `<select onchange="if(this.value!==''){addDevisLignePresta(+this.value);this.value='';}" class="devis-inp" style="max-width:230px;margin:0;font-size:11px;" title="Tes tarifs enregistrés dans les réglages">
+        <option value="">💶 Mon catalogue…</option>
+        ${userSettings.prestations.map((p, i) => `<option value="${i}">${String(p.nom).replace(/</g, '&lt;')} — ${p.prix} €${p.unite && p.unite !== 'forfait' ? '/' + p.unite : ''}</option>`).join('')}
+      </select>` : ''}
     </div>
     <div style="text-align:right;margin-top:14px;font-size:16px;font-weight:700;">Total : <span id="dv-total-live" style="color:var(--accent);">—</span> € HT</div>
     <div id="dv-suivi" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
