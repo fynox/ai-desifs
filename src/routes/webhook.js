@@ -131,7 +131,9 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
         const varTxt = vars.length
           ? ' | variantes disponibles (UNIQUEMENT ces combinaisons couleur/laize): ' + vars.map(v => `${v.couleur || 'standard'}${v.largeur ? ' en ' + normCm(v.largeur) + ' cm' : ''}`).join(', ')
           : (lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : '');
-        return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${varTxt}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${i.note ? ' | ' + i.note : ''}`;
+        const chs = JSON.parse(i.chutes || '[]').filter(c => c && Number(c.l_cm) > 0 && Number(c.h_cm) > 0);
+        const chTxt = chs.length ? ' | CHUTES réutilisables en stock: ' + chs.map(c => `${c.l_cm}×${c.h_cm} cm`).join(', ') : '';
+        return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${varTxt}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${chTxt}${i.note ? ' | ' + i.note : ''}`;
       }).join('\n');
     }).filter(Boolean).join('\n\n');
 
@@ -156,6 +158,8 @@ REGLE ABSOLUE D'IMPRESSION : pour TOUTE impression d'un visuel (logo, photo, fon
 
 STOCK DISPONIBLE :
 ${stockDesc}
+
+CHUTES : certaines references listent des CHUTES reutilisables (morceaux de rouleau deja entames, dimensions en cm). Si le visuel demande (avec son debord) TIENT dans une chute listee, ajoute dans "preparation" une etape explicite : 'Utiliser la chute de X×Y cm de [reference] au lieu d entamer un rouleau neuf (economie matiere).'. Ne le fais QUE si ca tient reellement.
 
 MONTAGE : largeur_cm et hauteur_cm = dimensions EXPLICITEMENT données par le client dans le mail, converties en cm. Ne devine JAMAIS une dimension a partir de l'image (tu n'en vois qu'une copie reduite) : si le client ne donne que la hauteur, mets largeur_cm a null (et inversement). Si le client dit 'echelle 1', 'taille reelle' ou 'scale 1' SANS chiffres, mets largeur_cm ET hauteur_cm a null : l'imprimeur saisira la taille reelle lui-meme. quantite = nombre d'exemplaires IDENTIQUES demandes par le client (ex: '500 stickers', 'tirage de 200' -> 500 ou 200). Mets 1 si un seul exemplaire est demande. laize_cm = la laize la plus adaptée EN CENTIMÈTRES (ex: 152 pour un rouleau de 1520 mm, jamais de valeur en mm) parmi celles de l'adhésif recommandé dans le stock (null si non renseignées). nb_les et sens_les : null si une dimension manque. Si tu reperes des reperes/traits de decoupe (petits traits noirs ou croix dans les angles du fichier), ajoute IMPERATIVEMENT une etape dans "preparation" : 'Reperes de decoupe presents dans les angles du fichier — decouper en les suivant (ne pas les rogner).'. debord_mm = marge de debord de pose autour du visuel : mets 0 si le client dit 'pas de bords tournants', 'echelle 1', 'taille reelle', ou si des reperes de decoupe sont presents (la coupe suit le fichier) ; sinon mets null (marge par defaut de l'utilisateur). Ne parle JAMAIS de nombre de les, de laize ou de raccords dans "preparation" ou "attention" : un plan de lés visuel est déjà affiché automatiquement à l'utilisateur.
 

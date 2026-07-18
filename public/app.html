@@ -654,6 +654,16 @@ textarea:focus { border-color: var(--accent); }
   </main>
 </div>
 
+<!-- MODAL CONTRÔLE FICHIER -->
+<div class="modal-overlay" id="modal-controle" onclick="if(event.target===this)closeControle()">
+  <div class="modal" style="max-width:620px;width:94vw">
+    <h3 style="margin-bottom:4px;">🔬 Contrôle fichier avant impression</h3>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Vérification technique des fichiers de production (les références client ne sont pas contrôlées).</div>
+    <div id="controle-body"></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeControle()">Fermer</button></div>
+  </div>
+</div>
+
 <!-- KANBAN PRODUCTION OVERLAY -->
 <div class="stock-overlay" id="kanban-overlay" onclick="if(event.target===this)closeKanban()">
   <div class="stock-panel">
@@ -736,6 +746,11 @@ textarea:focus { border-color: var(--accent); }
       <div style="flex:1"><label>Seuil d'alerte stock bas (m²)</label><input type="number" id="modal-seuil" placeholder="Ex: 10" min="0" step="0.1" style="width:100%"></div>
     </div>
     <div style="font-size:10px;color:var(--muted);margin:-6px 0 10px;">💡 Si tu renseignes les deux, un badge ⚠ « stock bas » apparaît dès que la quantité passe sous le seuil (pense à mettre la quantité à jour après tes tirages).</div>
+    <div class="form-group" id="fg-chutes"><label>♻ Chutes réutilisables (optionnel)</label>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Fins de rouleau et morceaux entamés : l'IA proposera automatiquement de les utiliser quand un visuel y tient (économie de matière).</div>
+      <div id="chutes-rows"></div>
+      <button type="button" onclick="addChuteRow()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:5px 11px;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--muted);cursor:pointer;">+ Ajouter une chute</button>
+    </div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-submit" id="modal-submit" onclick="saveAdhesif()">Ajouter</button></div>
   </div>
 </div>
@@ -2191,6 +2206,7 @@ function openModal(cat) {
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-quantite').value = '';
   document.getElementById('modal-seuil').value = '';
+  renderChuteRows([]);
   document.getElementById('modal-finition').value = 'Brillant';
   toggleEncreFields();
   document.getElementById('modal').classList.add('open');
@@ -2224,6 +2240,7 @@ function openEditModal(id) {
   document.getElementById('modal-prix').value = item.prix_m2 || '';
   document.getElementById('modal-quantite').value = item.quantite_m2 != null ? item.quantite_m2 : '';
   document.getElementById('modal-seuil').value = item.seuil_alerte != null ? item.seuil_alerte : '';
+  renderChuteRows(item.chutes || []);
   toggleEncreFields();
   document.getElementById('modal').classList.add('open');
 }
@@ -2236,7 +2253,7 @@ async function saveAdhesif() {
   if (!nom) { document.getElementById('modal-nom').focus(); return; }
   const isEncre = document.getElementById('modal-cat').value === 'encre';
   const numOrNull = id => { const v = document.getElementById(id).value.trim(); const n = parseFloat(v); return v !== '' && isFinite(n) ? n : null; };
-  const qte = { quantite_m2: numOrNull('modal-quantite'), seuil_alerte: numOrNull('modal-seuil') };
+  const qte = { quantite_m2: numOrNull('modal-quantite'), seuil_alerte: numOrNull('modal-seuil'), chutes: readChutes() };
   const body = isEncre ? {
     cat: 'encre',
     nom,
@@ -2295,6 +2312,31 @@ async function toggleDispo(id, val) {
   } catch (e) { alert(e.message); }
 }
 
+// ----- Chutes réutilisables (fiche stock) -----
+function chuteRowHTML(c) {
+  return `<div class="chute-row" style="display:flex;gap:6px;align-items:center;margin-bottom:5px;">
+    <input class="devis-inp chute-l" type="number" min="1" step="1" placeholder="Largeur cm" value="${c && c.l_cm != null ? c.l_cm : ''}" style="width:105px;margin:0;">
+    <span style="color:var(--muted);font-size:12px;">×</span>
+    <input class="devis-inp chute-h" type="number" min="1" step="1" placeholder="Longueur cm" value="${c && c.h_cm != null ? c.h_cm : ''}" style="width:105px;margin:0;">
+    <span style="color:var(--muted);font-size:11px;">cm</span>
+    <button onclick="this.parentElement.remove()" title="Retirer (chute utilisée/jetée)" style="background:none;border:none;color:var(--danger);font-size:15px;cursor:pointer;padding:2px 6px;">×</button>
+  </div>`;
+}
+function renderChuteRows(chutes) {
+  const wrap = document.getElementById('chutes-rows');
+  if (wrap) wrap.innerHTML = (chutes || []).map(chuteRowHTML).join('');
+}
+function addChuteRow() {
+  const wrap = document.getElementById('chutes-rows');
+  if (wrap) { wrap.insertAdjacentHTML('beforeend', chuteRowHTML(null)); const l = wrap.querySelectorAll('.chute-l'); l[l.length - 1].focus(); }
+}
+function readChutes() {
+  return [...document.querySelectorAll('#chutes-rows .chute-row')].map(r => ({
+    l_cm: parseFloat(r.querySelector('.chute-l').value),
+    h_cm: parseFloat(r.querySelector('.chute-h').value),
+  })).filter(c => isFinite(c.l_cm) && isFinite(c.h_cm) && c.l_cm > 0 && c.h_cm > 0).slice(0, 20);
+}
+
 // Un adhésif est "stock bas" si quantité ET seuil sont renseignés et quantité ≤ seuil
 function isStockBas(item) {
   return item.quantite_m2 != null && item.seuil_alerte != null && Number(item.quantite_m2) <= Number(item.seuil_alerte);
@@ -2315,8 +2357,10 @@ function renderList(cat, items) {
     const stockBas = isStockBas(item);
     const qteHTML = item.quantite_m2 != null
       ? `<span class="spec-tag" style="${stockBas ? 'color:var(--danger);border-color:var(--danger);font-weight:700;' : ''}">${stockBas ? '⚠ Stock bas : ' : '📦 '}${item.quantite_m2} m²${item.seuil_alerte != null ? ' / seuil ' + item.seuil_alerte : ''}</span>` : '';
+    const chutesHTML = (item.chutes || []).length
+      ? `<span class="spec-tag" style="color:#4af0c8;border-color:#4af0c866;" title="Proposées automatiquement par l'IA quand un visuel y tient">♻ ${item.chutes.map(c => `${c.l_cm}×${c.h_cm}`).join(' · ')} cm</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${qteHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${qteHTML}${chutesHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge" ${clean(item.finition) ? '' : 'style="display:none"'}>${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>
@@ -3783,6 +3827,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
             <button class="btn-stock" style="flex:1;min-width:130px;font-size:11px;padding:7px 12px;margin:0;" onclick="openExportVisuel(${analyseId})" title="Télécharger le visuel en PNG, JPG, PDF taille réelle ou AI (Illustrator)">⬇ Exporter (PNG/PDF/AI)</button>
+            <button class="btn-stock" id="btn-controle" style="flex:1;min-width:140px;font-size:11px;padding:7px 12px;margin:0;" onclick="openControleFichier(${analyseId})" title="Vérification technique : mode colorimétrique (RVB/CMJN), profil ICC, transparence, résolution à la taille demandée">🔬 Contrôle fichier</button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -4430,6 +4475,93 @@ async function doExportImage(format) {
   }
   closeExport();
 }
+
+// ===================== CONTRÔLE FICHIER (analyse binaire côté navigateur) =====================
+// JPEG : nb de composantes SOF (4 = CMJN, 3 = RVB, 1 = niveaux de gris), APP14 Adobe, profil ICC (APP2).
+// PNG : type de couleur IHDR (4/6 = couche alpha). Aucune donnée n'est envoyée à un serveur.
+function _fichierInfo(b64, type) {
+  let u8;
+  try {
+    const bin = atob(b64.slice(0, 400000)); // l'en-tête suffit largement
+    u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  } catch { return null; }
+  if (u8[0] === 0xFF && u8[1] === 0xD8) {
+    let i = 2, comps = null, adobe = false, icc = false;
+    while (i + 4 < u8.length) {
+      if (u8[i] !== 0xFF) { i++; continue; }
+      const m = u8[i + 1];
+      if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+      const len = (u8[i + 2] << 8) + u8[i + 3];
+      if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) comps = u8[i + 9];
+      if (m === 0xEE) adobe = true;
+      if (m === 0xE2) icc = true;
+      if (m === 0xDA) break;
+      i += 2 + len;
+    }
+    return { format: 'JPEG', mode: comps === 4 ? 'CMJN' : comps === 1 ? 'Niveaux de gris' : 'RVB', icc, alpha: false, adobe };
+  }
+  if (u8[0] === 0x89 && u8[1] === 0x50) {
+    const colorType = u8[25];
+    return { format: 'PNG', mode: colorType === 0 || colorType === 4 ? 'Niveaux de gris' : 'RVB', icc: false, alpha: colorType === 4 || colorType === 6 };
+  }
+  if (type === 'image/svg+xml') return { format: 'SVG', mode: 'Vectoriel', icc: false, alpha: true };
+  return { format: (type || '').split('/')[1] || '?', mode: '?', icc: false, alpha: false };
+}
+
+async function openControleFichier(id) {
+  const item = historique.find(a => a.id === id);
+  if (!item) return;
+  if (item.has_visuel && !item.visuel_b64) {
+    try { const v = await api('GET', `/analyses/${id}/visuel`); item.visuel_b64 = v.visuel_b64; item.visuel_type = v.visuel_type; item.visuels = v.visuels || null; } catch {}
+  }
+  const fichiers = (Array.isArray(item.visuels) && item.visuels.length > 1)
+    ? item.visuels.filter(v => v.role !== 'reference').map((v, i) => ({ b64: v.b64, type: v.type, nom: v.name || `Fichier ${i + 1}`, wmm: v.w, hmm: v.h }))
+    : (item.visuel_b64 ? [{ b64: item.visuel_b64, type: item.visuel_type, nom: 'Fichier de production', wmm: null, hmm: null }] : []);
+  if (!fichiers.length) { alert('Aucun fichier de production sur cette analyse.'); return; }
+
+  const m = (item.result && item.result.montage) || {};
+  const body = document.getElementById('controle-body');
+  const blocs = [];
+  for (const f of fichiers) {
+    const info = _fichierInfo(f.b64, f.type) || {};
+    // Dimensions en pixels (via une image) pour le calcul du DPI
+    let px = null;
+    try {
+      const img = new Image();
+      await new Promise(ok => { img.onload = ok; img.onerror = ok; img.src = `data:${f.type};base64,${f.b64}`; });
+      if (img.naturalWidth) px = { w: img.naturalWidth, h: img.naturalHeight };
+    } catch {}
+    const largCm = f.wmm ? f.wmm / 10 : Number(m.largeur_cm) || null;
+    const hautCm = f.hmm ? f.hmm / 10 : Number(m.hauteur_cm) || null;
+    const dpi = px && largCm ? Math.round(px.w / (largCm / 2.54)) : null;
+
+    const ok = t => `<div style="font-size:12.5px;padding:3px 0;color:var(--text);">✅ ${t}</div>`;
+    const warn = t => `<div style="font-size:12.5px;padding:3px 0;color:#f0a030;">⚠ ${t}</div>`;
+    const bad = t => `<div style="font-size:12.5px;padding:3px 0;color:var(--danger);">❌ ${t}</div>`;
+    let checks = '';
+    checks += ok(`Format : ${info.format}${px ? ` — ${px.w}×${px.h} px` : ''}`);
+    if (info.mode === 'CMJN') checks += ok('Mode colorimétrique : CMJN — prêt pour l\'impression, couleurs fidèles.');
+    else if (info.mode === 'Vectoriel') checks += ok('Fichier vectoriel — redimensionnable sans perte.');
+    else if (info.mode === 'RVB') checks += warn('Mode RVB : sera converti en CMJN à l\'impression — les couleurs vives (fluo, bleus/verts saturés) peuvent ternir légèrement. Préviens le client si la teinte est critique.');
+    else if (info.mode === 'Niveaux de gris') checks += ok('Niveaux de gris.');
+    if (info.format === 'JPEG') checks += info.icc ? ok('Profil colorimétrique (ICC) intégré.') : warn('Aucun profil ICC intégré — la conversion utilisera le profil par défaut de l\'imprimante.');
+    if (info.alpha) checks += warn('Transparence présente (couche alpha) : les zones transparentes sortiront BLANCHES sur vinyl blanc. Vérifie le fond attendu.');
+    if (dpi != null) {
+      if (dpi >= 100) checks += ok(`Résolution : ${dpi} DPI à la taille demandée${largCm ? ` (${largCm}×${hautCm || '?'} cm)` : ''} — excellent.`);
+      else if (dpi >= 40) checks += ok(`Résolution : ${dpi} DPI à la taille demandée — suffisant pour du grand format vu à distance.`);
+      else if (dpi >= 20) checks += warn(`Résolution : ${dpi} DPI à la taille demandée — limite. Correct vu à plusieurs mètres, pixelisé de près. L'amélioration HD est conseillée.`);
+      else checks += bad(`Résolution : ${dpi} DPI à la taille demandée — INSUFFISANT, rendu très pixelisé. Demander un fichier HD/vectoriel ou utiliser l'amélioration de résolution.`);
+    } else if (info.mode !== 'Vectoriel') {
+      checks += warn('Résolution non calculable : dimensions d\'impression inconnues (à confirmer avec le client).');
+    }
+    blocs.push(`<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px;">📄 ${f.nom}</div>${checks}</div>`);
+  }
+  body.innerHTML = blocs.join('');
+  document.getElementById('modal-controle').classList.add('open');
+}
+function closeControle() { document.getElementById('modal-controle').classList.remove('open'); }
 
 // ===================== MOTEUR DE DOCUMENTS PDF (devis joint / facture / bon de production) =====================
 // Rendu sur canvas A4 (150 dpi) → JPEG → PDF via pdfFromJpegPages. Curseur vertical d.y, saut de page auto.
