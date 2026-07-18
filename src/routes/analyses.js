@@ -743,6 +743,21 @@ router.post('/:id/facture', (req, res) => {
   res.json({ num, date: new Date().toISOString(), deja: false });
 });
 
+// Renommer une analyse (titre affiché dans l'historique et les recherches) — patron + secrétariat
+router.patch('/:id/titre', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, result_json FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const titre = String(req.body.titre || '').trim().slice(0, 80);
+  if (!titre) return res.status(400).json({ error: 'Le nom ne peut pas être vide.' });
+  let rj = {};
+  try { rj = JSON.parse(item.result_json || '{}'); } catch {}
+  rj.titre = titre;
+  db.prepare('UPDATE analyses SET result_json = ? WHERE id = ?').run(JSON.stringify(rj), item.id);
+  res.json({ ok: true, titre });
+});
+
 // Suivi commercial du devis : envoyé au client / accepté / refusé (patron + secrétariat)
 router.patch('/:id/devis-status', (req, res) => {
   const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, devis_status FROM analyses WHERE id = ?').get(req.params.id);

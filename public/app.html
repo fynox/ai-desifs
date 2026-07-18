@@ -363,7 +363,7 @@ textarea:focus { border-color: var(--accent); }
 .checkbox-group { display: flex; flex-direction: column; gap: 7px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; }
 .cb-item { display: flex; align-items: center; gap: 9px; font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text); cursor: pointer; letter-spacing: 0; text-transform: none; }
 .cb-item input[type="checkbox"], .cb-item input[type="radio"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
-.modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
 .btn-cancel { background: transparent; border: 1px solid var(--border); border-radius: 9px; padding: 9px 18px; color: var(--muted); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
 .btn-cancel:hover { border-color: var(--muted); }
 .btn-submit { background: var(--accent); color: #111; border: none; border-radius: 9px; padding: 9px 22px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
@@ -2506,12 +2506,30 @@ function renderMissionsList() {
     + section('✅ Terminées', done, 'done');
 }
 
+// Renommer une analyse : nom repris dans l'historique, la recherche, le tableau de bord et les documents
+async function renameAnalyse(id) {
+  const item = historique.find(a => a.id === id);
+  const actuel = item && item.result ? (item.result.titre || '') : '';
+  const nv = prompt('Nouveau nom de l\'analyse :', actuel);
+  if (nv === null) return;
+  const titre = nv.trim();
+  if (!titre) return;
+  try {
+    await api('PATCH', `/analyses/${id}/titre`, { titre });
+    if (item && item.result) item.result.titre = titre;
+    renderSidebarHisto();
+    showImportToast('✓ Analyse renommée : ' + titre, 'success');
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
+
 // ----- Recherche & filtre de l'historique -----
 let _histoQ = '', _histoF = '', _histoQTimer = null;
+// Insensible aux accents ET à la casse : « europeenne » trouve « européenne »
+const _normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function histoSearchChanged() {
   clearTimeout(_histoQTimer);
   _histoQTimer = setTimeout(() => {
-    _histoQ = (document.getElementById('histo-q').value || '').toLowerCase().trim();
+    _histoQ = _normTxt(document.getElementById('histo-q').value).trim();
     _histoF = document.getElementById('histo-f').value;
     renderSidebarHisto();
   }, 150);
@@ -2519,7 +2537,9 @@ function histoSearchChanged() {
 function histoMatch(h) {
   if (h._pending) return true; // une analyse en cours reste toujours visible
   if (_histoQ) {
-    const hay = `${h.result?.titre || ''} ${h.result?.resume || ''} ${h.client_email || ''} ${(h.mail_content || '').slice(0, 600)}`.toLowerCase();
+    // Cherche dans : titre, résumé, adhésifs recommandés, client, contenu du mail
+    const adhesifs = ((h.result && h.result.adhesifs) || []).map(a => a.nom).join(' ');
+    const hay = _normTxt(`${h.result?.titre || ''} ${h.result?.resume || ''} ${adhesifs} ${h.client_email || ''} ${(h.mail_content || '').slice(0, 800)}`);
     if (!hay.includes(_histoQ)) return false;
   }
   if (_histoF === 'nonlus' && h.lu) return false;
@@ -3499,7 +3519,6 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
             <button class="btn-stock" id="btn-upscale" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="upscaleVisuel(${analyseId})">✨ Améliorer la résolution<span class="btn-cost" title="5 jetons la première fois. Réafficher une version déjà améliorée est gratuit.">5🪙</span></button>
             <button class="btn-stock" id="btn-vecto" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="openVectoriser(${analyseId})">✂ Vectoriser (DAO)<span class="btn-cost" title="Fonction en bêta. Aperçu gratuit, le téléchargement du SVG coûte 2 jetons.">bêta · 2🪙</span></button>
             <button class="btn-stock" style="flex:1;min-width:130px;font-size:11px;padding:7px 12px;margin:0;" onclick="openExportVisuel(${analyseId})" title="Télécharger le visuel en PNG, JPG, PDF taille réelle ou AI (Illustrator)">⬇ Exporter (PNG/PDF/AI)</button>
-            <button class="btn-stock" id="btn-bon-prod" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;" onclick="genererBonProduction(${analyseId})" title="Fiche A4 pour l'atelier : visuel, matière, dimensions, checklist de préparation à cocher, note pour le poseur">🖨 Bon de production</button>
             ${hasOrig ? `<button class="btn-stock" id="btn-restore" style="flex:1;min-width:150px;font-size:11px;padding:7px 12px;margin:0;color:var(--muted);" onclick="restaurerVisuel(${analyseId})">↩ Image d'origine</button>` : ''}
           </div>`
         : '';
@@ -3757,6 +3776,10 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   // ===== Mise en page =====
   // Patron : 3 onglets pour séparer les étapes (Analyse / Préparation / Pose).
   // Employés : page unique déjà filtrée sur leur rôle.
+  // Bon de production : tout en bas de l'étape préparation (patron + préparateur)
+  const bonProdBtn = (analyseId && analyseId !== '_pending' && (vOwner || vPrep))
+    ? `<div style="padding:16px 0 6px;"><button class="btn-stock" id="btn-bon-prod" style="width:100%;margin:0;font-size:12.5px;padding:11px 14px;" onclick="genererBonProduction(${analyseId})" title="Fiche A4 pour l'atelier : visuel, matière, dimensions, checklist de préparation à cocher, note pour le poseur">🖨 Bon de production — fiche atelier à imprimer (PDF)</button></div>`
+    : '';
   let corps;
   if (vOwner) {
     // Le préparateur/patron doit VOIR le visuel sur lequel il travaille (pas seulement les boutons)
@@ -3766,7 +3789,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:6px;">${visuels.map(v => `<img src="data:${v.type};base64,${v.b64}" style="max-height:170px;max-width:190px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`).join('')}</div>`
         : `<img src="data:${previewType};base64,${previewB64}" style="max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#111;display:block;margin:0 auto 6px;cursor:zoom-in;" onclick="zoomVisuel(this.src)" title="Cliquer pour agrandir">`;
     }
-    const tabPrep = ((prepVisuel || toolsBtns) ? accSection('Visuel & outils', prepVisuel + toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection;
+    const tabPrep = ((prepVisuel || toolsBtns) ? accSection('Visuel & outils', prepVisuel + toolsBtns, { icon: '✨', open: true }) : '') + secPrepChk + montageSection + bonProdBtn;
     const tabPose = ownerNoteView + secPoseChk + secPhotos;
     corps = `
       <div style="display:flex;gap:8px;margin:2px 0 14px;">
@@ -3778,13 +3801,13 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       <div id="rtab-prep" style="display:none">${tabPrep || tabVide('préparation')}</div>
       <div id="rtab-pose" style="display:none">${tabPose || tabVide('pose')}</div>`;
   } else {
-    corps = `${secResume}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
+    corps = `${secResume}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
   }
 
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
-      <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2><span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2>${(analyseId && analyseId !== '_pending' && analyseId > 0 && (!isEmploye || hasRole('secretariat'))) ? `<button onclick="renameAnalyse(${analyseId})" title="Renommer cette analyse (nom affiché dans l'historique et la recherche)" style="background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 9px;">✏ Renommer</button>` : ''}<span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       ${missionBanner}
       ${prepNoteBanner}
       ${corps}
@@ -5227,6 +5250,8 @@ async function genererRelance(id, ton = 'pro', points = []) {
     document.getElementById('relance-error').textContent = '';
     document.getElementById('relance-copied').style.display = 'none';
     document.getElementById('relance-sent').style.display = 'none';
+    const btnEnv = document.getElementById('btn-envoyer-relance');
+    if (btnEnv) { btnEnv.disabled = false; btnEnv.textContent = '📤 Envoyer maintenant'; }
     // Proposer la pièce jointe uniquement si un devis existe sur ce dossier
     const aDevis = item && item.devis && (item.devis.lignes || []).length;
     document.getElementById('relance-attach-wrap').style.display = aDevis ? 'flex' : 'none';
@@ -5268,9 +5293,11 @@ async function envoyerRelance() {
       if (!item.client_email) item.client_email = to.toLowerCase();
       renderSidebarHisto();
     }
+    // La fenêtre reste ouverte : le message de confirmation reste lisible, l'utilisateur ferme lui-même
     document.getElementById('relance-sent').style.display = 'block';
     showImportToast('📤 Mail envoyé à ' + to, 'success');
-    setTimeout(closeRelance, 1600);
+    btn.textContent = '✓ Envoyé';
+    return; // bouton laissé désactivé → pas de double envoi
   } catch (e) { err.textContent = e.message; }
   btn.disabled = false; btn.textContent = '📤 Envoyer maintenant';
 }
