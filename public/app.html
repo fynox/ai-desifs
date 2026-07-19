@@ -37,6 +37,43 @@
   --cat-panneau: #a0f04a;
 }
 
+/* ===== Mode clair (bascule dans les réglages, mémorisée par appareil) ===== */
+:root[data-theme="light"] {
+  --bg: #f2f3ee;
+  --bg-soft: radial-gradient(1200px 600px at 15% -10%, #ffffff 0%, #f2f3ee 60%);
+  --surface: #ffffff;
+  --surface2: #f0f1ea;
+  --border: #d8dacd;
+  --border-soft: #e2e4d8;
+  --accent: #6d9412;
+  --accent-dim: #86ab28;
+  --text: #1d1f1a;
+  --muted: #6c7062;
+  --shadow: 0 1px 2px rgba(40,44,30,.08), 0 8px 24px -12px rgba(40,44,30,.16);
+  --shadow-lg: 0 8px 40px -8px rgba(40,44,30,.2);
+  --cat-print: #0a9c78;
+  --cat-plastification: #a87d0a;
+  --cat-dao: #8c1fb4;
+  --cat-transfert: #c23d1e;
+  --cat-encre: #7a2fc0;
+  --cat-covering: #1f5fc2;
+  --cat-vitre: #0a8ca0;
+  --cat-solaire: #bd7311;
+  --cat-panneau: #5a8a0a;
+}
+:root[data-theme="light"] .btn-new-analyse,
+:root[data-theme="light"] .btn-add-ref,
+:root[data-theme="light"] .btn-submit,
+:root[data-theme="light"] .btn-analyze,
+:root[data-theme="light"] .btn-hero { color: #fff; }
+:root[data-theme="light"] .btn-cost { color: #fff; opacity: .95; }
+/* Boutons construits avec un style en ligne "background:var(--accent);color:#111" → texte blanc en clair */
+:root[data-theme="light"] [style*="background:var(--accent)"],
+:root[data-theme="light"] [style*="background: var(--accent)"] { color: #fff !important; }
+/* Encarts teintés vert sombre (chat, brouillon, mission) → fond vert pâle en clair */
+:root[data-theme="light"] [style*="background:#141f03"] { background: #edf4d6 !important; }
+:root[data-theme="light"] .result-badge { background: #edf4d6; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); background-image: var(--bg-soft); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 .acc-section, .adhesif-result-card { box-shadow: var(--shadow); }
@@ -1095,6 +1132,15 @@ textarea:focus { border-color: var(--accent); }
     </div>
 
     <div class="reg-card">
+      <div class="reg-title">🎨 Apparence</div>
+      <div style="display:flex;gap:8px;">
+        <button class="pwa-os-tab" id="theme-sombre" onclick="setTheme('dark')">🌙 Sombre</button>
+        <button class="pwa-os-tab" id="theme-clair" onclick="setTheme('light')">☀️ Clair</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;">Mémorisé sur cet appareil.</div>
+    </div>
+
+    <div class="reg-card">
       <div class="reg-title">🗑 Corbeille</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Les analyses supprimées restent restaurables pendant <b>30 jours</b>, puis sont effacées définitivement.</div>
       <button class="btn-stock" style="margin:0;" onclick="openCorbeille()">🗑 Ouvrir la corbeille</button>
@@ -1853,9 +1899,33 @@ function openReglages() {
   renderPrestasRows();
   initPwaCard();
   refreshPushUI();
+  refreshThemeUI();
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== THÈME (sombre / clair) =====================
+function setTheme(t) {
+  document.documentElement.dataset.theme = t === 'light' ? 'light' : '';
+  if (t !== 'light') delete document.documentElement.dataset.theme;
+  localStorage.setItem('aidesif_theme', t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = t === 'light' ? '#f2f3ee' : '#111210';
+  refreshThemeUI();
+  try { drawCaChart(); } catch {}
+}
+function refreshThemeUI() {
+  const cur = localStorage.getItem('aidesif_theme') === 'light' ? 'light' : 'dark';
+  const s = document.getElementById('theme-sombre'), c = document.getElementById('theme-clair');
+  if (s) s.classList.toggle('active', cur === 'dark');
+  if (c) c.classList.toggle('active', cur === 'light');
+}
+// Application immédiate au chargement (avant le rendu)
+if (localStorage.getItem('aidesif_theme') === 'light') {
+  document.documentElement.dataset.theme = 'light';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = '#f2f3ee';
+}
 
 // ===================== CORBEILLE =====================
 async function openCorbeille() {
