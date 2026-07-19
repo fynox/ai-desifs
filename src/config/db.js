@@ -156,6 +156,10 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN chat_json TEXT',
   // Corbeille : suppression douce, restaurable 30 jours
   'ALTER TABLE analyses ADD COLUMN deleted_at TEXT',
+  // Parrainage : code personnel, parrain du compte, récompense versée (anti-doublon)
+  'ALTER TABLE users ADD COLUMN ref_code TEXT',
+  'ALTER TABLE users ADD COLUMN parrain_id INTEGER',
+  'ALTER TABLE users ADD COLUMN parrain_reward INTEGER DEFAULT 0',
   // Journal d activité par dossier
   `CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

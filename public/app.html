@@ -575,6 +575,7 @@ textarea:focus { border-color: var(--accent); }
       <div class="auth-field"><label>Adresse mail</label><input type="email" id="signup-email" placeholder="votre@mail.com"></div>
       <div class="auth-field"><label>Mot de passe</label><div class="pw-wrap"><input type="password" id="signup-pw" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('signup-pw')">👁</button></div></div>
       <div class="auth-field"><label>Confirmer le mot de passe</label><input type="password" id="signup-pw2" placeholder="••••••••"></div>
+      <div class="auth-field"><label>Code de parrainage (optionnel)</label><input type="text" id="signup-parrain" placeholder="Ex : A3F9C2" style="text-transform:uppercase;"></div>
       <div class="auth-error" id="signup-error"></div>
       <button class="btn-primary" id="btn-signup" onclick="signup()">Créer mon compte →</button>
     </div>
@@ -646,6 +647,7 @@ textarea:focus { border-color: var(--accent); }
         <button class="btn-stock" onclick="openProfile()" style="flex:1;margin:0;">👤 Profil</button>
         <button class="btn-stock" onclick="openReglages()" style="flex:1;margin:0;">⚙ Réglages</button>
       </div>
+      <button id="btn-news" onclick="openNews()" style="background:none;border:none;color:var(--muted);font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;padding:2px 2px 6px;text-align:left;">✨ Nouveautés<span id="news-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:6px;vertical-align:middle;"></span></button>
       <div class="user-row">
         <span class="user-email" id="user-email-display"></span>
         <button class="btn-logout" onclick="logout()">Quitter</button>
@@ -657,6 +659,7 @@ textarea:focus { border-color: var(--accent); }
   <main class="main-content">
     <div class="analyse-layout" id="analyse-layout">
       <div class="analyse-input">
+        <div id="onboarding-host"></div>
         <div class="section-title">Nouvelle analyse</div>
         <div style="font-size:12px;color:var(--muted);margin:-6px 0 14px;line-height:1.5;">Colle le mail de ton client, l'IA identifie l'adhésif, les specs et prépare le devis.</div>
         <div class="field-group">
@@ -689,6 +692,15 @@ textarea:focus { border-color: var(--accent); }
       <div class="analyse-output" id="output-panel"></div>
     </div>
   </main>
+</div>
+
+<!-- MODAL NOUVEAUTÉS -->
+<div class="modal-overlay" id="modal-news" onclick="if(event.target===this)closeNews()">
+  <div class="modal" style="max-width:560px;width:94vw">
+    <h3 style="margin-bottom:14px;">✨ Nouveautés</h3>
+    <div id="news-body" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeNews()">Fermer</button></div>
+  </div>
 </div>
 
 <!-- MODAL CORBEILLE -->
@@ -1026,6 +1038,8 @@ textarea:focus { border-color: var(--accent); }
     <div style="font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);display:none;margin-top:4px;" id="profil-success">✓ Modifications enregistrées</div>
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Adresse mail entrante</div>
     <div id="profil-inbound-wrap"></div>
+
+    <div id="profil-parrainage-wrap"></div>
 
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Abonnement</div>
     <div id="profil-plan-wrap" style="margin-bottom:12px;"></div>
@@ -1384,7 +1398,9 @@ async function signup() {
   if (password !== pw2) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
   btn.disabled = true; btn.textContent = 'Création...';
   try {
-    const data = await api('POST', '/auth/signup', { email, password });
+    const codeParrain = (document.getElementById('signup-parrain').value.trim() || localStorage.getItem('aidesif_parrain') || '').toUpperCase();
+    const data = await api('POST', '/auth/signup', { email, password, code_parrain: codeParrain || undefined });
+    localStorage.removeItem('aidesif_parrain');
     if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
@@ -1433,6 +1449,8 @@ async function startSession(token, email, status, used, iEmail) {
   applyRoleUI();
   startPolling();
   startEvents();
+  refreshNewsDot();
+  renderOnboarding();
   // Bouton d'aide flottant (revoir la visite) — visible une fois connecté
   const fab = document.getElementById('help-fab');
   if (fab) fab.style.display = 'flex';
@@ -1904,6 +1922,60 @@ function openReglages() {
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
 
+// ===================== NOUVEAUTÉS (changelog in-app) =====================
+const NEWS = [
+  { date: '2026-07-19', titre: 'Le devis se signe en ligne — et bien plus', points: [
+    '🔗 Lien client : ton client consulte, coche les options, SIGNE et accepte le devis en ligne — statut mis à jour tout seul',
+    '🔔 Notifications push : sois prévenu même app fermée (à activer dans ⚙ Réglages)',
+    '🗂 Vue Production (kanban), marge matière réelle, graphique CA 12 mois et objectif mensuel',
+    '🤖 Chat IA sur chaque dossier (1🪙) + réponse client prérédigée automatiquement à l\'arrivée du mail',
+    '☀️ Mode clair, 🗑 corbeille 30 jours, 🕘 journal d\'activité, ♻ chutes de rouleaux, 🔬 contrôle fichier',
+    '🎁 Parrainage : 30 jetons offerts à chaque filleul abonné (lien dans ton Profil)',
+  ] },
+  { date: '2026-07-18', titre: 'Grosse mise à jour productivité', points: [
+    '📊 Tableau de bord complet : relances, planning des poses, fiches clients, suivi des factures',
+    '📤 Envoi direct des mails clients (devis PDF joint), factures FA-2026-XXX, bon de production',
+    '📱 Application installable sur téléphone (PWA) + recherche dans l\'historique',
+  ] },
+];
+function openNews() {
+  document.getElementById('news-body').innerHTML = NEWS.map(n => `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);">${new Date(n.date).toLocaleDateString('fr-FR')}</div>
+      <div style="font-size:14px;font-weight:700;margin:3px 0 8px;">${n.titre}</div>
+      ${n.points.map(p => `<div style="font-size:12.5px;line-height:1.7;font-family:'Inter',sans-serif;">• ${p}</div>`).join('')}
+    </div>`).join('');
+  localStorage.setItem('aidesif_news_seen', NEWS[0].date);
+  const dot = document.getElementById('news-dot');
+  if (dot) dot.style.display = 'none';
+  document.getElementById('modal-news').classList.add('open');
+}
+function closeNews() { document.getElementById('modal-news').classList.remove('open'); }
+function refreshNewsDot() {
+  const dot = document.getElementById('news-dot');
+  if (dot && localStorage.getItem('aidesif_news_seen') !== NEWS[0].date) dot.style.display = 'inline-block';
+}
+
+// ===================== CHECKLIST DE DÉMARRAGE =====================
+function renderOnboarding() {
+  const host = document.getElementById('onboarding-host');
+  if (!host) return;
+  if (isEmploye || localStorage.getItem('aidesif_onboard_done')) { host.innerHTML = ''; return; }
+  const steps = [
+    { ok: (stock || []).length > 0, txt: 'Ajoute tes adhésifs au stock', act: "closeResult();openStock()" },
+    { ok: (historique || []).some(h => !h._pending && !h._failed), txt: 'Lance ta première analyse (colle un mail client)', act: "document.getElementById('mail-input').focus()" },
+    { ok: (historique || []).some(h => h.devis), txt: 'Génère ton premier devis en 1 clic', act: '' },
+    { ok: localStorage.getItem('aidesif_tour_done') === '1', txt: 'Fais la visite guidée (2 min)', act: 'startTour()' },
+  ];
+  const fait = steps.filter(s => s.ok).length;
+  if (fait === steps.length) { localStorage.setItem('aidesif_onboard_done', '1'); host.innerHTML = ''; return; }
+  host.innerHTML = `<div style="border:1px solid var(--accent-dim);border-radius:12px;padding:14px 16px;margin-bottom:16px;background:#141f03;position:relative;">
+    <button onclick="localStorage.setItem('aidesif_onboard_done','1');renderOnboarding()" title="Masquer définitivement" style="position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;">✕</button>
+    <div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:8px;">🚀 Bien démarrer — ${fait}/${steps.length}</div>
+    ${steps.map(s => `<div style="font-size:12.5px;padding:3px 0;color:${s.ok ? 'var(--muted)' : 'var(--text)'};${s.ok ? 'text-decoration:line-through;' : ''}${!s.ok && s.act ? 'cursor:pointer;' : ''}" ${!s.ok && s.act ? `onclick="${s.act.replace(/"/g, '&quot;')}"` : ''}>${s.ok ? '✅' : '⬜'} ${s.txt}${!s.ok && s.act ? ' →' : ''}</div>`).join('')}
+  </div>`;
+}
+
 // ===================== THÈME (sombre / clair) =====================
 function setTheme(t) {
   document.documentElement.dataset.theme = t === 'light' ? 'light' : '';
@@ -2325,6 +2397,19 @@ function openProfile() {
     const cnt = document.getElementById('jeton-count');
     if (cnt && p.jetons) { cnt.textContent = p.jetons.total; const jw = document.getElementById('jeton-wrap'); if (jw) jw.style.display = p.subscription_status === 'active' ? 'block' : 'none'; }
     if (typeof loadStorage === 'function') loadStorage();
+    // Parrainage : lien personnel + compteur (comptes principaux uniquement)
+    const pw = document.getElementById('profil-parrainage-wrap');
+    if (pw && p.ref_code && !isEmploye) {
+      const lien = 'https://ai-dhesif.fr/?p=' + p.ref_code;
+      pw.innerHTML = `
+        <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">🎁 Parrainage</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px;">Fais connaître AI-dhésif à un confrère : à son <b>premier abonnement</b>, tu reçois <b style="color:var(--accent);">30 jetons</b> (cumulables, sans limite de filleuls).</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12.5px;font-family:'DM Mono',monospace;color:var(--accent);word-break:break-all;">${lien}</span>
+          <button onclick="navigator.clipboard.writeText('${lien}').then(()=>showImportToast('🔗 Lien de parrainage copié','success'))" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;">Copier</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;font-family:'DM Mono',monospace;">${p.filleuls || 0} inscrit${(p.filleuls || 0) > 1 ? 's' : ''} · ${p.filleuls_abonnes || 0} abonné${(p.filleuls_abonnes || 0) > 1 ? 's' : ''} · ${(p.filleuls_abonnes || 0) * 30}🪙 gagnés</div>`;
+    }
   }).catch(() => {});
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';
@@ -5391,6 +5476,9 @@ if ('serviceWorker' in navigator) {
 
 // ===================== AUTO-LOGIN =====================
 (async () => {
+  // Lien de parrainage (?p=CODE) : mémorisé pour l'inscription
+  const pCode = new URLSearchParams(window.location.search).get('p');
+  if (pCode) { try { localStorage.setItem('aidesif_parrain', pCode.toUpperCase()); } catch {} }
   // Lien de réinitialisation de mot de passe : on montre le formulaire dédié (pas d'auto-login)
   const resetTok = new URLSearchParams(window.location.search).get('reset');
   if (resetTok) {

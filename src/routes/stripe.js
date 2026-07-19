@@ -75,6 +75,7 @@ router.post('/checkout-jetons', async (req, res) => {
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
       // métadonnées lues par le webhook pour créditer les jetons
       metadata: { user_id: String(user.id), jetons: String(jetons) },
       payment_intent_data: { metadata: { user_id: String(user.id), jetons: String(jetons) } },
