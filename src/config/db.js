@@ -150,6 +150,10 @@ const migrations = [
   // Bon de réception signé par le client sur le téléphone du poseur (fin de pose)
   'ALTER TABLE analyses ADD COLUMN job_signature_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN job_signature_nom TEXT',
+  // IA : brouillon de réponse généré à l arrivée du mail, réponses client rattachées, chat sur dossier
+  'ALTER TABLE analyses ADD COLUMN relance_draft_json TEXT',
+  'ALTER TABLE analyses ADD COLUMN retours_json TEXT',
+  'ALTER TABLE analyses ADD COLUMN chat_json TEXT',
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

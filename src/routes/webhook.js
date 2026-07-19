@@ -86,6 +86,38 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     ).get(user.id, mailContent);
     if (dup) return;
 
+    // Adresse du client final (extraite tôt : sert au rattachement des réponses)
+    let clientEmailEarly = null;
+    try {
+      const fwd0 = text.match(/(?:De|From)\s*:\s*[^\n<]*<([\w.+-]+@[\w-]+\.[\w.-]+)>/i) || text.match(/(?:De|From)\s*:\s*([\w.+-]+@[\w-]+\.[\w.-]+)/i);
+      if (fwd0) clientEmailEarly = fwd0[1].toLowerCase();
+      else {
+        const m0 = String(from).match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+        if (m0 && m0[0].toLowerCase() !== user.email.toLowerCase()) clientEmailEarly = m0[0].toLowerCase();
+      }
+    } catch {}
+
+    // RATTACHEMENT : une RÉPONSE (Re:) d'un client déjà en dossier, sans nouvelle pièce jointe,
+    // est ajoutée à son dossier existant au lieu de créer un doublon d'analyse.
+    const estReponse = /^\s*(re|ré|rép|tr)\s*:/i.test(subject);
+    const aDesPieces = (req.files || []).some(f => f.mimetype && (f.mimetype.startsWith('image/') || f.mimetype === 'application/pdf'))
+      || rawAttachments.some(f => f.mimetype && (f.mimetype.startsWith('image/') || f.mimetype === 'application/pdf'));
+    if (estReponse && clientEmailEarly && !aDesPieces) {
+      const dossier = db.prepare(`
+        SELECT id, retours_json FROM analyses
+        WHERE user_id = ? AND client_email = ? AND status != 'failed' AND created_at >= datetime('now','-60 days')
+        ORDER BY created_at DESC LIMIT 1
+      `).get(user.id, clientEmailEarly);
+      if (dossier) {
+        let retours = [];
+        try { retours = JSON.parse(dossier.retours_json || '[]'); } catch {}
+        retours.push({ at: new Date().toISOString(), objet: subject.slice(0, 200), texte: text.slice(0, 3000) });
+        db.prepare('UPDATE analyses SET retours_json = ?, lu = 0 WHERE id = ?').run(JSON.stringify(retours.slice(-10)), dossier.id);
+        try { require('../utils/events').emitToOwnerTeam(user.id, 'retour_client_recu', { analyse_id: dossier.id }); } catch {}
+        return; // pas de nouvelle analyse : la réponse est sur le dossier existant
+      }
+    }
+
     // On crée TOUT DE SUITE une analyse visible (pending) : ainsi, même si le mail est refusé
     // (plan, stock, quota…), l'utilisateur VOIT que le mail est bien arrivé + la raison du refus.
     try {
@@ -325,6 +357,42 @@ Renseigne "fichiers":[{"n":1,"role":"imprimer|reference","note":"raison en 3-6 m
       ).run(user.id, mailContentFinal, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson, clientEmail);
     }
     emitToOwnerTeam(user.id, 'analyse_done', { analyse_id: pendingId || null });
+
+    // BROUILLON AUTO : la réponse au client est prérédigée dans la foulée — zéro clic, zéro jeton
+    // pour l'utilisateur (le coût API est celui du compte global, tracé en relance_auto).
+    if (pendingId) {
+      try {
+        const draftPrompt = `Tu es l'assistant d'un imprimeur professionnel (signalétique/adhésifs). Rédige la RÉPONSE au mail client ci-dessous. Ton professionnel et chaleureux, en français, tutoiement interdit (vouvoie le client).
+
+MAIL DU CLIENT :
+${mailContent.slice(0, 2500)}
+
+ANALYSE INTERNE : ${result.resume || ''}
+${result.attention ? 'POINT À CLARIFIER AVEC LE CLIENT : ' + result.attention : ''}
+
+CONSIGNES : accuse réception de la demande, ${result.attention ? 'pose les questions nécessaires au point à clarifier, ' : ''}annonce qu'un devis suivra rapidement. Si le fichier semble en basse résolution ou non vectoriel, PROPOSE les prestations de l'atelier (amélioration HD, vectorisation) plutôt que d'exiger un meilleur fichier. Pas de prix chiffrés. Signature simple "Bien cordialement".
+Réponds UNIQUEMENT en JSON valide : {"objet":"Re: ...","corps":"..."}`;
+        const dRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 900, messages: [{ role: 'user', content: draftPrompt }] }),
+        });
+        const dData = await dRes.json();
+        if (dRes.ok) {
+          logUsage(user.id, 'relance_auto', 'claude-sonnet-4-6', dData.usage);
+          const dRaw = dData.content?.map(i => i.text || '').join('') || '';
+          const dm = dRaw.match(/\{[\s\S]*\}/);
+          if (dm) {
+            const draft = JSON.parse(dm[0]);
+            if (draft && draft.corps) {
+              draft.to = clientEmailEarly || null;
+              db.prepare('UPDATE analyses SET relance_draft_json = ? WHERE id = ?').run(JSON.stringify(draft), pendingId);
+              emitToOwnerTeam(user.id, 'brouillon_pret', { analyse_id: pendingId });
+            }
+          }
+        }
+      } catch (e) { console.error('Brouillon auto error:', e.message); }
+    }
   } catch (e) {
     console.error('Webhook inbound error:', e);
     try { if (pendingId) db.prepare("UPDATE analyses SET status='failed', error_msg=? WHERE id=?").run('Erreur interne pendant l\'analyse.', pendingId); } catch {}

@@ -17,6 +17,7 @@ const JETON_COSTS = {
   analyse_extra: 5,      // chaque analyse AU-DELÀ du quota du forfait
   storage_2go: 20,       // +2 Go de stockage
   vectorisation: 2,      // vectorisation DAO (bêta) — débité au téléchargement du SVG
+  chat: 1,               // question libre à l'IA sur un dossier
 };
 
 // Fonction réservée à un plan minimum

@@ -863,6 +863,7 @@ textarea:focus { border-color: var(--accent); }
     <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Choisis le ton et coche les points à aborder — l'IA rédige le mail en conséquence.</div>
 
     <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;">Ton</div>
+    <div id="mail-brouillon-slot"></div>
     <div style="display:flex;gap:10px;margin-bottom:18px;">
       <label class="mail-ton" style="flex:1;"><input type="radio" name="mail-ton" value="pro" checked style="display:none;"><div class="mail-ton-box">👔 Professionnel<br><span style="font-size:10px;opacity:.7">Vouvoiement, formel</span></div></label>
       <label class="mail-ton" style="flex:1;"><input type="radio" name="mail-ton" value="familier" style="display:none;"><div class="mail-ton-box">😊 Familier<br><span style="font-size:10px;opacity:.7">Client connu, tutoiement</span></div></label>
@@ -1628,6 +1629,39 @@ async function validerTransfert() {
     document.getElementById('pose-fini-error').textContent = e.message;
   }
   btn.disabled = false; btn.textContent = '✓ Valider';
+}
+
+// ----- Chat IA sur dossier -----
+async function loadChat(id) {
+  const fil = document.getElementById('chat-fil');
+  if (!fil) return;
+  try {
+    const r = await api('GET', `/analyses/${id}/chat`);
+    renderChatFil(r.chat || []);
+  } catch {}
+}
+function renderChatFil(chat) {
+  const fil = document.getElementById('chat-fil');
+  if (!fil) return;
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  fil.innerHTML = chat.map(m => m.role === 'user'
+    ? `<div style="align-self:flex-end;max-width:86%;background:#141f03;border:1px solid var(--accent-dim);border-radius:10px 10px 2px 10px;padding:7px 11px;font-size:12.5px;font-family:'Inter',sans-serif;">${esc(m.texte)}</div>`
+    : `<div style="align-self:flex-start;max-width:86%;background:var(--surface2);border:1px solid var(--border);border-radius:10px 10px 10px 2px;padding:7px 11px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;font-family:'Inter',sans-serif;">${esc(m.texte)}</div>`).join('');
+  fil.scrollTop = fil.scrollHeight;
+}
+async function envoyerChat(id) {
+  const inp = document.getElementById('chat-q');
+  const q = inp.value.trim();
+  if (!q) return;
+  const btn = document.getElementById('chat-send');
+  btn.disabled = true; btn.textContent = '🤖 …';
+  try {
+    await api('POST', `/analyses/${id}/chat`, { question: q });
+    inp.value = '';
+    await loadChat(id);
+    loadJetons();
+  } catch (e) { handleActionError(e); }
+  btn.disabled = false; btn.innerHTML = 'Envoyer<span class="btn-cost">1🪙</span>';
 }
 
 // Photos de fin de pose : chargées à la demande dans la section dédiée
@@ -4189,6 +4223,23 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const secPoseChk = (poseStepsHTML && (vOwner || vPose)) ? accSection('Conseils de pose', `<div class="checklist">${poseStepsHTML}</div>`, { icon: '🚐', open: true }) : '';
   const secAttention = r.attention ? accSection('Point d\'attention', `<div class="alert-result">⚠ ${r.attention}</div>`, { icon: '⚠️', open: true }) : '';
   const secPhotos = (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) ? accSection('Photos du résultat posé', `<div id="job-photos-host" style="display:flex;gap:10px;flex-wrap:wrap;"></div>`, { icon: '📷', open: true }) : '';
+  // Réponses du client rattachées automatiquement au dossier (mails "Re:" sans pièce jointe)
+  const secReponsesClient = (jobItem.retours || []).length
+    ? accSection('Réponses du client', jobItem.retours.map(rt => `<div style="border-left:3px solid #4a9eff;padding:7px 12px;margin-bottom:8px;background:var(--surface2);border-radius:0 8px 8px 0;">
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px;">💬 ${new Date(rt.at).toLocaleString('fr-FR')}${rt.objet ? ' — ' + escNote(rt.objet) : ''}</div>
+        <div style="font-size:12.5px;line-height:1.65;white-space:pre-wrap;font-family:'Inter',sans-serif;">${escNote(rt.texte)}</div>
+      </div>`).join('') + `<div style="font-size:10.5px;color:var(--muted);">Ces mails ont été rattachés automatiquement (réponse du même client). Utilise « Retour client » ci-dessous pour relancer l'analyse avec ces nouvelles infos si besoin.</div>`,
+      { icon: '💬', open: true })
+    : '';
+  // Chat IA libre sur le dossier (1 jeton / question)
+  const secChat = (analyseId && analyseId !== '_pending' && analyseId > 0)
+    ? accSection('Poser une question à l\'IA sur ce dossier', `
+        <div id="chat-fil" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="chat-q" class="devis-inp" placeholder="Ex : quelle raclette pour ce support ? pose possible à 5 °C ?" style="flex:1;margin:0;" onkeydown="if(event.key==='Enter')envoyerChat(${analyseId})">
+          <button class="btn-submit" id="chat-send" style="font-size:12px;white-space:nowrap;" onclick="envoyerChat(${analyseId})">Envoyer<span class="btn-cost">1🪙</span></button>
+        </div>`, { icon: '🤖', open: false, hint: 'replié — 1🪙 par question' })
+    : '';
   const secRetour = (analyseId && analyseId !== '_pending' && (vOwner || vSecr)) ? accSection('Retour client — compléter l\'analyse', `
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Le client a répondu ? Note ici les informations obtenues (dimensions confirmées, pose, délai, quantité…) : l'analyse sera relancée en les intégrant, et les futurs devis/mails en tiendront compte.</div>
         <textarea id="retour-infos" placeholder="Ex : hauteur confirmée 60 cm, pose définitive en extérieur, livraison avant le 15..." style="width:100%;min-height:70px;box-sizing:border-box;padding:9px 11px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
@@ -4255,11 +4306,11 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         <button class="rtab" id="rtab-btn-prep" onclick="switchResultTab('prep')">🔧 Préparation</button>
         <button class="rtab" id="rtab-btn-pose" onclick="switchResultTab('pose')">🚐 Pose</button>
       </div>
-      <div id="rtab-analyse">${secResume}${secPreview}${secAdhesif}${secSpecs}${secAttention}${missionSection}${secRetour}${assemblageBox}${actionsBar}</div>
+      <div id="rtab-analyse">${secResume}${secReponsesClient}${secPreview}${secAdhesif}${secSpecs}${secAttention}${missionSection}${secRetour}${assemblageBox}${actionsBar}${secChat}</div>
       <div id="rtab-prep" style="display:none">${tabPrep || tabVide('préparation')}</div>
       <div id="rtab-pose" style="display:none">${tabPose || tabVide('pose')}</div>`;
   } else {
-    corps = `${secResume}${vPose ? secRendu : ''}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}`;
+    corps = `${secResume}${secReponsesClient}${vPose ? secRendu : ''}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}${secChat}`;
   }
 
   const panel = document.getElementById('output-panel');
@@ -4271,6 +4322,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       ${corps}
     </div>`;
   if (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) loadJobPhotos(analyseId);
+  if (analyseId && analyseId !== '_pending' && analyseId > 0) loadChat(analyseId);
   panel.classList.add('open');
   panel.scrollTop = 0;
   // Contrôle de résolution du visuel pour la taille d'impression demandée
@@ -5115,6 +5167,8 @@ function startEvents() {
         stock_bas: '⚠ Stock bas : ' + ((d.noms || []).join(', ') || 'un adhésif') + ' sous le seuil d\'alerte',
         devis_vu: '👁 Ton client vient d\'ouvrir la page du devis',
         devis_reponse: d.action === 'accepte' ? '🎉 Devis ACCEPTÉ et signé par le client !' : '❌ Le client a refusé le devis — voir son commentaire',
+        retour_client_recu: '💬 Réponse d\'un client rattachée à son dossier existant',
+        brouillon_pret: '⚡ Réponse au client prérédigée — prête dans le dossier',
       };
       if (msgs[d.type]) showImportToast(msgs[d.type], (d.failed || d.type === 'stock_bas') ? 'error' : 'success');
       if (d.type === 'stock_bas') { try { loadStock().then(renderAll); } catch {} }
@@ -5934,7 +5988,37 @@ function openTonChoice(id) {
   const tonDefaut = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
   const radio = document.querySelector(`input[name="mail-ton"][value="${tonDefaut}"]`);
   if (radio) radio.checked = true;
+  // Brouillon prérédigé à l'arrivée du mail : proposé en accès direct (gratuit, instantané)
+  const slot = document.getElementById('mail-brouillon-slot');
+  const itemB = historique.find(a => a.id === id);
+  slot.innerHTML = (itemB && itemB.relance_draft && itemB.relance_draft.corps)
+    ? `<button onclick="ouvrirBrouillon(${id})" style="width:100%;margin-bottom:14px;background:#141f03;border:1px solid var(--accent);border-radius:10px;color:var(--accent);font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;padding:11px 14px;cursor:pointer;text-align:left;">⚡ Une réponse a déjà été prérédigée à l'arrivée du mail — l'ouvrir <span style="font-weight:400;opacity:.8;">(gratuit, instantané)</span></button>`
+    : '';
   document.getElementById('modal-ton').classList.add('open');
+}
+
+// Ouvre la fenêtre mail avec le brouillon généré automatiquement (aucun coût)
+function ouvrirBrouillon(id) {
+  const item = historique.find(a => a.id === id);
+  if (!item || !item.relance_draft) return;
+  closeTonChoice();
+  _relanceId = id;
+  const d = item.relance_draft;
+  document.getElementById('relance-to').value = d.to || item.client_email || '';
+  document.getElementById('relance-objet').value = d.objet || 'Votre demande';
+  const signature = (userSettings.mail_signature || '').trim();
+  document.getElementById('relance-corps').value = (d.corps || '') + (signature ? '\n\n' + signature : '');
+  document.getElementById('relance-error').textContent = '';
+  document.getElementById('relance-copied').style.display = 'none';
+  document.getElementById('relance-sent').style.display = 'none';
+  const aDevis = item.devis && (item.devis.lignes || []).length;
+  document.getElementById('relance-attach-wrap').style.display = aDevis ? 'flex' : 'none';
+  document.getElementById('relance-attach').checked = Boolean(aDevis);
+  document.getElementById('relance-lien-wrap').style.display = aDevis ? 'flex' : 'none';
+  document.getElementById('relance-lien').checked = Boolean(aDevis);
+  const b = document.getElementById('btn-envoyer-relance');
+  if (b) { b.disabled = false; b.textContent = '📤 Envoyer maintenant'; }
+  document.getElementById('modal-relance').classList.add('open');
 }
 function closeTonChoice() { document.getElementById('modal-ton').classList.remove('open'); }
 document.getElementById('modal-ton').addEventListener('click', e => { if (e.target === document.getElementById('modal-ton')) closeTonChoice(); });

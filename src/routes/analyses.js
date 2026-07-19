@@ -97,7 +97,7 @@ router.get('/', (req, res) => {
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
       devis_status, devis_sent_at, client_email, facture_num,
       devis_vu_at, devis_client_commentaire, devis_public_token, (devis_signature_b64 IS NOT NULL) as devis_signe,
-      facture_at, facture_payee_at,
+      facture_at, facture_payee_at, retours_json, relance_draft_json,
       assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, job_date, job_lieu, job_status, prep_note,
       (job_photos_json IS NOT NULL) as has_job_photos,
       (visuel_b64 IS NOT NULL) as has_visuel,
@@ -119,6 +119,10 @@ router.get('/', (req, res) => {
     return {
       my_stages: mySlots,
       ...r,
+      retours: (() => { try { return JSON.parse(r.retours_json || '[]'); } catch { return []; } })(),
+      relance_draft: (() => { try { return JSON.parse(r.relance_draft_json || 'null'); } catch { return null; } })(),
+      retours_json: undefined,
+      relance_draft_json: undefined,
       visuels_json: undefined,
       result: (isPending || isFailed) ? null : JSON.parse(r.result_json),
       lu: Boolean(r.lu),
@@ -830,6 +834,62 @@ router.patch('/:id/titre', (req, res) => {
   rj.titre = titre;
   db.prepare('UPDATE analyses SET result_json = ? WHERE id = ?').run(JSON.stringify(rj), item.id);
   res.json({ ok: true, titre });
+});
+
+// Chat IA sur un dossier : question libre avec le contexte de l'analyse (1 jeton / question)
+router.get('/:id/chat', (req, res) => {
+  const item = db.prepare('SELECT user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id, chat_json FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  let chat = [];
+  try { chat = JSON.parse(item.chat_json || '[]'); } catch {}
+  res.json({ chat });
+});
+
+router.post('/:id/chat', async (req, res) => {
+  const item = db.prepare('SELECT * FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const question = String(req.body.question || '').trim().slice(0, 1200);
+  if (!question) return res.status(400).json({ error: 'Question vide.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const aff = affordJetons(user, JETON_COSTS.chat); if (aff) return res.status(403).json(aff);
+  const apiKey = getSetting('ANTHROPIC_API_KEY');
+  if (!apiKey) return res.status(400).json({ error: 'Clé API non configurée.' });
+
+  let chat = [];
+  try { chat = JSON.parse(item.chat_json || '[]'); } catch {}
+
+  const contexte = `Tu es l'expert adhésif/impression intégré à AI-dhésif. Tu réponds aux questions de l'imprimeur (ou de son équipe) sur CE dossier précis. Réponses courtes, concrètes, en français (tutoiement OK). Si une info manque au dossier, dis-le clairement au lieu d'inventer.
+
+DOSSIER :
+${(item.mail_content || '').slice(0, 2000)}
+
+ANALYSE : ${(item.result_json || '').slice(0, 2500)}
+${item.prep_note ? 'NOTE PRÉPARATEUR : ' + item.prep_note : ''}`;
+
+  const messages = [
+    ...chat.slice(-10).map(m => ({ role: m.role, content: m.texte })),
+    { role: 'user', content: question },
+  ];
+  let claudeRes;
+  try {
+    claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800, system: contexte, messages }),
+    });
+  } catch { return res.status(502).json({ error: 'Impossible de joindre l\'API.' }); }
+  const data = await claudeRes.json();
+  if (!claudeRes.ok) return res.status(502).json({ error: data?.error?.message || `Erreur ${claudeRes.status}` });
+  logUsage(req.user.id, 'chat', 'claude-sonnet-4-6', data.usage);
+  const reponse = (data.content?.map(i => i.text || '').join('') || '').trim();
+  if (!reponse) return res.status(502).json({ error: 'Réponse vide — réessaie.' });
+
+  consumeJetons(user, JETON_COSTS.chat, 'chat');
+  chat.push({ role: 'user', texte: question, at: new Date().toISOString() });
+  chat.push({ role: 'assistant', texte: reponse, at: new Date().toISOString() });
+  db.prepare('UPDATE analyses SET chat_json = ? WHERE id = ?').run(JSON.stringify(chat.slice(-24)), item.id);
+  res.json({ reponse, jetons: getJetonState(db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)) });
 });
 
 // Lien public du devis : le client l'ouvre sans compte pour accepter/refuser/signer en ligne
