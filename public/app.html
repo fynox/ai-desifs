@@ -694,6 +694,25 @@ textarea:focus { border-color: var(--accent); }
   </main>
 </div>
 
+<!-- MODAL AMALGAME -->
+<div class="modal-overlay" id="modal-amalgame" onclick="if(event.target===this)closeAmalgame()">
+  <div class="modal" style="max-width:760px;width:96vw">
+    <h3 style="margin-bottom:4px;">🧩 Amalgame multi-commandes</h3>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Regroupe plusieurs visuels (commandes différentes) sur la même laize : moins de chutes, moins de matière.</div>
+    <div id="amalgame-liste" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <label style="font-size:12px;">Laize <input type="number" id="amalgame-laize" value="137" min="30" step="1" class="devis-inp" style="width:80px;margin:0 4px;"> cm</label>
+      <label style="font-size:12px;">Espacement <input type="number" id="amalgame-esp" value="1" min="0" step="0.5" class="devis-inp" style="width:64px;margin:0 4px;"> cm</label>
+      <button class="btn-submit" style="font-size:12px;" onclick="calculerAmalgame()">Calculer le plan</button>
+    </div>
+    <div id="amalgame-result"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAmalgame()">Fermer</button>
+      <button class="btn-cancel" id="btn-amalgame-export" style="display:none;" onclick="exporterAmalgame()">⬇ Exporter le plan (PNG)</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NOUVEAUTÉS -->
 <div class="modal-overlay" id="modal-news" onclick="if(event.target===this)closeNews()">
   <div class="modal" style="max-width:560px;width:94vw">
@@ -729,6 +748,7 @@ textarea:focus { border-color: var(--accent); }
     <div class="stock-panel-header">
       <h2>🗂 Production</h2>
       <span style="font-size:11px;color:var(--muted);">Glisse une carte d'une colonne à l'autre (ou utilise les flèches ◀ ▶)</span>
+      <button class="btn-import-cat" onclick="openAmalgame()" title="Regrouper plusieurs commandes sur une même laize pour économiser la matière">🧩 Amalgame</button>
       <button class="btn-close-stock" onclick="closeKanban()">✕ Fermer</button>
     </div>
     <div class="stock-panel-body" id="kanban-body"></div>
@@ -1142,6 +1162,7 @@ textarea:focus { border-color: var(--accent); }
       <div class="reg-grid">
         <label class="reg-field">Ton par défaut<select id="reglage-ton" class="devis-inp"><option value="pro">👔 Professionnel</option><option value="familier">😊 Familier</option></select><span class="reg-unit">présélectionné à chaque mail</span></label>
       </div>
+      <label class="reg-field" style="margin-top:8px;">Lien « Laisser un avis Google »<input type="url" id="reglage-avis" class="devis-inp" placeholder="https://g.page/r/..."><span class="reg-unit">renseigné = demande d'avis envoyée automatiquement au client quelques heures après chaque pose terminée (trouve ton lien dans Google Business Profile → « Demander des avis »)</span></label>
       <label class="reg-field" style="margin-top:8px;">Signature ajoutée aux mails<textarea id="reglage-signature" placeholder="Ex :&#10;Jean Dupont — Adhésif Pro&#10;06 12 34 56 78" style="width:100%;min-height:54px;box-sizing:border-box;padding:8px 10px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea><span class="reg-unit">collée automatiquement à la fin des mails générés (vide = aucune)</span></label>
     </div>
 
@@ -1913,6 +1934,7 @@ function openReglages() {
   document.getElementById('reglage-objectif').value = userSettings.objectif_ca_mensuel ?? '';
   document.getElementById('reglage-ton').value = userSettings.mail_ton_defaut === 'familier' ? 'familier' : 'pro';
   document.getElementById('reglage-signature').value = userSettings.mail_signature || '';
+  document.getElementById('reglage-avis').value = userSettings.google_review_url || '';
   document.getElementById('reglages-success').style.display = 'none';
   renderPrestasRows();
   initPwaCard();
@@ -1921,6 +1943,107 @@ function openReglages() {
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== AMALGAME MULTI-COMMANDES =====================
+let _amalgameCv = null;
+function openAmalgame() {
+  const cands = historique.filter(h => !h._pending && !h._failed && h.result && h.result.montage
+    && Number(h.result.montage.largeur_cm) > 0 && Number(h.result.montage.hauteur_cm) > 0
+    && h.job_status !== 'termine');
+  const liste = document.getElementById('amalgame-liste');
+  liste.innerHTML = cands.length
+    ? cands.map(h => {
+        const m = h.result.montage;
+        return `<label class="mail-point"><input type="checkbox" class="amalgame-cb" value="${h.id}" checked>
+          <span class="mp-txt">${h.result.titre || 'Analyse #' + h.id}<span class="mp-sub"><br>${m.largeur_cm}×${m.hauteur_cm} cm${Number(m.quantite) > 1 ? ' × ' + m.quantite + ' ex.' : ''}</span></span></label>`;
+      }).join('')
+    : '<div style="font-size:12px;color:var(--muted);">Aucune commande en cours avec dimensions connues.</div>';
+  document.getElementById('amalgame-result').innerHTML = '';
+  document.getElementById('btn-amalgame-export').style.display = 'none';
+  document.getElementById('modal-amalgame').classList.add('open');
+}
+function closeAmalgame() { document.getElementById('modal-amalgame').classList.remove('open'); }
+
+function calculerAmalgame() {
+  const laize = parseFloat(document.getElementById('amalgame-laize').value) || 137;
+  const esp = parseFloat(document.getElementById('amalgame-esp').value) || 0;
+  const ids = [...document.querySelectorAll('.amalgame-cb:checked')].map(c => +c.value);
+  const out = document.getElementById('amalgame-result');
+  // Chaque exemplaire devient une pièce (rotation permise pour tenir dans la laize)
+  const pieces = [];
+  for (const id of ids) {
+    const h = historique.find(x => x.id === id);
+    const m = h.result.montage;
+    const q = Math.min(Number(m.quantite) || 1, 60);
+    for (let i = 0; i < q; i++) pieces.push({ id, titre: (h.result.titre || '#' + id).slice(0, 22), w: Number(m.largeur_cm), h: Number(m.hauteur_cm) });
+  }
+  if (!pieces.length) { out.innerHTML = '<div style="font-size:12px;color:var(--danger);">Sélectionne au moins une commande.</div>'; return; }
+  if (pieces.length > 200) { out.innerHTML = '<div style="font-size:12px;color:var(--danger);">Trop de pièces (max 200) — désélectionne des commandes.</div>'; return; }
+  // Orientation : chaque pièce est tournée si nécessaire (ou si ça réduit sa hauteur) pour tenir dans la laize
+  let impossibles = 0;
+  for (const p of pieces) {
+    const tient = p.w <= laize, tientR = p.h <= laize;
+    if (!tient && !tientR) { impossibles++; p.skip = true; continue; }
+    if (!tient || (tientR && p.w < p.h && p.h <= laize)) { const t = p.w; p.w = p.h; p.h = t; }
+  }
+  const ok = pieces.filter(p => !p.skip);
+  // Rangement en étagères : pièces triées par hauteur décroissante, posées côte à côte
+  ok.sort((a, b) => b.h - a.h);
+  const rows = [];
+  for (const p of ok) {
+    let placed = false;
+    for (const r of rows) {
+      if (r.x + p.w <= laize && p.h <= r.h) { p.x = r.x; p.y = r.y; r.x += p.w + esp; placed = true; break; }
+    }
+    if (!placed) {
+      const y = rows.length ? rows[rows.length - 1].y + rows[rows.length - 1].h + esp : 0;
+      rows.push({ x: p.w + esp, y, h: p.h });
+      p.x = 0; p.y = y;
+    }
+  }
+  const longueur = rows.length ? rows[rows.length - 1].y + rows[rows.length - 1].h : 0;
+  // Économie vs impression séparée (chaque commande sur sa propre longueur de laize pleine)
+  const longSeparee = ok.reduce((s, p) => s + p.h + esp, 0);
+  const gain = Math.max(0, longSeparee - longueur);
+
+  // Dessin du plan
+  const scale = Math.min(680 / laize, 2.4);
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(laize * scale) + 2;
+  cv.height = Math.round(longueur * scale) + 26;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = '#999'; ctx.strokeRect(0.5, 0.5, laize * scale, longueur * scale + 0.5);
+  const cols = ['#79b52c', '#4a8af0', '#c84af0', '#f0a030', '#0a9c78', '#c23d1e', '#7a2fc0'];
+  const colOf = {}; let ci = 0;
+  for (const p of ok) {
+    if (colOf[p.id] === undefined) colOf[p.id] = cols[ci++ % cols.length];
+    ctx.fillStyle = colOf[p.id] + '33';
+    ctx.strokeStyle = colOf[p.id];
+    ctx.fillRect(p.x * scale, p.y * scale, p.w * scale, p.h * scale);
+    ctx.strokeRect(p.x * scale + 0.5, p.y * scale + 0.5, p.w * scale, p.h * scale);
+    ctx.fillStyle = '#333';
+    ctx.font = `${Math.max(9, Math.min(13, p.w * scale / 10))}px Arial`;
+    ctx.fillText(`${p.titre} ${Math.round(p.w)}×${Math.round(p.h)}`, p.x * scale + 4, p.y * scale + 14, p.w * scale - 8);
+  }
+  ctx.fillStyle = '#555'; ctx.font = '11px Arial';
+  ctx.fillText(`Laize ${laize} cm — longueur totale ${Math.round(longueur)} cm`, 4, cv.height - 8);
+  _amalgameCv = cv;
+
+  out.innerHTML = `
+    <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;margin-bottom:10px;">
+      <span>📏 Longueur de laize : <b style="color:var(--accent);">${Math.round(longueur)} cm</b></span>
+      <span>♻ Économie vs tirages séparés : <b style="color:var(--accent);">${Math.round(gain)} cm</b> (${longSeparee > 0 ? Math.round(gain / longSeparee * 100) : 0} %)</span>
+      ${impossibles ? `<span style="color:var(--danger);">⚠ ${impossibles} pièce(s) trop grande(s) pour cette laize (ignorées)</span>` : ''}
+    </div>
+    <div style="background:#fff;border-radius:9px;padding:6px;max-height:340px;overflow-y:auto;"></div>`;
+  out.querySelector('div[style*="background:#fff"]').appendChild(cv);
+  cv.style.maxWidth = '100%'; cv.style.height = 'auto';
+  document.getElementById('btn-amalgame-export').style.display = 'inline-block';
+}
+function exporterAmalgame() {
+  if (_amalgameCv) _amalgameCv.toBlob(b => _downloadBlob(b, `amalgame-${new Date().toISOString().slice(0, 10)}.png`), 'image/png');
+}
 
 // ===================== NOUVEAUTÉS (changelog in-app) =====================
 const NEWS = [
@@ -2171,6 +2294,7 @@ async function saveReglages() {
   { const v = parseFloat(String(document.getElementById('reglage-objectif').value).replace(',', '.')); userSettings.objectif_ca_mensuel = isFinite(v) && v > 0 ? Math.round(v) : null; }
   userSettings.mail_ton_defaut = document.getElementById('reglage-ton').value === 'familier' ? 'familier' : 'pro';
   userSettings.mail_signature = document.getElementById('reglage-signature').value.trim().slice(0, 400);
+  userSettings.google_review_url = document.getElementById('reglage-avis').value.trim().slice(0, 300);
   userSettings.prestations = readPrestas();
   try {
     await api('PUT', '/auth/profile', { settings: userSettings });

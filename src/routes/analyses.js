@@ -373,6 +373,7 @@ router.patch('/:id/job-status', (req, res) => {
   // Pose terminée pour la PREMIÈRE fois → décompte automatique du stock utilisé
   // (uniquement pour les références où le suivi de quantité est activé)
   if (status === 'termine' && item.job_status !== 'termine') {
+    try { db.prepare("UPDATE analyses SET job_done_at = datetime('now') WHERE id = ? AND job_done_at IS NULL").run(item.id); } catch {}
     try {
       const a = db.prepare('SELECT result_json FROM analyses WHERE id = ?').get(item.id);
       const rj = JSON.parse(a.result_json || '{}');

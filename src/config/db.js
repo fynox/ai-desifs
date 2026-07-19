@@ -160,6 +160,10 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN ref_code TEXT',
   'ALTER TABLE users ADD COLUMN parrain_id INTEGER',
   'ALTER TABLE users ADD COLUMN parrain_reward INTEGER DEFAULT 0',
+  // Rappel de pose la veille + demande d avis Google après pose
+  'ALTER TABLE analyses ADD COLUMN rappel_pose_sent INTEGER DEFAULT 0',
+  'ALTER TABLE analyses ADD COLUMN job_done_at TEXT',
+  'ALTER TABLE analyses ADD COLUMN avis_sent INTEGER DEFAULT 0',
   // Journal d activité par dossier
   `CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
