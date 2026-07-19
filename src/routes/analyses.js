@@ -61,6 +61,11 @@ const STAGE_LABELS = { a_creer: 'Création du visuel', a_preparer: 'Préparation
 function notifyMission(empId, analyseId, status) {
   if (!empId) return;
   try { require('../utils/events').emitTo(empId, 'mission', { analyse_id: analyseId, status }); } catch {}
+  try {
+    let titrePush = 'Nouvelle mission';
+    try { titrePush = JSON.parse(db.prepare('SELECT result_json FROM analyses WHERE id = ?').get(analyseId).result_json || '{}').titre || titrePush; } catch {}
+    require('../utils/push').pushTo(empId, '🎯 Nouvelle mission', `${titrePush} — ${STAGE_LABELS[status] || status}`);
+  } catch {}
   (async () => {
     try {
       const { sendMail, mailTemplate, mailReady, APP_URL } = require('../utils/mailer');
@@ -396,6 +401,7 @@ router.patch('/:id/job-status', (req, res) => {
   if (nextEmp && nextEmp !== req.user.id) notifyMission(nextEmp, item.id, status);
   if (status === 'termine' && sc.empId) {
     try { require('../utils/events').emitTo(item.user_id, 'mission_finie', { analyse_id: item.id }); } catch {}
+    try { require('../utils/push').pushTo(item.user_id, '🏁 Mission terminée', 'Une mission vient d\'être terminée par ton équipe.'); } catch {}
   }
 
   res.json({ ok: true, status });

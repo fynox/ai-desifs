@@ -22,7 +22,8 @@
     "multer": "^1.4.5-lts.1",
     "node-fetch": "^2.7.0",
     "sharp": "^0.33.4",
-    "stripe": "^14.21.0"
+    "stripe": "^14.21.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

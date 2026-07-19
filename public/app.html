@@ -1085,6 +1085,13 @@ textarea:focus { border-color: var(--accent); }
     </div>
 
     <div class="reg-card">
+      <div class="reg-title">🔔 Notifications sur cet appareil</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Reçois une alerte native (téléphone ou PC) <b>même quand le site est fermé</b> : nouvelle mission, mail client analysé, devis accepté/refusé, mission terminée.</div>
+      <button class="btn-stock" id="btn-push" style="margin:0;" onclick="togglePush()">🔔 Activer les notifications</button>
+      <span id="push-status" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-left:10px;"></span>
+    </div>
+
+    <div class="reg-card">
       <div class="reg-title">💶 Mes prestations & tarifs</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Tes tarifs fixes (pose, déplacement, échenillage…). L'IA les utilise <b>tels quels</b> dans les devis au lieu d'estimer, et tu peux les ajouter en 1 clic dans l'éditeur de devis.</div>
       <div id="prestas-rows"></div>
@@ -1812,9 +1819,53 @@ function openReglages() {
   document.getElementById('reglages-success').style.display = 'none';
   renderPrestasRows();
   initPwaCard();
+  refreshPushUI();
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== NOTIFICATIONS PUSH (réglages) =====================
+function _pushB64ToU8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+async function refreshPushUI() {
+  const btn = document.getElementById('btn-push');
+  const st = document.getElementById('push-status');
+  if (!btn) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    btn.style.display = 'none';
+    st.textContent = 'non supporté par ce navigateur';
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) { btn.textContent = '🔕 Désactiver les notifications'; st.textContent = '✓ activées sur cet appareil'; st.style.color = 'var(--accent)'; }
+    else { btn.textContent = '🔔 Activer les notifications'; st.textContent = ''; }
+  } catch {}
+}
+async function togglePush() {
+  const st = document.getElementById('push-status');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const cur = await reg.pushManager.getSubscription();
+    if (cur) {
+      await api('POST', '/push/unsubscribe', { endpoint: cur.endpoint });
+      await cur.unsubscribe();
+      showImportToast('🔕 Notifications désactivées sur cet appareil', 'success');
+    } else {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { st.textContent = 'permission refusée — autorise les notifications dans ton navigateur'; return; }
+      const k = await api('GET', '/push/key');
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _pushB64ToU8(k.key) });
+      await api('POST', '/push/subscribe', { subscription: sub.toJSON() });
+      showImportToast('🔔 Notifications activées — tu seras prévenu même app fermée', 'success');
+    }
+  } catch (e) { if (st) st.textContent = 'erreur : ' + e.message; }
+  refreshPushUI();
+}
 
 // ===================== CATALOGUE DE PRESTATIONS (réglages) =====================
 function renderPrestasRows() {

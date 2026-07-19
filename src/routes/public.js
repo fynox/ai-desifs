@@ -97,8 +97,12 @@ router.post('/devis/:token/reponse', (req, res) => {
     db.prepare("UPDATE analyses SET devis_status='refuse', devis_client_commentaire=? WHERE id=?").run(commentaire, item.id);
   }
 
-  // Prévenir le patron : temps réel + mail
+  // Prévenir le patron : temps réel + push + mail
   try { require('../utils/events').emitToOwnerTeam(item.user_id, 'devis_reponse', { analyse_id: item.id, action }); } catch {}
+  try {
+    let t = 'Devis'; try { t = JSON.parse(item.result_json || '{}').titre || t; } catch {}
+    require('../utils/push').pushTo(item.user_id, action === 'accepte' ? '🎉 Devis accepté !' : '❌ Devis refusé', t);
+  } catch {}
   (async () => {
     try {
       const { sendMail, mailTemplate, mailReady, APP_URL } = require('../utils/mailer');

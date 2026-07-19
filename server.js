@@ -52,6 +52,24 @@ app.use('/api/bugs', require('./src/routes/bugs'));
 app.use('/api/team', require('./src/routes/team'));
 app.use('/api/public', require('./src/routes/public'));
 
+// Notifications push natives (abonnement par appareil)
+{
+  const { requireAuth } = require('./src/middleware/auth');
+  const push = require('./src/utils/push');
+  app.get('/api/push/key', requireAuth, (req, res) => {
+    const key = push.publicKey();
+    if (!key) return res.status(503).json({ error: 'Push indisponible.' });
+    res.json({ key });
+  });
+  app.post('/api/push/subscribe', requireAuth, (req, res) => {
+    try { push.saveSub(req.user.id, req.body.subscription); res.json({ ok: true }); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  app.post('/api/push/unsubscribe', requireAuth, (req, res) => {
+    push.removeSub(req.body.endpoint); res.json({ ok: true });
+  });
+}
+
 // SendGrid inbound (pas rate limité)
 app.use('/webhooks', require('./src/routes/webhook'));
 

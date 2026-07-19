@@ -357,6 +357,7 @@ Renseigne "fichiers":[{"n":1,"role":"imprimer|reference","note":"raison en 3-6 m
       ).run(user.id, mailContentFinal, '', JSON.stringify(result), 'email', visuel_b64, visuel_type, visuelsJson, clientEmail);
     }
     emitToOwnerTeam(user.id, 'analyse_done', { analyse_id: pendingId || null });
+    try { require('../utils/push').pushTo(user.id, '📬 Nouvelle analyse prête', (result.titre || 'Demande client') + ' — analyse terminée.'); } catch {}
 
     // BROUILLON AUTO : la réponse au client est prérédigée dans la foulée — zéro clic, zéro jeton
     // pour l'utilisateur (le coût API est celui du compte global, tracé en relance_auto).

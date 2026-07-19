@@ -10,6 +10,26 @@ self.addEventListener('install', (e) => {
 });
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
+// Notifications push natives (mission, mail reçu, réponse devis...)
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch {}
+  e.waitUntil(self.registration.showNotification(d.titre || 'AI-dhésif', {
+    body: d.corps || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: d.url || '/app' },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/app';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) { if (c.url.includes('/app') && 'focus' in c) return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
+});
+
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
