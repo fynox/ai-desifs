@@ -96,7 +96,7 @@ router.get('/', (req, res) => {
   // Liste SANS les images (chargées à la demande via /:id/visuel) — sinon l'historique pèse des centaines de Mo
   // Employé : uniquement les missions qui lui sont affectées
   // Secrétariat = vision globale (toutes les analyses du compte) ; autres employés = seulement leurs missions
-  const filtre = (sc.empId && !sc.secr) ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ? OR assigned_design_id = ? OR assigned_secr_id = ?)' : 'user_id = ?';
+  const filtre = ((sc.empId && !sc.secr) ? 'user_id = ? AND (assigned_prep_id = ? OR assigned_pose_id = ? OR assigned_design_id = ? OR assigned_secr_id = ?)' : 'user_id = ?') + ' AND deleted_at IS NULL';
   const args = (sc.empId && !sc.secr) ? [sc.ownerId, sc.empId, sc.empId, sc.empId, sc.empId] : [sc.ownerId];
   const rows = db.prepare(`
     SELECT id, mail_content, consignes, result_json, source, lu, created_at, status, error_msg, devis_json, visuel_type,
@@ -312,6 +312,7 @@ router.patch('/:id/job', (req, res) => {
   for (const [nv, ancien, etape] of nouveaux) {
     if (nv && nv !== ancien) notifyMission(nv, item.id, etape);
   }
+  logAct(item.id, req.user.id, 'Mission affectée / planifiée' + (date ? ` (pose : ${date})` : ''));
 
   res.json({ ok: true, design_id: design, secr_id: secr, prep_id: prep, pose_id: pose, date, lieu, status });
 });
@@ -367,6 +368,7 @@ router.patch('/:id/job-status', (req, res) => {
   }
 
   db.prepare('UPDATE analyses SET job_status=? WHERE id=?').run(status, item.id);
+  logAct(item.id, req.user.id, `Étape passée à « ${STAGE_LABELS[status] || status} »`);
 
   // Pose terminée pour la PREMIÈRE fois → décompte automatique du stock utilisé
   // (uniquement pour les références où le suivi de quantité est activé)
@@ -492,11 +494,53 @@ router.put('/:id/lu', (req, res) => {
   res.json({ ok: true });
 });
 
+// Suppression DOUCE : l'analyse part à la corbeille, restaurable pendant 30 jours (purge auto ensuite)
 router.delete('/:id', (req, res) => {
   const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Analyse introuvable.' });
-  db.prepare('DELETE FROM analyses WHERE id = ?').run(item.id);
+  db.prepare("UPDATE analyses SET deleted_at = datetime('now') WHERE id = ?").run(item.id);
   res.json({ ok: true });
+});
+
+// Corbeille du compte (30 derniers jours)
+router.get('/corbeille', (req, res) => {
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const rows = db.prepare(`
+    SELECT id, result_json, created_at, deleted_at, client_email FROM analyses
+    WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 100
+  `).all(sc.ownerId).map(r => {
+    let titre = 'Analyse #' + r.id;
+    try { titre = JSON.parse(r.result_json || '{}').titre || titre; } catch {}
+    return { id: r.id, titre, created_at: r.created_at, deleted_at: r.deleted_at, client_email: r.client_email };
+  });
+  res.json({ corbeille: rows });
+});
+
+router.post('/:id/restaurer', (req, res) => {
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const item = db.prepare('SELECT id FROM analyses WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL').get(req.params.id, sc.ownerId);
+  if (!item) return res.status(404).json({ error: 'Introuvable dans la corbeille.' });
+  db.prepare('UPDATE analyses SET deleted_at = NULL WHERE id = ?').run(item.id);
+  res.json({ ok: true });
+});
+
+// Journal d'activité d'un dossier (patron + secrétariat)
+function logAct(analyseId, userId, action) {
+  try { db.prepare('INSERT INTO activity_log (analyse_id, user_id, action) VALUES (?,?,?)').run(analyseId, userId, String(action).slice(0, 200)); } catch {}
+}
+router.get('/:id/activite', (req, res) => {
+  const item = db.prepare('SELECT id, user_id, assigned_prep_id, assigned_pose_id, assigned_design_id, assigned_secr_id FROM analyses WHERE id = ?').get(req.params.id);
+  if (!canAccessAnalyse(req, item)) return res.status(404).json({ error: 'Analyse introuvable.' });
+  const sc = employeScope(req);
+  if (sc.empId && !sc.secr) return res.status(403).json({ error: 'Réservé au patron et au secrétariat.' });
+  const rows = db.prepare(`
+    SELECT a.action, a.created_at, u.email FROM activity_log a
+    LEFT JOIN users u ON u.id = a.user_id
+    WHERE a.analyse_id = ? ORDER BY a.created_at DESC LIMIT 60
+  `).all(item.id);
+  res.json({ activite: rows });
 });
 
 // Génère un mail de relance au client pour demander les infos manquantes
@@ -707,6 +751,7 @@ Réponds UNIQUEMENT en JSON valide :
 
   // Sauvegarder le devis pour pouvoir le rouvrir sans le regénérer
   db.prepare('UPDATE analyses SET devis_json = ? WHERE id = ?').run(JSON.stringify(devis), item.id);
+  logAct(item.id, req.user.id, 'Devis généré par l\'IA');
 
   consumeJetons(user, JETON_COSTS.devis, 'devis');
   res.json(devis);
@@ -799,6 +844,7 @@ router.post('/:id/envoyer-mail', async (req, res) => {
     return res.status(502).json({ error: 'L\'envoi a échoué : ' + e.message });
   }
 
+  logAct(item.id, req.user.id, `Mail envoyé au client (${to})${attachments.length ? ' avec devis PDF joint' : ''}`);
   // Un devis joint = devis envoyé (sauf s'il a déjà une réponse)
   let devis_status = item.devis_status;
   if (attachments.length && item.devis_status !== 'accepte' && item.devis_status !== 'refuse') {
@@ -824,6 +870,7 @@ router.post('/:id/facture', (req, res) => {
   db.prepare('UPDATE users SET facture_seq = ? WHERE id = ?').run(seq, sc.ownerId);
   const num = `FA-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`;
   db.prepare("UPDATE analyses SET facture_num=?, facture_at=datetime('now') WHERE id=?").run(num, item.id);
+  logAct(item.id, req.user.id, `Facture ${num} générée`);
   res.json({ num, date: new Date().toISOString(), deja: false });
 });
 
@@ -839,6 +886,7 @@ router.patch('/:id/titre', (req, res) => {
   try { rj = JSON.parse(item.result_json || '{}'); } catch {}
   rj.titre = titre;
   db.prepare('UPDATE analyses SET result_json = ? WHERE id = ?').run(JSON.stringify(rj), item.id);
+  logAct(item.id, req.user.id, `Renommée en « ${titre} »`);
   res.json({ ok: true, titre });
 });
 
@@ -941,6 +989,8 @@ router.patch('/:id/devis-status', (req, res) => {
   } else {
     db.prepare('UPDATE analyses SET devis_status=? WHERE id=?').run(status, item.id);
   }
+  const DVLBL = { envoye: 'envoyé', accepte: 'accepté', refuse: 'refusé' };
+  logAct(item.id, req.user.id, status ? `Devis marqué « ${DVLBL[status] || status} »` : 'Statut du devis retiré');
   res.json({ ok: true, devis_status: status });
 });
 

@@ -97,6 +97,8 @@ router.post('/devis/:token/reponse', (req, res) => {
     db.prepare("UPDATE analyses SET devis_status='refuse', devis_client_commentaire=? WHERE id=?").run(commentaire, item.id);
   }
 
+  try { db.prepare('INSERT INTO activity_log (analyse_id, user_id, action) VALUES (?,?,?)').run(item.id, null, action === 'accepte' ? 'Le client a accepté et signé le devis en ligne' : 'Le client a refusé le devis en ligne'); } catch {}
+
   // Prévenir le patron : temps réel + push + mail
   try { require('../utils/events').emitToOwnerTeam(item.user_id, 'devis_reponse', { analyse_id: item.id, action }); } catch {}
   try {

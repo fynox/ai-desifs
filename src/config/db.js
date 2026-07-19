@@ -154,6 +154,16 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN relance_draft_json TEXT',
   'ALTER TABLE analyses ADD COLUMN retours_json TEXT',
   'ALTER TABLE analyses ADD COLUMN chat_json TEXT',
+  // Corbeille : suppression douce, restaurable 30 jours
+  'ALTER TABLE analyses ADD COLUMN deleted_at TEXT',
+  // Journal d activité par dossier
+  `CREATE TABLE IF NOT EXISTS activity_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    analyse_id INTEGER NOT NULL,
+    user_id INTEGER,
+    action TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`,
 ];
 for (const sql of migrations) {
   try { db.exec(sql); } catch {}

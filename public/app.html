@@ -654,6 +654,16 @@ textarea:focus { border-color: var(--accent); }
   </main>
 </div>
 
+<!-- MODAL CORBEILLE -->
+<div class="modal-overlay" id="modal-corbeille" onclick="if(event.target===this)closeCorbeille()">
+  <div class="modal" style="max-width:560px;width:94vw">
+    <h3 style="margin-bottom:4px;">🗑 Corbeille</h3>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Restaurable pendant 30 jours après la suppression.</div>
+    <div id="corbeille-body"></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeCorbeille()">Fermer</button></div>
+  </div>
+</div>
+
 <!-- MODAL CONTRÔLE FICHIER -->
 <div class="modal-overlay" id="modal-controle" onclick="if(event.target===this)closeControle()">
   <div class="modal" style="max-width:620px;width:94vw">
@@ -1082,6 +1092,12 @@ textarea:focus { border-color: var(--accent); }
         <label class="reg-field">Ton par défaut<select id="reglage-ton" class="devis-inp"><option value="pro">👔 Professionnel</option><option value="familier">😊 Familier</option></select><span class="reg-unit">présélectionné à chaque mail</span></label>
       </div>
       <label class="reg-field" style="margin-top:8px;">Signature ajoutée aux mails<textarea id="reglage-signature" placeholder="Ex :&#10;Jean Dupont — Adhésif Pro&#10;06 12 34 56 78" style="width:100%;min-height:54px;box-sizing:border-box;padding:8px 10px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;resize:vertical;"></textarea><span class="reg-unit">collée automatiquement à la fin des mails générés (vide = aucune)</span></label>
+    </div>
+
+    <div class="reg-card">
+      <div class="reg-title">🗑 Corbeille</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">Les analyses supprimées restent restaurables pendant <b>30 jours</b>, puis sont effacées définitivement.</div>
+      <button class="btn-stock" style="margin:0;" onclick="openCorbeille()">🗑 Ouvrir la corbeille</button>
     </div>
 
     <div class="reg-card">
@@ -1671,6 +1687,23 @@ async function envoyerChat(id) {
   btn.disabled = false; btn.innerHTML = 'Envoyer<span class="btn-cost">1🪙</span>';
 }
 
+// Journal d'activité : chargé à la demande
+async function loadActivite(id) {
+  const host = document.getElementById('activite-host');
+  if (!host) return;
+  try {
+    const r = await api('GET', `/analyses/${id}/activite`);
+    const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    host.innerHTML = (r.activite || []).length
+      ? r.activite.map(a => `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--border);align-items:baseline;">
+          <span style="font-family:'DM Mono',monospace;font-size:10.5px;color:var(--muted);white-space:nowrap;">${new Date(a.created_at + 'Z').toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+          <span style="font-size:12px;flex:1;">${esc(a.action)}</span>
+          <span style="font-size:10.5px;color:var(--muted);">${a.email ? esc(a.email.split('@')[0]) : 'client'}</span>
+        </div>`).join('')
+      : 'Aucune activité enregistrée pour le moment (le journal démarre à partir d\'aujourd\'hui).';
+  } catch { host.textContent = 'Journal indisponible.'; }
+}
+
 // Photos de fin de pose : chargées à la demande dans la section dédiée
 async function loadJobPhotos(id) {
   const host = document.getElementById('job-photos-host');
@@ -1823,6 +1856,34 @@ function openReglages() {
   document.getElementById('modal-reglages').classList.add('open');
 }
 function closeReglages() { document.getElementById('modal-reglages').classList.remove('open'); }
+
+// ===================== CORBEILLE =====================
+async function openCorbeille() {
+  closeReglages();
+  document.getElementById('modal-corbeille').classList.add('open');
+  const body = document.getElementById('corbeille-body');
+  body.innerHTML = '<div style="font-size:12px;color:var(--muted);">Chargement…</div>';
+  try {
+    const r = await api('GET', '/analyses/corbeille');
+    body.innerHTML = (r.corbeille || []).length
+      ? r.corbeille.map(c => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+          <span style="flex:1;min-width:140px;font-size:12.5px;">${c.titre}</span>
+          <span style="font-size:11px;color:var(--muted);">${c.client_email || ''}</span>
+          <span style="font-size:11px;color:var(--muted);">supprimée le ${new Date(c.deleted_at).toLocaleDateString('fr-FR')}</span>
+          <button class="btn-cancel" style="font-size:11px;padding:4px 10px;color:var(--accent);border-color:var(--accent-dim);" onclick="restaurerAnalyse(${c.id})">↩ Restaurer</button>
+        </div>`).join('')
+      : '<div style="font-size:12px;color:var(--muted);">La corbeille est vide.</div>';
+  } catch (e) { body.innerHTML = `<div style="font-size:12px;color:var(--danger);">${e.message}</div>`; }
+}
+function closeCorbeille() { document.getElementById('modal-corbeille').classList.remove('open'); }
+async function restaurerAnalyse(id) {
+  try {
+    await api('POST', `/analyses/${id}/restaurer`);
+    showImportToast('↩ Analyse restaurée dans l\'historique', 'success');
+    openCorbeille();
+    loadHistorique();
+  } catch (e) { alert('Erreur : ' + e.message); }
+}
 
 // ===================== NOTIFICATIONS PUSH (réglages) =====================
 function _pushB64ToU8(b64) {
@@ -4282,6 +4343,10 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
       </div>`).join('') + `<div style="font-size:10.5px;color:var(--muted);">Ces mails ont été rattachés automatiquement (réponse du même client). Utilise « Retour client » ci-dessous pour relancer l'analyse avec ces nouvelles infos si besoin.</div>`,
       { icon: '💬', open: true })
     : '';
+  // Journal d'activité (patron + secrétariat) : qui a fait quoi et quand
+  const secActivite = (analyseId && analyseId !== '_pending' && analyseId > 0 && (!isEmploye || hasRole('secretariat')))
+    ? accSection('Journal d\'activité', `<div id="activite-host" style="font-size:12px;color:var(--muted);">Chargement…</div>`, { icon: '🕘', open: false, hint: 'replié' })
+    : '';
   // Chat IA libre sur le dossier (1 jeton / question)
   const secChat = (analyseId && analyseId !== '_pending' && analyseId > 0)
     ? accSection('Poser une question à l\'IA sur ce dossier', `
@@ -4357,11 +4422,11 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
         <button class="rtab" id="rtab-btn-prep" onclick="switchResultTab('prep')">🔧 Préparation</button>
         <button class="rtab" id="rtab-btn-pose" onclick="switchResultTab('pose')">🚐 Pose</button>
       </div>
-      <div id="rtab-analyse">${secResume}${secReponsesClient}${secPreview}${secAdhesif}${secSpecs}${secAttention}${missionSection}${secRetour}${assemblageBox}${actionsBar}${secChat}</div>
+      <div id="rtab-analyse">${secResume}${secReponsesClient}${secPreview}${secAdhesif}${secSpecs}${secAttention}${missionSection}${secRetour}${assemblageBox}${actionsBar}${secChat}${secActivite}</div>
       <div id="rtab-prep" style="display:none">${tabPrep || tabVide('préparation')}</div>
       <div id="rtab-pose" style="display:none">${tabPose || tabVide('pose')}</div>`;
   } else {
-    corps = `${secResume}${secReponsesClient}${vPose ? secRendu : ''}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}${secChat}`;
+    corps = `${secResume}${secReponsesClient}${vPose ? secRendu : ''}${secPreview}${vPose ? accSection('Infos & conseils de pose', poseInfosInner, { icon: '🚐', open: true }) : ''}${secAdhesif}${secSpecs}${montageSection}${secPrepChk}${prepNoteEditor}${bonProdBtn}${secPoseChk}${secAttention}${missionSection}${secPhotos}${secRetour}${assemblageBox}${actionsBar}${secChat}${secActivite}`;
   }
 
   const panel = document.getElementById('output-panel');
@@ -4374,6 +4439,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
     </div>`;
   if (analyseId && analyseId !== '_pending' && jobItem.has_job_photos) loadJobPhotos(analyseId);
   if (analyseId && analyseId !== '_pending' && analyseId > 0) loadChat(analyseId);
+  if (analyseId && analyseId !== '_pending' && analyseId > 0 && (!isEmploye || hasRole('secretariat'))) loadActivite(analyseId);
   panel.classList.add('open');
   panel.scrollTop = 0;
   // Contrôle de résolution du visuel pour la taille d'impression demandée

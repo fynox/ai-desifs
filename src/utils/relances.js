@@ -4,6 +4,9 @@ const db = require('../config/db');
 // n'a pas d'abonnement actif. Comptes principaux uniquement (jamais les employés).
 // Fenêtres bornées pour ne jamais relancer les vieux comptes existants au premier déploiement.
 async function checkRelancesEssai() {
+  // Purge de la corbeille : suppression définitive après 30 jours (indépendant du mail)
+  try { db.prepare("DELETE FROM analyses WHERE deleted_at IS NOT NULL AND deleted_at < datetime('now','-30 days')").run(); } catch {}
+
   const { sendMail, mailTemplate, mailReady, APP_URL } = require('./mailer');
   if (!mailReady()) return;
 
