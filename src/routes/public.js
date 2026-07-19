@@ -92,7 +92,8 @@ router.post('/devis/:token/reponse', (req, res) => {
         db.prepare('UPDATE analyses SET devis_json = ? WHERE id = ?').run(JSON.stringify(devis), item.id);
       }
     } catch {}
-    db.prepare("UPDATE analyses SET devis_status='accepte', devis_signature_b64=?, devis_client_commentaire=? WHERE id=?").run(sig, commentaire, item.id);
+    // Devis accepté → la commande entre automatiquement en production (colonne « À préparer » du kanban)
+    db.prepare("UPDATE analyses SET devis_status='accepte', devis_signature_b64=?, devis_client_commentaire=?, job_status=COALESCE(job_status, 'a_preparer') WHERE id=?").run(sig, commentaire, item.id);
   } else {
     db.prepare("UPDATE analyses SET devis_status='refuse', devis_client_commentaire=? WHERE id=?").run(commentaire, item.id);
   }

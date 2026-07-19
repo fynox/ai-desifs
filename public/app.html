@@ -629,23 +629,23 @@ textarea:focus { border-color: var(--accent); }
           <span style="font-size:13px;color:var(--accent-dim);">＋</span>
         </button>
       </div>
-      <div id="storage-wrap" style="padding:0 2px 10px;display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:4px;">
-          <span>Stockage visuels</span>
-          <span id="storage-txt">—</span>
+      <div id="storage-wrap" style="padding:0 2px 8px;display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:3px;">
+          <span>Stockage <span id="storage-txt">—</span></span>
+          <button onclick="openClear()" title="Libérer de l'espace" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:0;text-decoration:underline;">🧹 Libérer</button>
         </div>
-        <div style="height:6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+        <div style="height:4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
           <div id="storage-bar" style="height:100%;width:0%;background:var(--accent);transition:width .3s;"></div>
         </div>
-        <button onclick="openClear()" style="background:transparent;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:4px 0 0;text-decoration:underline;">🧹 Libérer de l'espace</button>
       </div>
-      <button class="btn-stock" id="btn-dash" onclick="openDash()" style="margin-bottom:8px;">📊 Tableau de bord</button>
-      <button class="btn-stock" id="btn-kanban" onclick="openKanban()" style="margin-bottom:8px;">🗂 Production</button>
-      <button class="btn-stock" id="btn-team" onclick="openTeam()" style="margin-bottom:8px;display:none;">👥 Mon équipe</button>
-      <button class="btn-stock" id="btn-stock-side" onclick="openStock()" style="margin-bottom:8px;">⬡ Gérer le stock adhésifs</button>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-stock" onclick="openProfile()" style="flex:1;margin:0;">👤 Profil</button>
-        <button class="btn-stock" onclick="openReglages()" style="flex:1;margin:0;">⚙ Réglages</button>
+      <!-- Navigation compacte : 2 colonnes pour laisser la place à l'historique -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button class="btn-stock" id="btn-dash" onclick="openDash()" style="margin:0;font-size:12px;padding:8px 6px;">📊 Tableau</button>
+        <button class="btn-stock" id="btn-kanban" onclick="openKanban()" style="margin:0;font-size:12px;padding:8px 6px;">🗂 Production</button>
+        <button class="btn-stock" id="btn-team" onclick="openTeam()" style="margin:0;font-size:12px;padding:8px 6px;display:none;">👥 Équipe</button>
+        <button class="btn-stock" id="btn-stock-side" onclick="openStock()" style="margin:0;font-size:12px;padding:8px 6px;">⬡ Stock</button>
+        <button class="btn-stock" onclick="openProfile()" style="margin:0;font-size:12px;padding:8px 6px;">👤 Profil</button>
+        <button class="btn-stock" onclick="openReglages()" style="margin:0;font-size:12px;padding:8px 6px;">⚙ Réglages</button>
       </div>
       <button id="btn-news" onclick="openNews()" style="background:none;border:none;color:var(--muted);font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;padding:2px 2px 6px;text-align:left;">✨ Nouveautés<span id="news-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:6px;vertical-align:middle;"></span></button>
       <div class="user-row">
@@ -2890,11 +2890,18 @@ function renderAll() { ALL_CATS.forEach(cat => renderCat(cat)); updateStats(); }
 // ===================== KANBAN DE PRODUCTION (patron) =====================
 const KANBAN_COLS = [
   { key: null, label: '📥 Non planifiée', color: '#8a8f98' },
+  { key: '_attente', label: '✉ En attente client', color: '#4a9eff', auto: true },
   { key: 'a_creer', label: '🎨 À créer', color: '#c84af0' },
   { key: 'a_preparer', label: '🛠 À préparer', color: '#f0a030' },
   { key: 'pret_a_poser', label: '📦 Prêt à poser', color: '#4a8af0' },
   { key: 'termine', label: '✅ Terminé', color: '#4ecd7b' },
 ];
+// Colonne d'une carte : « En attente client » = devis envoyé, pas encore de réponse ni de production.
+// À l'acceptation en ligne, le serveur passe automatiquement la commande en « À préparer ».
+function kanbanColOf(h) {
+  if (!h.job_status && h.devis_status === 'envoye') return '_attente';
+  return h.job_status || null;
+}
 function openKanban() {
   document.getElementById('kanban-overlay').classList.add('open');
   renderKanban();
@@ -2905,36 +2912,42 @@ function kanbanOpenAnalyse(id) { closeKanban(); openHisto(id); }
 function renderKanban() {
   const body = document.getElementById('kanban-body');
   const items = historique.filter(h => !h._pending && !h._failed && h.result);
-  const stages = KANBAN_COLS.map(c => c.key);
+  // Flux manuel (flèches / glisser-déposer) — la colonne « En attente client » est automatique
+  const flow = [null, 'a_creer', 'a_preparer', 'pret_a_poser', 'termine'];
   body.innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;">` +
     KANBAN_COLS.map(col => {
-      const cards = items.filter(h => (h.job_status || null) === col.key);
-      const idxCol = stages.indexOf(col.key);
-      return `<div style="flex:1;min-width:215px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px;"
-          ondragover="event.preventDefault();this.style.borderColor='${col.color}'" ondragleave="this.style.borderColor='var(--border)'"
-          ondrop="this.style.borderColor='var(--border)';kanbanDrop(event, ${col.key ? `'${col.key}'` : 'null'})">
-        <div style="font-size:11.5px;font-weight:700;color:${col.color};margin-bottom:10px;display:flex;justify-content:space-between;">
+      const cards = items.filter(h => kanbanColOf(h) === col.key);
+      const idxFlow = flow.indexOf(col.key);
+      return `<div style="flex:1;min-width:200px;background:var(--surface2);border:1px solid ${col.auto ? col.color + '55' : 'var(--border)'};border-radius:12px;padding:10px;"
+          ${col.auto ? '' : `ondragover="event.preventDefault();this.style.borderColor='${col.color}'" ondragleave="this.style.borderColor='var(--border)'"
+          ondrop="this.style.borderColor='var(--border)';kanbanDrop(event, ${col.key ? `'${col.key}'` : 'null'})"`}>
+        <div style="font-size:11.5px;font-weight:700;color:${col.color};margin-bottom:${col.auto ? '2px' : '10px'};display:flex;justify-content:space-between;">
           <span>${col.label}</span><span style="font-family:'DM Mono',monospace;">${cards.length}</span>
         </div>
+        ${col.auto ? `<div style="font-size:9.5px;color:var(--muted);margin-bottom:8px;">automatique — passe en « À préparer » dès que le client accepte en ligne</div>` : ''}
         ${cards.map(h => {
           const dv = h.devis_status ? { envoye: '✉', accepte: '✓💶', refuse: '✗' }[h.devis_status] : '';
-          const prev = idxCol > 0 ? stages[idxCol - 1] : undefined;
-          const next = idxCol < stages.length - 1 ? stages[idxCol + 1] : undefined;
-          return `<div draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${h.id}')"
-              style="background:var(--bg);border:1px solid var(--border);border-left:3px solid ${col.color};border-radius:9px;padding:8px 10px;margin-bottom:8px;cursor:grab;">
+          const attenteInfo = col.auto
+            ? `<div style="font-size:10px;margin-top:4px;color:#4a9eff;">✉ envoyé${h.devis_sent_at ? ' le ' + new Date(h.devis_sent_at).toLocaleDateString('fr-FR') : ''}${h.devis_vu_at ? ' · 👁 vu par le client' : ' · pas encore ouvert'}</div>`
+            : '';
+          const prev = idxFlow > 1 ? flow[idxFlow - 1] : undefined;
+          const next = (idxFlow >= 0 && idxFlow < flow.length - 1) ? flow[idxFlow + 1] : undefined;
+          return `<div ${col.auto ? '' : `draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${h.id}')"`}
+              style="background:var(--bg);border:1px solid var(--border);border-left:3px solid ${col.color};border-radius:9px;padding:8px 10px;margin-bottom:8px;${col.auto ? '' : 'cursor:grab;'}">
             <div onclick="kanbanOpenAnalyse(${h.id})" style="cursor:pointer;">
               <div style="font-size:12px;font-weight:600;line-height:1.4;">${h.result.titre || 'Analyse #' + h.id}</div>
               <div style="font-size:10px;color:var(--muted);margin-top:3px;">${h.client_email ? h.client_email + ' · ' : ''}${new Date(h.created_at).toLocaleDateString('fr-FR')}${h.job_date ? ' · 🗓 ' + h.job_date : ''} ${dv}</div>
+              ${attenteInfo}
             </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;">
-              ${prev !== undefined && idxCol > 1 ? `<button onclick="kanbanMove(${h.id}, '${prev}')" title="Étape précédente" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:2px 9px;cursor:pointer;">◀</button>` : '<span></span>'}
+            ${col.auto ? '' : `<div style="display:flex;justify-content:space-between;margin-top:6px;">
+              ${prev !== undefined ? `<button onclick="kanbanMove(${h.id}, '${prev}')" title="Étape précédente" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:2px 9px;cursor:pointer;">◀</button>` : '<span></span>'}
               ${next !== undefined ? `<button onclick="kanbanMove(${h.id}, '${next}')" title="Étape suivante" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:2px 9px;cursor:pointer;">▶</button>` : '<span></span>'}
-            </div>
+            </div>`}
           </div>`;
         }).join('') || `<div style="font-size:11px;color:var(--muted);text-align:center;padding:10px 0;">—</div>`}
       </div>`;
     }).join('') + `</div>
-    <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">💡 Passer une carte en « Terminé » décompte automatiquement le stock utilisé. Les employés assignés sont prévenus à chaque déplacement vers leur étape.</div>`;
+    <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">💡 « En attente client » se remplit quand un devis est envoyé, et la carte passe toute seule en « À préparer » à l'acceptation en ligne. Passer une carte en « Terminé » décompte le stock utilisé.</div>`;
 }
 
 function kanbanDrop(ev, status) {
@@ -5568,6 +5581,20 @@ function startEvents() {
       };
       if (msgs[d.type]) showImportToast(msgs[d.type], (d.failed || d.type === 'stock_bas') ? 'error' : 'success');
       if (d.type === 'stock_bas') { try { loadStock().then(renderAll); } catch {} }
+      // Réponse / ouverture du devis en ligne : mise à jour IMMÉDIATE, sans actualiser la page
+      if ((d.type === 'devis_reponse' || d.type === 'devis_vu') && d.analyse_id) {
+        const it = historique.find(h => h.id === d.analyse_id);
+        if (it) {
+          if (d.type === 'devis_vu' && !it.devis_vu_at) it.devis_vu_at = new Date().toISOString();
+          if (d.type === 'devis_reponse') {
+            it.devis_status = d.action;
+            if (d.action === 'accepte') { it.devis_signe = 1; if (!it.job_status) it.job_status = 'a_preparer'; }
+          }
+          renderSidebarHisto();
+          try { if (document.getElementById('kanban-overlay').classList.contains('open')) renderKanban(); } catch {}
+          try { if (document.getElementById('modal-devis').classList.contains('open') && _devisId === d.analyse_id) renderDevisSuivi(d.analyse_id); } catch {}
+        }
+      }
       // Rafraîchissement immédiat via le mécanisme de polling existant
       if (_pollActive) { clearTimeout(pollingInterval); pollingInterval = setTimeout(_doPoll, 300); }
     });
