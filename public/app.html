@@ -577,7 +577,6 @@ textarea:focus { border-color: var(--accent); }
       <div class="auth-field"><label>Adresse mail</label><input type="email" id="signup-email" placeholder="votre@mail.com"></div>
       <div class="auth-field"><label>Mot de passe</label><div class="pw-wrap"><input type="password" id="signup-pw" placeholder="8 caractères minimum"><button class="pw-toggle" onclick="togglePw('signup-pw')">👁</button></div></div>
       <div class="auth-field"><label>Confirmer le mot de passe</label><input type="password" id="signup-pw2" placeholder="••••••••"></div>
-      <div class="auth-field"><label>Code de parrainage (optionnel)</label><input type="text" id="signup-parrain" placeholder="Ex : A3F9C2" style="text-transform:uppercase;"></div>
       <div class="auth-error" id="signup-error"></div>
       <button class="btn-primary" id="btn-signup" onclick="signup()">Créer mon compte →</button>
     </div>
@@ -646,7 +645,7 @@ textarea:focus { border-color: var(--accent); }
         <button class="btn-stock" id="btn-kanban" onclick="openKanban()" style="margin:0;font-size:12px;padding:8px 6px;">🗂 Production</button>
         <button class="btn-stock" id="btn-team" onclick="openTeam()" style="margin:0;font-size:12px;padding:8px 6px;display:none;">👥 Équipe</button>
         <button class="btn-stock" id="btn-stock-side" onclick="openStock()" style="margin:0;font-size:12px;padding:8px 6px;">⬡ Stock</button>
-        <button class="btn-stock" onclick="openProfile()" style="margin:0;font-size:12px;padding:8px 6px;">👤 Profil</button>
+        <button class="btn-stock" id="btn-profil" onclick="openProfile()" style="margin:0;font-size:12px;padding:8px 6px;">👤 Profil</button>
         <button class="btn-stock" onclick="openReglages()" style="margin:0;font-size:12px;padding:8px 6px;">⚙ Réglages</button>
       </div>
       <button id="btn-news" onclick="openNews()" style="background:none;border:none;color:var(--muted);font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;padding:2px 2px 6px;text-align:left;">✨ Nouveautés<span id="news-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:6px;vertical-align:middle;"></span></button>
@@ -1061,8 +1060,6 @@ textarea:focus { border-color: var(--accent); }
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Adresse mail entrante</div>
     <div id="profil-inbound-wrap"></div>
 
-    <div id="profil-parrainage-wrap"></div>
-
     <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Abonnement</div>
     <div id="profil-plan-wrap" style="margin-bottom:12px;"></div>
     <button class="btn-stock" onclick="openPortail()" style="width:100%">⚙ Gérer mon abonnement Stripe</button>
@@ -1421,9 +1418,7 @@ async function signup() {
   if (password !== pw2) { err.textContent = 'Les mots de passe ne correspondent pas.'; return; }
   btn.disabled = true; btn.textContent = 'Création...';
   try {
-    const codeParrain = (document.getElementById('signup-parrain').value.trim() || localStorage.getItem('aidesif_parrain') || '').toUpperCase();
-    const data = await api('POST', '/auth/signup', { email, password, code_parrain: codeParrain || undefined });
-    localStorage.removeItem('aidesif_parrain');
+    const data = await api('POST', '/auth/signup', { email, password });
     if (data.settings) try { userSettings = { marge_raccord_mm: 10, marge_impression_mm: 5, debord_pose_mm: 20, ...JSON.parse(data.settings) }; } catch {}
     startSession(data.token, data.email, data.subscription_status, data.trial_analyses_used, data.inbound_email);
   } catch (e) {
@@ -2055,7 +2050,6 @@ const NEWS = [
     '🗂 Vue Production (kanban), marge matière réelle, graphique CA 12 mois et objectif mensuel',
     '🤖 Chat IA sur chaque dossier (1🪙) + réponse client prérédigée automatiquement à l\'arrivée du mail',
     '☀️ Mode clair, 🗑 corbeille 30 jours, 🕘 journal d\'activité, ♻ chutes de rouleaux, 🔬 contrôle fichier',
-    '🎁 Parrainage : 30 jetons offerts à chaque filleul abonné (lien dans ton Profil)',
   ] },
   { date: '2026-07-18', titre: 'Grosse mise à jour productivité', points: [
     '📊 Tableau de bord complet : relances, planning des poses, fiches clients, suivi des factures',
@@ -2367,6 +2361,7 @@ const TOUR_STEPS = [
   { target: '#jeton-wrap', title: '🪙 Tes jetons', text: 'Les actions premium (devis, mails, HD, vectorisation...) coûtent quelques jetons. Ton forfait en inclut chaque mois, et tu peux recharger — les jetons achetés n\'expirent jamais.' },
   { target: '#btn-stock-side', title: '⬡ Ton stock d\'adhésifs', text: 'Ajoute tes références (ou importe un catalogue PDF) : l\'IA ne recommande QUE ce que tu as réellement en stock. Astuce : renseigne quantité + seuil pour être alerté quand un adhésif est bientôt épuisé.' },
   { target: '#btn-dash', title: '📊 Ton tableau de bord', text: 'Vue d\'ensemble de ton activité : analyses du mois, taux de devis acceptés, CA estimé, devis à relancer, planning des poses de la semaine et fiches clients.' },
+  { target: '#btn-profil', title: '📬 Ton adresse mail dédiée (Profil)', text: 'Dans ton profil se trouve TON adresse d\'analyse automatique (…@ai-dhesif.fr). Quand un client t\'écrit sur ta boîte habituelle, transfère simplement son mail vers cette adresse : l\'analyse arrive toute seule dans l\'historique. Tu peux aussi la donner directement à tes clients. (Forfaits Pro et +)' },
   { target: null, title: '🎉 C\'est tout !', text: 'Tu peux revoir cette visite à tout moment avec le bouton « ? » en bas à droite, ou dans ⚙ Réglages. Bonne découverte !' },
 ];
 let _tourIdx = -1;
@@ -2523,19 +2518,6 @@ function openProfile() {
     const cnt = document.getElementById('jeton-count');
     if (cnt && p.jetons) { cnt.textContent = p.jetons.total; const jw = document.getElementById('jeton-wrap'); if (jw) jw.style.display = p.subscription_status === 'active' ? 'block' : 'none'; }
     if (typeof loadStorage === 'function') loadStorage();
-    // Parrainage : lien personnel + compteur (comptes principaux uniquement)
-    const pw = document.getElementById('profil-parrainage-wrap');
-    if (pw && p.ref_code && !isEmploye) {
-      const lien = 'https://ai-dhesif.fr/?p=' + p.ref_code;
-      pw.innerHTML = `
-        <div style="border-bottom:1px solid var(--border);margin:20px 0 20px;padding-bottom:4px;font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">🎁 Parrainage</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px;">Fais connaître AI-dhésif à un confrère : à son <b>premier abonnement</b>, tu reçois <b style="color:var(--accent);">30 jetons</b> (cumulables, sans limite de filleuls).</div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:12.5px;font-family:'DM Mono',monospace;color:var(--accent);word-break:break-all;">${lien}</span>
-          <button onclick="navigator.clipboard.writeText('${lien}').then(()=>showImportToast('🔗 Lien de parrainage copié','success'))" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;">Copier</button>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px;font-family:'DM Mono',monospace;">${p.filleuls || 0} inscrit${(p.filleuls || 0) > 1 ? 's' : ''} · ${p.filleuls_abonnes || 0} abonné${(p.filleuls_abonnes || 0) > 1 ? 's' : ''} · ${(p.filleuls_abonnes || 0) * 30}🪙 gagnés</div>`;
-    }
   }).catch(() => {});
   ['profil-pw-actuel','profil-pw-new','profil-pw-confirm'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('profil-error').textContent = '';
@@ -2544,7 +2526,7 @@ function openProfile() {
   const wrap = document.getElementById('profil-inbound-wrap');
   if (subscriptionStatus === 'active' && ['pro', 'ultra', 'entreprise'].includes(userPlan) && inboundEmail) {
     wrap.innerHTML = `
-      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;">Vos clients transfèrent leurs demandes à cette adresse :</div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:6px;line-height:1.6;">Ton adresse d'analyse automatique. Deux façons de l'utiliser :<br>• <b style="color:var(--text);">toi-même</b> : quand un client t'écrit sur ta boîte habituelle, transfère simplement son mail vers cette adresse → l'analyse se lance toute seule ;<br>• ou donne-la à tes clients pour qu'ils t'écrivent directement dessus.</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);flex:1;word-break:break-all;">${inboundEmail}</span>
         <button onclick="copyInbound()" id="btn-copy-inbound" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);cursor:pointer;">Copier</button>
@@ -5646,9 +5628,6 @@ if ('serviceWorker' in navigator) {
 
 // ===================== AUTO-LOGIN =====================
 (async () => {
-  // Lien de parrainage (?p=CODE) : mémorisé pour l'inscription
-  const pCode = new URLSearchParams(window.location.search).get('p');
-  if (pCode) { try { localStorage.setItem('aidesif_parrain', pCode.toUpperCase()); } catch {} }
   // Lien de réinitialisation de mot de passe : on montre le formulaire dédié (pas d'auto-login)
   const resetTok = new URLSearchParams(window.location.search).get('reset');
   if (resetTok) {

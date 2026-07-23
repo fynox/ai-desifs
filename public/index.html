@@ -462,13 +462,6 @@ function toggleFaq(el) {
   const item = el.parentElement;
   item.classList.toggle('open');
 }
-
-// Lien de parrainage (?p=CODE) : mémorisé jusqu'à l'inscription
-try {
-  const p = new URLSearchParams(location.search).get('p');
-  if (p) localStorage.setItem('aidesif_parrain', p.toUpperCase());
-} catch {}
-
 // ===== Démo animée du mockup : frappe du mail → analyse → résultat, en boucle =====
 (function () {
   const ta = document.getElementById('pv-textarea');

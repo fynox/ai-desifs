@@ -32,15 +32,6 @@ router.post('/signup', async (req, res) => {
   }
   const result = db.prepare('INSERT INTO users (email, password_hash, subscription_status, inbound_email) VALUES (?, ?, ?, ?)').run(email.toLowerCase(), hash, 'trial', inbound_email);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-
-  // Parrainage : rattacher le filleul à son parrain (récompense versée à l'abonnement, jamais avant)
-  try {
-    const code = String(req.body.code_parrain || '').trim().toUpperCase();
-    if (code) {
-      const parrain = db.prepare('SELECT id FROM users WHERE ref_code = ? AND id != ?').get(code, user.id);
-      if (parrain) db.prepare('UPDATE users SET parrain_id = ? WHERE id = ?').run(parrain.id, user.id);
-    }
-  } catch {}
   res.json({ token: makeToken(user), email: user.email, subscription_status: user.subscription_status, trial_analyses_used: user.trial_analyses_used, inbound_email: user.inbound_email });
 });
 
@@ -139,17 +130,8 @@ router.get('/profile', requireAuth, async (req, res) => {
     planInfo = PLAN_INFO[jetons.plan] || null;
   } catch (e) { console.error('profile extras error:', e.message); }
 
-  // Code de parrainage : généré à la première consultation du profil
-  let refCode = full.ref_code;
-  if (!refCode && !full.parent_user_id) {
-    refCode = require('crypto').randomBytes(3).toString('hex').toUpperCase();
-    try { db.prepare('UPDATE users SET ref_code = ? WHERE id = ?').run(refCode, full.id); } catch { refCode = null; }
-  }
-  const filleuls = db.prepare('SELECT COUNT(*) c FROM users WHERE parrain_id = ?').get(full.id).c;
-  const filleulsAbo = db.prepare('SELECT COUNT(*) c FROM users WHERE parrain_id = ? AND parrain_reward = 1').get(full.id).c;
-
   const { id, stripe_customer_id, ...pub } = user;
-  res.json({ ...pub, jetons, storage, plan_info: planInfo, role: full.role || 'owner', is_employe: Boolean(full.parent_user_id), ref_code: refCode, filleuls, filleuls_abonnes: filleulsAbo });
+  res.json({ ...pub, jetons, storage, plan_info: planInfo, role: full.role || 'owner', is_employe: Boolean(full.parent_user_id) });
 });
 
 router.put('/profile', requireAuth, async (req, res) => {

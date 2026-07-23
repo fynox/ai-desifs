@@ -417,35 +417,6 @@ router.post('/stripe', express.raw({ type: 'application/json' }), (req, res) => 
     // plan_override = plan forcé manuellement par l'admin, on ne touche pas au plan dans ce cas
     db.prepare('UPDATE users SET subscription_status = ?, plan = CASE WHEN plan_override=1 THEN plan ELSE ? END, plan_period = ? WHERE stripe_customer_id = ?')
       .run(sub.status, sub.status === 'active' ? plan : 'free', period, sub.customer);
-
-    // Parrainage : 1er abonnement actif d'un filleul → 30 jetons offerts au parrain (une seule fois)
-    if (sub.status === 'active') {
-      try {
-        const filleul = db.prepare('SELECT id, email, parrain_id, parrain_reward FROM users WHERE stripe_customer_id = ?').get(sub.customer);
-        if (filleul && filleul.parrain_id && !filleul.parrain_reward) {
-          db.prepare('UPDATE users SET parrain_reward = 1 WHERE id = ?').run(filleul.id);
-          db.prepare('UPDATE users SET jetons = COALESCE(jetons,0) + 30 WHERE id = ?').run(filleul.parrain_id);
-          const parrain = db.prepare('SELECT id, email FROM users WHERE id = ?').get(filleul.parrain_id);
-          try { require('../utils/push').pushTo(parrain.id, '🎁 Parrainage réussi !', '30 jetons offerts — ton filleul vient de s\'abonner.'); } catch {}
-          (async () => {
-            try {
-              const { sendMail, mailTemplate, mailReady, APP_URL } = require('../utils/mailer');
-              if (!mailReady()) return;
-              await sendMail({
-                to: parrain.email,
-                subject: '🎁 Parrainage réussi — 30 jetons offerts !',
-                html: mailTemplate({
-                  titre: 'Ton filleul vient de s\'abonner 🎉',
-                  corps: 'Merci d\'avoir fait connaître AI-dhésif : <b>30 jetons</b> viennent d\'être ajoutés à ton portefeuille (ils n\'expirent pas).<br><br>Ton lien de parrainage reste actif — chaque nouvel abonné te rapporte 30 jetons.',
-                  boutonTexte: 'Voir mes jetons',
-                  boutonUrl: APP_URL + '/app',
-                }),
-              });
-            } catch (e) { console.error('Mail parrainage:', e.message); }
-          })();
-        }
-      } catch (e) { console.error('Parrainage reward error:', e.message); }
-    }
   }
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object;
