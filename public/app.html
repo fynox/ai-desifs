@@ -163,6 +163,8 @@ body { background: var(--bg); background-image: var(--bg-soft); color: var(--tex
 .histo-delete-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: transparent; border: none; font-size: 13px; cursor: pointer; opacity: 0; transition: opacity 0.15s; padding: 4px 6px; border-radius: 5px; line-height: 1; }
 .histo-item:hover .histo-delete-btn { opacity: 0.5; }
 .histo-delete-btn:hover { opacity: 1 !important; background: rgba(240,96,96,0.15); }
+/* Écrans tactiles (pas de survol) : la poubelle reste visible, sinon impossible de supprimer */
+@media (hover: none) { .histo-delete-btn { opacity: .55; } }
 .adhesif-result-card { cursor: pointer; transition: border-color 0.15s; }
 .adhesif-result-card:hover { border-color: var(--accent) !important; }
 .histo-empty { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted); text-align: center; padding: 20px 8px; line-height: 1.6; }
@@ -3287,6 +3289,19 @@ function demarrerModeOffline() {
   return true;
 }
 
+// Suppression depuis le dossier ouvert (accessible partout, y compris sur téléphone)
+async function supprimerDossier(id) {
+  if (!confirm('Mettre cette analyse à la corbeille ?\n(Restaurable pendant 30 jours depuis ⚙ Réglages → Corbeille)')) return;
+  try {
+    await api('DELETE', '/analyses/' + id);
+    historique = historique.filter(h => h.id !== id);
+    renderSidebarHisto();
+    try { closeResult(); } catch {}
+    loadStorage();
+    showImportToast('🗑 Analyse mise à la corbeille — restaurable 30 jours', 'success');
+  } catch (e) { alert(e.message); }
+}
+
 async function deleteHisto(e, id) {
   e.stopPropagation();
   try {
@@ -3991,6 +4006,8 @@ function _injectLesManuel(html) {
 function groupVisuels(visuels) {
   const map = new Map();
   visuels.forEach((v, i) => {
+    // Les fichiers de RÉFÉRENCE (rendu 3D, photo du lieu, brief) ne s'impriment pas → pas de plan de lés
+    if (v.role === 'reference') return;
     const key = (v.w && v.h) ? `${Math.round(v.w)}x${Math.round(v.h)}` : `idx-${i}`;
     if (!map.has(key)) {
       map.set(key, {
@@ -4724,7 +4741,7 @@ function renderResult(r, previewB64, previewType, analyseId, visuels) {
   const panel = document.getElementById('output-panel');
   panel.innerHTML = `
     <div class="result-block">
-      <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2>${(analyseId && analyseId !== '_pending' && analyseId > 0 && (!isEmploye || hasRole('secretariat'))) ? `<button onclick="renameAnalyse(${analyseId})" title="Renommer cette analyse (nom affiché dans l'historique et la recherche)" style="background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 9px;">✏ Renommer</button>` : ''}<span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
+      <div class="result-top"><h2>${(isEmploye && _empStages.length) ? 'Mission' : 'Analyse'}${dao ? ' · DAO' : ''}</h2>${(analyseId && analyseId !== '_pending' && analyseId > 0 && (!isEmploye || hasRole('secretariat'))) ? `<button onclick="renameAnalyse(${analyseId})" title="Renommer cette analyse (nom affiché dans l'historique et la recherche)" style="background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 9px;">✏ Renommer</button>` : ''}${(analyseId && analyseId !== '_pending' && analyseId > 0 && !isEmploye) ? `<button onclick="supprimerDossier(${analyseId})" title="Mettre à la corbeille (restaurable 30 jours depuis ⚙ Réglages)" style="background:none;border:1px solid var(--border);border-radius:7px;color:var(--danger);cursor:pointer;font-size:13px;padding:3px 9px;">🗑 Supprimer</button>` : ''}<span class="result-badge">✓ Prêt</span><button class="output-close-btn" onclick="closeResult()">✕ Fermer</button></div>
       ${missionBanner}
       ${prepNoteBanner}
       ${corps}
@@ -5109,7 +5126,9 @@ async function openControleFichier(id) {
     else if (info.mode === 'Vectoriel') checks += ok('Fichier vectoriel — redimensionnable sans perte.');
     else if (info.mode === 'RVB') checks += warn('Mode RVB : sera converti en CMJN à l\'impression — les couleurs vives (fluo, bleus/verts saturés) peuvent ternir légèrement. Préviens le client si la teinte est critique.');
     else if (info.mode === 'Niveaux de gris') checks += ok('Niveaux de gris.');
-    if (info.format === 'JPEG') checks += info.icc ? ok('Profil colorimétrique (ICC) intégré.') : warn('Aucun profil ICC intégré — la conversion utilisera le profil par défaut de l\'imprimante.');
+    if (info.format === 'JPEG') checks += info.icc
+      ? ok('Profil colorimétrique (ICC) intégré.')
+      : `<div style="font-size:12.5px;padding:3px 0;color:var(--muted);">ℹ️ Pas de profil ICC intégré — c'est le cas de la plupart des fichiers clients et ce n'est pas un problème : l'imprimante appliquera son profil par défaut. Rien à faire.</div>`;
     if (info.alpha) checks += warn('Transparence présente (couche alpha) : les zones transparentes sortiront BLANCHES sur vinyl blanc. Vérifie le fond attendu.');
     if (dpi != null) {
       if (dpi >= 100) checks += ok(`Résolution : ${dpi} DPI à la taille demandée${largCm ? ` (${largCm}×${hautCm || '?'} cm)` : ''} — excellent.`);
