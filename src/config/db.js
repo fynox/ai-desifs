@@ -160,6 +160,9 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN ref_code TEXT',
   'ALTER TABLE users ADD COLUMN parrain_id INTEGER',
   'ALTER TABLE users ADD COLUMN parrain_reward INTEGER DEFAULT 0',
+  // Suppléments facturés en jetons CHAQUE MOIS (stockage bonus + comptes employés supplémentaires)
+  'ALTER TABLE users ADD COLUMN storage_billed_month TEXT',   // dernier mois facturé (AAAA-MM)
+  'ALTER TABLE users ADD COLUMN extra_users INTEGER DEFAULT 0', // comptes employés au-delà du forfait (30 jetons/mois chacun)
   // Rappel de pose la veille + demande d avis Google après pose
   'ALTER TABLE analyses ADD COLUMN rappel_pose_sent INTEGER DEFAULT 0',
   'ALTER TABLE analyses ADD COLUMN job_done_at TEXT',
@@ -206,8 +209,10 @@ try {
 // Migration stock : élargir les catégories si l'ancienne contrainte est encore présente
 try {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();
-  const needsMigration = row && row.sql && !row.sql.includes("'encre'");
+  // Uniquement pour les anciennes bases qui ont ENCORE une contrainte CHECK (voir migration finale plus bas)
+  const needsMigration = row && row.sql && row.sql.includes('CHECK') && !row.sql.includes("'encre'");
   if (needsMigration) {
+    db.exec('DROP TABLE IF EXISTS stock_new');
     const hadNewCols = row.sql.includes('largeurs');
     db.pragma('foreign_keys = OFF');
     db.exec(`
@@ -243,7 +248,9 @@ try {
 // Migration : renommer la catégorie 'liner' en 'plastification' (clé + données)
 try {
   const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();
-  if (row && row.sql && !row.sql.includes("'plastification'")) {
+  // Idem : ne concerne que les bases encore contraintes par un CHECK
+  if (row && row.sql && row.sql.includes('CHECK') && !row.sql.includes("'plastification'")) {
+    db.exec('DROP TABLE IF EXISTS stock_new');
     db.pragma('foreign_keys = OFF');
     db.exec(`
       CREATE TABLE stock_new (
@@ -276,6 +283,50 @@ try {
   }
 } catch (e) {
   console.error('Migration plastification error:', e.message);
+}
+
+// Migration : retirer la contrainte CHECK sur les catégories du stock.
+// Les catégories sont désormais validées en code (src/routes/stock.js) → extensibles sans migration.
+try {
+  const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='stock'`).get();
+  if (row && row.sql && row.sql.includes('CHECK')) {
+    db.pragma('foreign_keys = OFF');
+    db.exec('DROP TABLE IF EXISTS stock_new');
+    db.exec(`
+      CREATE TABLE stock_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        cat TEXT NOT NULL,
+        nom TEXT NOT NULL,
+        finition TEXT NOT NULL,
+        adherence TEXT NOT NULL,
+        env TEXT NOT NULL,
+        duree TEXT NOT NULL,
+        resistances TEXT DEFAULT '[]',
+        applications TEXT DEFAULT '[]',
+        largeurs TEXT DEFAULT '[]',
+        couleurs TEXT DEFAULT '[]',
+        variantes TEXT DEFAULT '[]',
+        prix_m2 REAL,
+        note TEXT DEFAULT '',
+        dispo INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        quantite_m2 REAL,
+        seuil_alerte REAL,
+        chutes TEXT DEFAULT '[]'
+      );
+      INSERT INTO stock_new (id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo,created_at,quantite_m2,seuil_alerte,chutes)
+        SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo,created_at,quantite_m2,seuil_alerte,chutes FROM stock;
+      DROP TABLE stock;
+      ALTER TABLE stock_new RENAME TO stock;
+    `);
+    db.pragma('foreign_keys = ON');
+    console.log('Migration stock: contrainte de catégories retirée (validation en code)');
+  }
+  // Nettoyage d'une éventuelle table temporaire laissée par une migration interrompue
+  try { db.exec('DROP TABLE IF EXISTS stock_new'); } catch {}
+} catch (e) {
+  console.error('Migration stock sans CHECK error:', e.message);
 }
 
 module.exports = db;

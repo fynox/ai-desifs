@@ -95,7 +95,7 @@ router.post('/reset', async (req, res) => {
 });
 
 router.get('/profile', requireAuth, async (req, res) => {
-  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id, settings FROM users WHERE id = ?').get(req.user.id);
+  let user = db.prepare('SELECT id, email, subscription_status, plan, plan_period, plan_override, trial_analyses_used, inbound_email, stripe_customer_id, settings, bonus_go, extra_users FROM users WHERE id = ?').get(req.user.id);
 
   // Synchro directe avec Stripe (filet de sécurité si le webhook n'est pas passé).
   // Désactivée si l'admin a forcé un plan manuellement (plan_override).

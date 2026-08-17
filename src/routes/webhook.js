@@ -149,7 +149,7 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
     if (affordAnalyse(user)) { failItem('Quota d\'analyses atteint ce mois-ci et solde de jetons insuffisant.'); return; }
     const mailOverQuota = analyseOverQuota(user);
 
-    const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
+    const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', texture:'Adhésif texturé / effet', flocage:'Flocage textile', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
     const stockDesc = Object.keys(CAT_LABELS).map(cat => {
       const items = stockDispo.filter(i => i.cat === cat);
       if (!items.length) return '';
@@ -179,6 +179,8 @@ DÉFINITIONS IMPORTANTES — respecte-les strictement :
 - "Covering" : film covering/wrapping pour véhicules, repositionnable, haute résistance.
 - "Vitre" : adhésif vitrine transparent, givré, micro-perforé (vision-screen), film solaire ou occultant pour fenêtres.
 - "Panneau" : support rigide (dibond, alu, PVC expansé, bois) pour contrecoller ou encadrer un visuel.
+- "Adhésif texturé / effet" : vinyl avec une TEXTURE ou un effet special (sable, cuir, brosse, carbone, ardoise, bois, paillete, miroir, fluorescent, phosphorescent, antiderapant, effet depoli...). A recommander quand le client demande explicitement un rendu tactile ou un effet decoratif particulier, PAS pour une impression classique.
+- "Flocage textile" : films et supports pour le TEXTILE (flex thermocollant, flock velours, film sublimation, DTF, serigraphie textile) — s'applique a la presse a chaud sur des vetements (t-shirts, polos, sweats, casquettes, sacs). NE JAMAIS recommander de flocage textile pour un mur, une vitre, un vehicule ou un panneau : reserve aux supports en tissu.
 
 Ne confonds JAMAIS ces categories.
 

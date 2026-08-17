@@ -15,6 +15,9 @@ const { JETON_COSTS } = require('../utils/plans');
 const router = express.Router();
 router.use(requireAuth);
 
+// Catégories de stock (validées ici, plus par une contrainte SQL → extensibles sans migration)
+const CATS = ['imprimable', 'plastification', 'dao', 'texture', 'flocage', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
 
 function parseItem(row) {
@@ -110,6 +113,7 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], couleurs = [], variantes = [], chutes = [], prix_m2 = null, note = '', dispo = true, quantite_m2 = null, seuil_alerte = null } = req.body;
   if (!cat || !nom || !finition || !adherence || !env || !duree) return res.status(400).json({ error: 'Champs manquants.' });
+  if (!CATS.includes(cat)) return res.status(400).json({ error: 'Catégorie inconnue.' });
   const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
   const result = db.prepare(
     'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,chutes,prix_m2,note,dispo,quantite_m2,seuil_alerte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
@@ -193,7 +197,6 @@ router.post('/import-catalogue', (req, res, next) => {
 
     const produits = allProduits;
 
-    const CATS = ['imprimable', 'plastification', 'dao', 'transfert', 'covering', 'vitre', 'panneau', 'encre'];
     const added = [];
     const stmt = db.prepare('INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,note,dispo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)');
 

@@ -90,3 +90,6 @@ try { require('./src/utils/backup').scheduleBackups(); } catch (e) { console.err
 
 // Relances automatiques des comptes d'essai (J+2 / J+7)
 try { require('./src/utils/relances').scheduleRelances(); } catch (e) { console.error('Relances scheduler:', e.message); }
+
+// Prélèvement mensuel des suppléments en jetons (stockage bonus, comptes employés en plus)
+try { require('./src/utils/recurrents').scheduleRecurrents(); } catch (e) { console.error('Recurrents scheduler:', e.message); }

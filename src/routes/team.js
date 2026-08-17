@@ -2,8 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 const { requireAuth } = require('../middleware/auth');
-const { planKey, checkFeature } = require('../utils/limits');
-const { PLAN_INFO } = require('../utils/plans');
+const { planKey, checkFeature, affordJetons, consumeJetons, getJetonState } = require('../utils/limits');
+const { PLAN_INFO, JETON_COSTS } = require('../utils/plans');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -34,11 +34,49 @@ router.get('/coworkers', (req, res) => {
   res.json({ coworkers: rows });
 });
 
+// Places disponibles = celles du forfait + celles achetées en supplément (30 jetons/mois chacune)
+function maxUsers(owner) {
+  const base = PLAN_INFO[planKey(owner)] ? PLAN_INFO[planKey(owner)].users : 1;
+  return base + Math.max(0, owner.extra_users || 0);
+}
+
 // Liste des employés du compte
 router.get('/', requireOwner, (req, res) => {
-  const rows = db.prepare('SELECT id, email, role, created_at FROM users WHERE parent_user_id = ? ORDER BY created_at').all(req.owner.id);
-  const max = PLAN_INFO[planKey(req.owner)] ? PLAN_INFO[planKey(req.owner)].users : 1;
-  res.json({ employes: rows, max_users: max, used: rows.length + 1 }); // +1 = le compte employeur lui-même
+  const rows = db.prepare('SELECT id, email, role, created_at, subscription_status FROM users WHERE parent_user_id = ? ORDER BY created_at').all(req.owner.id);
+  const base = PLAN_INFO[planKey(req.owner)] ? PLAN_INFO[planKey(req.owner)].users : 1;
+  res.json({
+    employes: rows,
+    max_users: maxUsers(req.owner),
+    base_users: base,
+    extra_users: req.owner.extra_users || 0,
+    extra_cost: JETON_COSTS.extra_user,
+    used: rows.length + 1, // +1 = le compte employeur lui-même
+  });
+});
+
+// Ajouter une place employé supplémentaire : 30 jetons prélevés maintenant, puis chaque mois
+router.post('/places', requireOwner, (req, res) => {
+  const cost = JETON_COSTS.extra_user;
+  const aff = affordJetons(req.owner, cost);
+  if (aff) return res.status(403).json(aff);
+  consumeJetons(req.owner, cost, 'extra_user');
+  const { moisCourant } = require('../utils/recurrents');
+  db.prepare('UPDATE users SET extra_users = COALESCE(extra_users,0) + 1, storage_billed_month = ? WHERE id = ?').run(moisCourant(), req.owner.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(req.owner.id);
+  res.json({ ok: true, extra_users: fresh.extra_users, max_users: maxUsers(fresh), jetons: getJetonState(fresh) });
+});
+
+// Retirer une place supplémentaire (impossible si elle est occupée)
+router.delete('/places', requireOwner, (req, res) => {
+  if (!(req.owner.extra_users > 0)) return res.status(400).json({ error: 'Aucune place supplémentaire active.' });
+  const count = db.prepare('SELECT COUNT(*) as c FROM users WHERE parent_user_id = ?').get(req.owner.id).c;
+  const apres = maxUsers({ ...req.owner, extra_users: req.owner.extra_users - 1 });
+  if (count + 1 > apres) {
+    return res.status(400).json({ error: 'Supprime d\'abord un compte employé : cette place est occupée.' });
+  }
+  db.prepare('UPDATE users SET extra_users = MAX(0, COALESCE(extra_users,0) - 1) WHERE id = ?').run(req.owner.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(req.owner.id);
+  res.json({ ok: true, extra_users: fresh.extra_users, max_users: maxUsers(fresh), jetons: getJetonState(fresh) });
 });
 
 // Créer un compte employé
@@ -50,9 +88,14 @@ router.post('/', requireOwner, async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Mot de passe : 8 caractères minimum.' });
   if (!role) return res.status(400).json({ error: 'Choisis au moins un rôle (préparateur, poseur, secrétariat, designer).' });
 
-  const max = PLAN_INFO[planKey(req.owner)] ? PLAN_INFO[planKey(req.owner)].users : 1;
+  const max = maxUsers(req.owner);
   const count = db.prepare('SELECT COUNT(*) as c FROM users WHERE parent_user_id = ?').get(req.owner.id).c;
-  if (count + 1 >= max) return res.status(403).json({ error: `Limite atteinte : ${max} utilisateurs (toi inclus) sur ton forfait.` });
+  if (count + 1 >= max) {
+    return res.status(403).json({
+      error: `Limite atteinte : ${max} utilisateurs (toi inclus). Ajoute une place supplémentaire pour ${JETON_COSTS.extra_user} jetons/mois depuis « 👥 Mon équipe ».`,
+      places_pleines: true,
+    });
+  }
 
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (existing) return res.status(409).json({ error: 'Un compte existe déjà avec cet email.' });

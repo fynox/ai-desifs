@@ -35,6 +35,8 @@
   --cat-vitre: #4af0f0;
   --cat-solaire: #f0a04a;
   --cat-panneau: #a0f04a;
+  --cat-texture: #f0844a;
+  --cat-flocage: #f04a9e;
 }
 
 /* ===== Mode clair (bascule dans les réglages, mémorisée par appareil) ===== */
@@ -779,24 +781,9 @@ textarea:focus { border-color: var(--accent); }
       <input type="file" id="catalogue-file-input" accept=".pdf" style="display:none" onchange="importCatalogue(this)">
     </div>
     <div class="stock-panel-body">
-      <div class="cat-tabs-bar">
-        <button class="cat-tab active" id="tab-imprimable" onclick="switchTab('imprimable')"><span class="cat-tab-dot" style="background:var(--cat-print)"></span>Imprimable<span class="cat-tab-count" id="count-imprimable">0</span></button>
-        <button class="cat-tab" id="tab-plastification" onclick="switchTab('plastification')"><span class="cat-tab-dot" style="background:var(--cat-plastification)"></span>Plastification<span class="cat-tab-count" id="count-plastification">0</span></button>
-        <button class="cat-tab" id="tab-dao" onclick="switchTab('dao')"><span class="cat-tab-dot" style="background:var(--cat-dao)"></span>Couleur DAO<span class="cat-tab-count" id="count-dao">0</span></button>
-        <button class="cat-tab" id="tab-transfert" onclick="switchTab('transfert')"><span class="cat-tab-dot" style="background:var(--cat-transfert)"></span>Transfert<span class="cat-tab-count" id="count-transfert">0</span></button>
-        <button class="cat-tab" id="tab-covering" onclick="switchTab('covering')"><span class="cat-tab-dot" style="background:var(--cat-covering)"></span>Covering<span class="cat-tab-count" id="count-covering">0</span></button>
-        <button class="cat-tab" id="tab-vitre" onclick="switchTab('vitre')"><span class="cat-tab-dot" style="background:var(--cat-vitre)"></span>Vitre / Solaire<span class="cat-tab-count" id="count-vitre">0</span></button>
-        <button class="cat-tab" id="tab-panneau" onclick="switchTab('panneau')"><span class="cat-tab-dot" style="background:var(--cat-panneau)"></span>Panneau<span class="cat-tab-count" id="count-panneau">0</span></button>
-        <button class="cat-tab" id="tab-encre" onclick="switchTab('encre')"><span class="cat-tab-dot" style="background:var(--cat-encre)"></span>Encre<span class="cat-tab-count" id="count-encre">0</span></button>
-      </div>
-      <div class="cat-panel" id="panel-imprimable"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('imprimable',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-imprimable"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-plastification" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('plastification',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-plastification"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-dao" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('dao',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-dao"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-transfert" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('transfert',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-transfert"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-covering" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('covering',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-covering"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-vitre" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('vitre',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-vitre"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-panneau" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('panneau',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-panneau"><div class="empty-cat">Aucune référence</div></div></div>
-      <div class="cat-panel" id="panel-encre" style="display:none"><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('encre',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-encre"><div class="empty-cat">Aucune référence</div></div></div>
+      <!-- Onglets et panneaux générés depuis CATS (voir le script) -->
+      <div class="cat-tabs-bar" id="cat-tabs-bar"></div>
+      <div id="cat-panels"></div>
     </div>
   </div>
 </div>
@@ -805,15 +792,16 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h3 id="modal-title">Nouvelle référence</h3>
-    <div class="form-group"><label>Catégorie</label><select id="modal-cat"><option value="imprimable">Imprimable</option><option value="plastification">Plastification</option><option value="dao">Couleur DAO</option><option value="transfert">Papier transfert</option><option value="covering">Covering voiture</option><option value="vitre">Vitre / Micro-perf / Solaire</option><option value="panneau">Panneau (bois/alu)</option><option value="encre">Encre d'impression</option></select></div>
+    <div class="form-group"><label>Catégorie</label><select id="modal-cat"></select></div>
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
-    <div id="plastif-hint" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;">🛡 La plastification se pose PAR-DESSUS un visuel imprimé pour le protéger. La finition (brillant/mat/satiné) change le rendu final. Renseigne sa durabilité/résistances (UV…) — elles servent à décider quand la recommander.</div>
-    <div class="form-group" id="fg-finition"><label>Finition</label><select id="modal-finition"><option value="Brillant">Brillant</option><option value="Mat">Mat</option><option value="Satiné">Satiné</option><option value="Transparent">Transparent</option><option value="Givré">Givré</option><option value="Métallisé">Métallisé</option></select></div>
-    <div class="form-group" id="fg-adherence"><label>Adhérence</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="adherence" value="Amovible"> Amovible</label><label class="cb-item"><input type="radio" name="adherence" value="Standard" checked> Standard</label><label class="cb-item"><input type="radio" name="adherence" value="Renforcée"> Renforcée</label><label class="cb-item"><input type="radio" name="adherence" value="Très forte (colle béton)"> Très forte — colle béton</label></div></div>
-    <div class="form-group" id="fg-env"><label>Environnement</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="env" value="Intérieur"> Intérieur</label><label class="cb-item"><input type="radio" name="env" value="Extérieur" checked> Extérieur</label><label class="cb-item"><input type="radio" name="env" value="Intérieur et extérieur"> Intérieur & extérieur</label></div></div>
-    <div class="form-group" id="fg-duree"><label>Durabilité</label><div class="checkbox-group"><label class="cb-item"><input type="radio" name="duree" value="Courte durée (< 1 an)"> Courte durée — moins d'1 an</label><label class="cb-item"><input type="radio" name="duree" value="Moyenne durée (1-3 ans)" checked> Moyenne durée — 1 à 3 ans</label><label class="cb-item"><input type="radio" name="duree" value="Longue durée (3-7 ans)"> Longue durée — 3 à 7 ans</label><label class="cb-item"><input type="radio" name="duree" value="Permanente (7 ans+)"> Permanente — 7 ans+</label></div></div>
-    <div class="form-group" id="fg-resist"><label>Résistances</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="resist" value="UV"> Résistant UV</label><label class="cb-item"><input type="checkbox" name="resist" value="Humidité"> Résistant humidité</label><label class="cb-item"><input type="checkbox" name="resist" value="Chaleur"> Résistant chaleur</label><label class="cb-item"><input type="checkbox" name="resist" value="Froid"> Résistant froid</label><label class="cb-item"><input type="checkbox" name="resist" value="Rayures"> Résistant rayures</label></div></div>
-    <div class="form-group" id="fg-appli"><label>Applications typiques</label><div class="checkbox-group"><label class="cb-item"><input type="checkbox" name="appli" value="Vitrine"> Vitrine</label><label class="cb-item"><input type="checkbox" name="appli" value="Véhicule / Covering"> Véhicule / Covering</label><label class="cb-item"><input type="checkbox" name="appli" value="Mur / Cloison"> Mur / Cloison</label><label class="cb-item"><input type="checkbox" name="appli" value="Sol"> Sol</label><label class="cb-item"><input type="checkbox" name="appli" value="Panneau / Signalétique"> Panneau / Signalétique</label><label class="cb-item"><input type="checkbox" name="appli" value="Événementiel temporaire"> Événementiel temporaire</label></div></div>
+    <div id="plastif-hint" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;"></div>
+    <!-- Champs adaptés à la catégorie (générés par renderCatFields) -->
+    <div class="form-group" id="fg-finition"><label id="lab-finition">Finition</label><select id="modal-finition"></select></div>
+    <div class="form-group" id="fg-adherence"><label id="lab-adherence">Adhérence</label><div class="checkbox-group" id="grp-adherence"></div></div>
+    <div class="form-group" id="fg-env"><label id="lab-env">Environnement</label><div class="checkbox-group" id="grp-env"></div></div>
+    <div class="form-group" id="fg-duree"><label id="lab-duree">Durabilité</label><div class="checkbox-group" id="grp-duree"></div></div>
+    <div class="form-group" id="fg-resist"><label id="lab-resist">Résistances</label><div class="checkbox-group" id="grp-resist"></div></div>
+    <div class="form-group" id="fg-appli"><label id="lab-appli">Applications typiques</label><div class="checkbox-group" id="grp-appli"></div></div>
     <div class="form-group" id="fg-variantes"><label>Variantes (couleur + laize)</label>
       <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Une ligne par combinaison réelle en stock. Laisse la couleur vide pour un imprimable/plastification.</div>
       <div id="variantes-rows"></div>
@@ -963,7 +951,8 @@ textarea:focus { border-color: var(--accent); }
 <div class="modal-overlay" id="modal-team" style="z-index:600">
   <div class="modal" style="max-width:560px;width:94vw">
     <h3 style="margin:0 0 4px;">👥 Mon équipe</h3>
-    <div id="team-quota" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:14px;"></div>
+    <div id="team-quota" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px;"></div>
+    <div id="team-places"></div>
     <div id="team-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
     <div style="border-top:1px solid var(--border);padding-top:14px;">
       <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;">Ajouter un employé</div>
@@ -1504,7 +1493,12 @@ function applyRoleUI() {
 
 // ===================== ÉQUIPE (plan Entreprise) =====================
 async function loadTeam() {
-  try { const r = await api('GET', '/team'); teamList = r.employes || []; window._teamMax = r.max_users; } catch { teamList = []; }
+  try {
+    const r = await api('GET', '/team');
+    teamList = r.employes || [];
+    window._teamMax = r.max_users; window._teamBase = r.base_users;
+    window._teamExtra = r.extra_users || 0; window._teamExtraCost = r.extra_cost || 30;
+  } catch { teamList = []; }
 }
 const ROLE_LABELS = { preparateur: '🛠 Préparateur', poseur: '🚐 Poseur', secretariat: '📋 Secrétariat', designer: '🎨 Designer' };
 const ALL_ROLES = ['preparateur', 'poseur', 'secretariat', 'designer'];
@@ -1531,7 +1525,19 @@ document.getElementById('modal-team').addEventListener('click', e => { if (e.tar
 
 function renderTeamList() {
   const el = document.getElementById('team-list');
-  document.getElementById('team-quota').textContent = `${teamList.length + 1} / ${window._teamMax || 5} utilisateurs (toi inclus)`;
+  const max = window._teamMax || 5, base = window._teamBase || max, extra = window._teamExtra || 0, coutExtra = window._teamExtraCost || 30;
+  const utilises = teamList.length + 1;
+  document.getElementById('team-quota').innerHTML = `${utilises} / ${max} utilisateurs (toi inclus)` +
+    (extra > 0 ? ` <span style="color:var(--accent);">— dont ${extra} place${extra > 1 ? 's' : ''} en supplément (${extra * coutExtra}🪙/mois)</span>` : '');
+  // Places supplémentaires : facturées en jetons chaque mois, ajout/retrait à la demande
+  const hostPlaces = document.getElementById('team-places');
+  if (hostPlaces) {
+    hostPlaces.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 12px;border:1px dashed var(--border);border-radius:9px;margin-bottom:10px;">
+      <span style="font-size:11.5px;color:var(--muted);flex:1;min-width:190px;">Besoin de plus de comptes ? Ajoute des places : <b style="color:var(--text);">${coutExtra} jetons/mois</b> chacune, résiliables quand tu veux.</span>
+      <button class="btn-stock" style="margin:0;font-size:11px;padding:6px 12px;" onclick="ajouterPlace()">＋ Place (${coutExtra}🪙/mois)</button>
+      ${extra > 0 ? `<button class="btn-stock" style="margin:0;font-size:11px;padding:6px 12px;color:var(--muted);" onclick="retirerPlace()">− Retirer une place</button>` : ''}
+    </div>`;
+  }
   el.innerHTML = teamList.length ? teamList.map(t => {
     const roles = String(t.role || '').split(',').filter(Boolean);
     const chips = ALL_ROLES.map(r => `<label class="role-chip" style="font-size:10px;padding:4px 8px;"><input type="checkbox" value="${r}"${roles.includes(r) ? ' checked' : ''} onchange="changerRolesEmploye(${t.id}, this)">${ROLE_LABELS[r]}</label>`).join('');
@@ -1544,6 +1550,31 @@ function renderTeamList() {
       <div id="team-roles-${t.id}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${chips}</div>
     </div>`;
   }).join('') : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px;">Aucun employé — crée un compte ci-dessous.</div>';
+}
+
+// Places employés supplémentaires : abonnement mensuel en jetons
+async function ajouterPlace() {
+  const cout = window._teamExtraCost || 30;
+  if (!confirm(`Ajouter une place employé ?\n\n${cout} jetons prélevés maintenant, puis ${cout} jetons CHAQUE MOIS tant que la place est active.\nRésiliable à tout moment.`)) return;
+  try {
+    const r = await api('POST', '/team/places');
+    window._teamMax = r.max_users; window._teamExtra = r.extra_users;
+    renderTeamList(); loadJetons();
+    showImportToast(`✓ Place ajoutée — ${r.max_users} utilisateurs autorisés (${cout}🪙/mois)`, 'success');
+  } catch (e) {
+    document.getElementById('team-error').textContent = e.message;
+  }
+}
+async function retirerPlace() {
+  if (!confirm('Retirer une place employé ?\n\nLe prélèvement mensuel correspondant s\'arrête. La place doit être libre (supprime d\'abord un compte si besoin).')) return;
+  try {
+    const r = await api('DELETE', '/team/places');
+    window._teamMax = r.max_users; window._teamExtra = r.extra_users;
+    renderTeamList();
+    showImportToast('✓ Place retirée — plus de prélèvement mensuel', 'success');
+  } catch (e) {
+    document.getElementById('team-error').textContent = e.message;
+  }
 }
 
 async function creerEmploye() {
@@ -2486,20 +2517,35 @@ function jetonHTML() {
     <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);margin-top:4px;">Stockage${goTxt}</div>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
       <button class="btn-stock" onclick="window.location.href='/pricing#jetons'" style="flex:1;min-width:130px;font-size:11px;margin:0;">🪙 Recharger des jetons</button>
-      <button class="btn-stock" onclick="acheterStockage()" style="flex:1;min-width:130px;font-size:11px;margin:0;" title="Ajoute 2 Go de stockage pour 20 jetons">+2 Go (20 jetons)</button>
+      <button class="btn-stock" onclick="acheterStockage()" style="flex:1;min-width:130px;font-size:11px;margin:0;" title="Abonnement mensuel : 20 jetons prélevés maintenant, puis chaque mois tant qu'il est actif">+2 Go — 20🪙/mois</button>
+      ${userBonusGo > 0 ? `<button class="btn-stock" onclick="resilierStockage()" style="flex:1;min-width:130px;font-size:11px;margin:0;color:var(--muted);" title="Arrêter le renouvellement mensuel (aucun fichier supprimé)">− Retirer 2 Go</button>` : ''}
     </div>
+    ${userBonusGo > 0 ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;">↻ ${userBonusGo} Go de stockage en supplément — ${(userBonusGo / 2) * 20}🪙 prélevés chaque mois</div>` : ''}
   </div>`;
 }
 
+let userBonusGo = 0;
+
 async function acheterStockage() {
-  if (!confirm('Ajouter 2 Go de stockage pour 20 jetons ?')) return;
+  if (!confirm('Ajouter 2 Go de stockage ?\n\n20 jetons prélevés maintenant, puis 20 jetons CHAQUE MOIS tant que tu le gardes.\nRésiliable à tout moment depuis ton profil.')) return;
   try {
     const r = await api('POST', '/analyses/buy-storage');
-    userJetons = r.jetons; userStorage = r.storage;
+    userJetons = r.jetons; userStorage = r.storage; userBonusGo = r.bonus_go || 0;
     renderProfilPlan();
     if (typeof loadStorage === 'function') loadStorage();
     loadJetons();
-    alert('✓ +2 Go ajoutés. Stockage : ' + (r.storage.quota/1e9).toFixed(0) + ' Go.');
+    showImportToast('✓ +2 Go ajoutés (20🪙/mois). Stockage : ' + (r.storage.quota / 1e9).toFixed(0) + ' Go', 'success');
+  } catch (e) { alert(e.message); }
+}
+
+async function resilierStockage() {
+  if (!confirm('Retirer 2 Go de stockage supplémentaire ?\n\nAucun fichier ne sera supprimé, mais ton quota baisse et le prélèvement mensuel de 20 jetons s\'arrête.')) return;
+  try {
+    const r = await api('DELETE', '/analyses/buy-storage');
+    userJetons = r.jetons; userStorage = r.storage; userBonusGo = r.bonus_go || 0;
+    renderProfilPlan();
+    if (typeof loadStorage === 'function') loadStorage();
+    showImportToast('✓ Stockage supplémentaire retiré — plus de prélèvement mensuel', 'success');
   } catch (e) { alert(e.message); }
 }
 
@@ -2513,6 +2559,7 @@ function openProfile() {
     userPlanPeriod = p.plan_period || userPlanPeriod;
     if (p.jetons) userJetons = p.jetons;
     if (p.storage) userStorage = p.storage;
+    userBonusGo = p.bonus_go || 0;
     renderProfilPlan();
     // Cohérence : la sidebar utilise la même source que le profil (après la synchro Stripe du plan)
     const cnt = document.getElementById('jeton-count');
@@ -2595,12 +2642,12 @@ function closeStock() { document.getElementById('stock-overlay').classList.remov
 function closeStockOnBg(e) { if (e.target === document.getElementById('stock-overlay')) closeStock(); }
 
 let currentTab = 'imprimable';
-const ALL_CATS = ['imprimable','plastification','dao','transfert','covering','vitre','panneau','encre'];
 function switchTab(cat) {
   currentTab = cat;
   ALL_CATS.forEach(c => {
-    document.getElementById('tab-' + c).classList.toggle('active', c === cat);
-    document.getElementById('panel-' + c).style.display = c === cat ? 'block' : 'none';
+    const t = document.getElementById('tab-' + c), p = document.getElementById('panel-' + c);
+    if (t) t.classList.toggle('active', c === cat);
+    if (p) p.style.display = c === cat ? 'block' : 'none';
   });
   document.getElementById('modal-cat').value = cat;
 }
@@ -2639,30 +2686,166 @@ function setVariantes(variantes) {
 }
 
 // Chaque catégorie a ses propres champs pertinents (on masque ceux qui n'ont pas de sens)
-const CAT_CONFIG = {
-  imprimable:     { hide: [],                                  nom: 'Ex: ORAJET 3551 Blanc Mat',         varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
-  plastification: { hide: ['fg-appli'],                        nom: 'Ex: Film de lamination brillant 80µ', varLabel: 'Laizes disponibles (largeur de rouleau, mm)', hint: true },
-  dao:            { hide: [],                                  nom: 'Ex: ORACAL 651 Rouge brillant',      varLabel: 'Variantes (couleur + laize, mm)' },
-  transfert:      { hide: ['fg-adherence'],                    nom: 'Ex: Flex thermocollant Noir',        varLabel: 'Variantes (couleur + laize, mm)' },
-  covering:       { hide: [],                                  nom: 'Ex: 3M 2080 Covering brillant',      varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
-  vitre:          { hide: ['fg-adherence'],                    nom: 'Ex: Film dépoli / micro-perforé',    varLabel: 'Laizes disponibles (largeur de rouleau, mm)' },
-  panneau:        { hide: ['fg-adherence', 'fg-resist'],       nom: 'Ex: Dibond 3 mm blanc',              varLabel: 'Formats de plaque disponibles (mm)' },
-  encre:          { hide: ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'], nom: 'Ex: Encre éco-solvant CMJN' },
-};
-const ALL_FG = ['fg-finition','fg-adherence','fg-env','fg-duree','fg-resist','fg-appli','fg-variantes'];
+// ===================== CATÉGORIES DE STOCK =====================
+// Chaque catégorie décrit SES propres options : seuls les choix qui ont un sens
+// pour la matière concernée sont proposés (finitions, adhérence, durabilité, applications…).
+const FIN_STD = ['Brillant', 'Mat', 'Satiné'];
+const ENV_STD = ['Intérieur', 'Extérieur', 'Intérieur et extérieur'];
+const DUREE_STD = ['Courte durée (< 1 an)', 'Moyenne durée (1-3 ans)', 'Longue durée (3-7 ans)', 'Permanente (7 ans+)'];
+const ADH_STD = ['Amovible', 'Standard', 'Renforcée', 'Très forte (colle béton)'];
+const RES_STD = ['UV', 'Humidité', 'Chaleur', 'Froid', 'Rayures'];
 
-function toggleEncreFields() {
-  const cat = document.getElementById('modal-cat').value;
-  const cfg = CAT_CONFIG[cat] || CAT_CONFIG.imprimable;
-  ALL_FG.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = cfg.hide.includes(id) ? 'none' : ''; });
-  document.getElementById('label-prix').textContent = cat === 'encre' ? 'Coût encre au m² imprimé (€ HT)' : 'Prix au m² (€ HT)';
-  document.getElementById('modal-nom').placeholder = cfg.nom || 'Ex: référence';
-  const varLabel = document.querySelector('#fg-variantes > label');
-  if (varLabel && cfg.varLabel) varLabel.textContent = cfg.varLabel;
-  const hint = document.getElementById('plastif-hint');
-  if (hint) hint.style.display = cfg.hint ? 'block' : 'none';
+const CATS = {
+  imprimable: {
+    label: 'Imprimable', couleur: 'var(--cat-print)', nom: 'Ex: ORAJET 3551 Blanc Mat',
+    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    finitions: [...FIN_STD, 'Transparent', 'Translucide (caisson lumineux)', 'Blanc bloquant'],
+    adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD, resistances: RES_STD,
+    applications: ['Vitrine', 'Véhicule', 'Mur / Cloison', 'Sol', 'Panneau / Signalétique', 'Événementiel temporaire'],
+  },
+  plastification: {
+    label: 'Plastification', couleur: 'var(--cat-plastification)', nom: 'Ex: Film de lamination brillant 80µ',
+    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    hint: '🛡 La plastification se pose PAR-DESSUS un visuel imprimé pour le protéger. La finition change le rendu final (brillant, mat, satiné, anti-dérapant pour le sol). Renseigne durabilité et résistances : elles servent à décider quand la recommander.',
+    finitions: [...FIN_STD, 'Anti-dérapante (sol)', 'Anti-graffiti', 'Texturée'],
+    adherences: null, envs: ENV_STD, durees: DUREE_STD,
+    resistances: [...RES_STD, 'Solvants / nettoyants', 'Anti-graffiti', 'Passage piéton'],
+    applications: null,
+  },
+  dao: {
+    label: 'Couleur DAO', couleur: 'var(--cat-dao)', nom: 'Ex: ORACAL 651 Rouge brillant',
+    varLabel: 'Variantes (couleur + laize, mm)',
+    finitions: [...FIN_STD, 'Transparent', 'Métallisé', 'Fluorescent', 'Réfléchissant'],
+    adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD, resistances: RES_STD,
+    applications: ['Vitrine', 'Véhicule', 'Mur / Cloison', 'Panneau / Signalétique', 'Lettrage / Découpe'],
+  },
+  texture: {
+    label: 'Texturé / Effet', couleur: '#f0844a', nom: 'Ex: 3M DI-NOC effet bois / Vinyle carbone 3D',
+    varLabel: 'Variantes (texture/couleur + laize, mm)',
+    hint: '✨ Adhésif à texture ou effet décoratif spécial. Précise bien la texture dans la finition : c\'est ce que l\'IA utilisera pour le proposer quand un client demande un rendu particulier.',
+    finitions: ['Carbone 3D/4D', 'Effet brossé / Aluminium', 'Effet bois', 'Effet cuir', 'Effet ardoise / béton', 'Sablé / Grainé', 'Pailleté / Glitter', 'Miroir', 'Holographique', 'Velours / Suédine', 'Phosphorescent', 'Fluorescent', 'Autre texture'],
+    adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD,
+    resistances: [...RES_STD, 'Passage piéton'],
+    applications: ['Mur / Cloison', 'Mobilier / Agencement', 'Véhicule', 'Vitrine', 'Porte / Escalier', 'Décoration intérieure'],
+  },
+  flocage: {
+    label: 'Flocage textile', couleur: '#f04a9e', nom: 'Ex: Flex thermocollant Noir 50 cm',
+    varLabel: 'Variantes (couleur + laize, mm)',
+    hint: '👕 Matières pour le TEXTILE, appliquées à la presse à chaud. Renseigne la température et le temps de pressage dans le commentaire : ces infos remontent dans les conseils de préparation.',
+    finitions: ['Flex lisse', 'Flock velours', 'Flex pailleté', 'Flex métallisé / Miroir', 'Flex réfléchissant', 'Flex fluo', 'Film imprimable (DTF / éco-solvant)', 'Sublimation', 'Sérigraphie'],
+    adherences: null, envs: null,
+    durees: ['Peu de lavages (< 20)', 'Résistant au lavage (20-50)', 'Très résistant (50 lavages+)'],
+    resistances: ['Lavage 40°', 'Lavage 60°', 'Sèche-linge', 'Repassage', 'Étirement / Élasthanne'],
+    applications: ['T-shirt / Polo', 'Sweat / Veste', 'Casquette', 'Sac / Tote bag', 'Vêtement de travail', 'Textile sportif'],
+    labels: { duree: 'Tenue au lavage', resist: 'Résistances textile', appli: 'Supports textiles' },
+  },
+  transfert: {
+    label: 'Papier transfert', couleur: 'var(--cat-transfert)', nom: 'Ex: Papier transfert application 100 g',
+    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    hint: '📄 Support d\'aide à la pose : il transfère le lettrage découpé du liner vers la surface finale.',
+    finitions: ['Papier', 'Film transparent', 'Quadrillé (repères)'],
+    adherences: ['Tack faible', 'Tack moyen', 'Tack fort'],
+    envs: null, durees: null, resistances: null,
+    applications: ['Lettrage / Découpe', 'Grandes surfaces', 'Petits détails'],
+    labels: { adherence: 'Force de collage (tack)' },
+  },
+  covering: {
+    label: 'Covering véhicule', couleur: 'var(--cat-covering)', nom: 'Ex: 3M 2080 Covering brillant',
+    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    finitions: [...FIN_STD, 'Carbone', 'Métallisé', 'Chromé', 'Caméléon', 'Texturé'],
+    adherences: ['Repositionnable (canaux d\'air)', 'Standard', 'Renforcée'],
+    envs: ['Extérieur', 'Intérieur et extérieur'], durees: DUREE_STD,
+    resistances: [...RES_STD, 'Lavage haute pression', 'Carburants'],
+    applications: ['Voiture', 'Utilitaire / Camion', 'Moto / Scooter', 'Vitre teintée', 'Jantes / Détails'],
+  },
+  vitre: {
+    label: 'Vitre / Solaire', couleur: 'var(--cat-vitre)', nom: 'Ex: Film dépoli / micro-perforé 50/50',
+    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    finitions: ['Transparent', 'Dépoli / Sablé', 'Micro-perforé (one-way)', 'Occultant', 'Miroir sans tain', 'Solaire teinté', 'Anti-UV / Anti-chaleur', 'Sécurité (anti-effraction)'],
+    adherences: ['Adhésif permanent', 'Adhésif amovible', 'Statique (sans colle)'],
+    envs: ['Intérieur (pose intérieure)', 'Extérieur (pose extérieure)', 'Intérieur et extérieur'],
+    durees: DUREE_STD,
+    resistances: ['UV', 'Humidité', 'Chaleur', 'Rayures'],
+    applications: ['Vitrine commerce', 'Fenêtre bureau', 'Baie vitrée', 'Vitre véhicule', 'Cloison vitrée', 'Signalétique vitre'],
+  },
+  panneau: {
+    label: 'Panneau rigide', couleur: 'var(--cat-panneau)', nom: 'Ex: Dibond 3 mm blanc',
+    varLabel: 'Formats de plaque disponibles (mm)',
+    finitions: ['Blanc brillant', 'Blanc mat', 'Brossé / Alu', 'Transparent (plexi)', 'Bois naturel', 'Coloré'],
+    adherences: null, envs: ENV_STD, durees: DUREE_STD,
+    resistances: ['UV', 'Humidité', 'Chocs', 'Gel', 'Feu (classement M1)'],
+    applications: ['Signalétique extérieure', 'Enseigne', 'Panneau de chantier', 'Décoration murale', 'Totem', 'Plaque professionnelle'],
+    labels: { finition: 'Aspect / Couleur du support' },
+  },
+  encre: {
+    label: 'Encre d\'impression', couleur: 'var(--cat-encre)', nom: 'Ex: Encre éco-solvant CMJN',
+    finitions: null, adherences: null, envs: null, durees: null, resistances: null, applications: null, variantes: false,
+  },
+};
+const ALL_CATS = Object.keys(CATS);
+
+// Construit les choix (radios/cases) d'un groupe ; masque le bloc si la catégorie n'en a pas besoin
+function _renderChoix(fgId, grpId, labId, valeurs, type, name, labelTxt) {
+  const fg = document.getElementById(fgId);
+  if (!fg) return;
+  if (!valeurs || !valeurs.length) { fg.style.display = 'none'; return; }
+  fg.style.display = '';
+  if (labelTxt) { const l = document.getElementById(labId); if (l) l.textContent = labelTxt; }
+  document.getElementById(grpId).innerHTML = valeurs.map((v, i) =>
+    `<label class="cb-item"><input type="${type}" name="${name}" value="${String(v).replace(/"/g, '&quot;')}"${type === 'radio' && i === 0 ? ' checked' : ''}> ${v}</label>`
+  ).join('');
 }
-document.getElementById('modal-cat').addEventListener('change', toggleEncreFields);
+
+// Applique la configuration de la catégorie sélectionnée à toute la fiche
+function renderCatFields() {
+  const cat = document.getElementById('modal-cat').value;
+  const c = CATS[cat] || CATS.imprimable;
+  const lab = c.labels || {};
+
+  const fgFin = document.getElementById('fg-finition');
+  if (c.finitions && c.finitions.length) {
+    fgFin.style.display = '';
+    document.getElementById('lab-finition').textContent = lab.finition || 'Finition';
+    document.getElementById('modal-finition').innerHTML = c.finitions.map(f => `<option value="${f}">${f}</option>`).join('');
+  } else fgFin.style.display = 'none';
+
+  _renderChoix('fg-adherence', 'grp-adherence', 'lab-adherence', c.adherences, 'radio', 'adherence', lab.adherence || 'Adhérence');
+  _renderChoix('fg-env', 'grp-env', 'lab-env', c.envs, 'radio', 'env', lab.env || 'Environnement');
+  _renderChoix('fg-duree', 'grp-duree', 'lab-duree', c.durees, 'radio', 'duree', lab.duree || 'Durabilité');
+  _renderChoix('fg-resist', 'grp-resist', 'lab-resist', c.resistances, 'checkbox', 'resist', lab.resist || 'Résistances');
+  _renderChoix('fg-appli', 'grp-appli', 'lab-appli', c.applications, 'checkbox', 'appli', lab.appli || 'Applications typiques');
+
+  const fgVar = document.getElementById('fg-variantes');
+  if (fgVar) fgVar.style.display = c.variantes === false ? 'none' : '';
+  const varLabel = document.querySelector('#fg-variantes > label');
+  if (varLabel && c.varLabel) varLabel.textContent = c.varLabel;
+
+  document.getElementById('label-prix').textContent = cat === 'encre' ? 'Coût encre au m² imprimé (€ HT)'
+    : cat === 'panneau' ? 'Prix à la plaque / m² (€ HT)'
+    : cat === 'flocage' ? 'Prix au m² / à la feuille (€ HT)' : 'Prix au m² (€ HT)';
+  document.getElementById('modal-nom').placeholder = c.nom || 'Ex: référence';
+  const hint = document.getElementById('plastif-hint');
+  if (hint) { hint.style.display = c.hint ? 'block' : 'none'; hint.textContent = c.hint || ''; }
+}
+// Conservé sous son ancien nom : appelé à l'ouverture/édition de la fiche
+function toggleEncreFields() { renderCatFields(); }
+document.getElementById('modal-cat').addEventListener('change', renderCatFields);
+
+// Onglets, panneaux et menu de catégories construits depuis CATS
+(function buildCatUI() {
+  const bar = document.getElementById('cat-tabs-bar');
+  const panels = document.getElementById('cat-panels');
+  const select = document.getElementById('modal-cat');
+  if (!bar || !panels || !select) return;
+  bar.innerHTML = ALL_CATS.map((k, i) =>
+    `<button class="cat-tab${i === 0 ? ' active' : ''}" id="tab-${k}" onclick="switchTab('${k}')"><span class="cat-tab-dot" style="background:${CATS[k].couleur}"></span>${CATS[k].label}<span class="cat-tab-count" id="count-${k}">0</span></button>`
+  ).join('');
+  panels.innerHTML = ALL_CATS.map((k, i) =>
+    `<div class="cat-panel" id="panel-${k}"${i === 0 ? '' : ' style="display:none"'}><div class="search-bar"><input type="text" placeholder="Rechercher..." oninput="filterCat('${k}',this.value)"><span class="search-icon">⌕</span></div><div class="panel-list" id="list-${k}"><div class="empty-cat">Aucune référence</div></div></div>`
+  ).join('');
+  select.innerHTML = ALL_CATS.map(k => `<option value="${k}">${CATS[k].label}</option>`).join('');
+  renderCatFields();
+})();
 
 function openModal(cat) {
   editingId = null;
@@ -2671,17 +2854,13 @@ function openModal(cat) {
   if (cat) document.getElementById('modal-cat').value = cat;
   document.getElementById('modal-nom').value = '';
   document.getElementById('modal-note').value = '';
-  document.querySelector('input[name="adherence"][value="Standard"]').checked = true;
-  document.querySelector('input[name="env"][value="Extérieur"]').checked = true;
-  document.querySelector('input[name="duree"][value="Moyenne durée (1-3 ans)"]').checked = true;
+  renderCatFields();  // options propres à la catégorie (premiers choix cochés par défaut)
   setVariantes([]);
   document.querySelectorAll('input[name="resist"], input[name="appli"]').forEach(i => i.checked = false);
   document.getElementById('modal-prix').value = '';
   document.getElementById('modal-quantite').value = '';
   document.getElementById('modal-seuil').value = '';
   renderChuteRows([]);
-  document.getElementById('modal-finition').value = 'Brillant';
-  toggleEncreFields();
   document.getElementById('modal').classList.add('open');
   setTimeout(() => document.getElementById('modal-nom').focus(), 100);
 }
@@ -2693,9 +2872,15 @@ function openEditModal(id) {
   document.getElementById('modal-title').textContent = 'Modifier';
   document.getElementById('modal-submit').textContent = 'Enregistrer';
   document.getElementById('modal-cat').value = item.cat;
+  renderCatFields();  // d'abord les options de la catégorie, ensuite on coche les valeurs enregistrées
   document.getElementById('modal-nom').value = item.nom;
-  document.getElementById('modal-finition').value = item.finition;
   document.getElementById('modal-note').value = item.note || '';
+  const selFin = document.getElementById('modal-finition');
+  if (selFin && item.finition) {
+    // Ancienne valeur absente de la liste (catégorie modifiée depuis) : on l'ajoute pour ne rien perdre
+    if (![...selFin.options].some(o => o.value === item.finition)) selFin.insertAdjacentHTML('beforeend', `<option value="${item.finition}">${item.finition}</option>`);
+    selFin.value = item.finition;
+  }
   const adh = document.querySelector(`input[name="adherence"][value="${item.adherence}"]`); if (adh) adh.checked = true;
   const env = document.querySelector(`input[name="env"][value="${item.env}"]`); if (env) env.checked = true;
   const dur = document.querySelector(`input[name="duree"][value="${item.duree}"]`); if (dur) dur.checked = true;
@@ -2738,10 +2923,11 @@ async function saveAdhesif() {
   } : {
     cat: document.getElementById('modal-cat').value,
     nom,
-    finition: document.getElementById('modal-finition').value,
-    adherence: document.querySelector('input[name="adherence"]:checked')?.value || 'Standard',
-    env: document.querySelector('input[name="env"]:checked')?.value || 'Extérieur',
-    duree: document.querySelector('input[name="duree"]:checked')?.value || 'Moyenne durée (1-3 ans)',
+    // Les catégories sans finition/adhérence/environnement enregistrent « — » (champ masqué)
+    finition: document.getElementById('fg-finition').style.display === 'none' ? '—' : document.getElementById('modal-finition').value,
+    adherence: document.querySelector('input[name="adherence"]:checked')?.value || '—',
+    env: document.querySelector('input[name="env"]:checked')?.value || '—',
+    duree: document.querySelector('input[name="duree"]:checked')?.value || '—',
     resistances: [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value),
     applications: [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value),
     variantes: getVariantes(),

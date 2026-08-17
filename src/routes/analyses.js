@@ -446,16 +446,30 @@ router.get('/jetons', (req, res) => {
 });
 
 // Acheter +2 Go de stockage avec des jetons
+// Stockage supplémentaire : abonnement MENSUEL en jetons (prélevé à l'activation puis chaque mois).
+// Résiliable à tout moment via DELETE — plus aucun prélèvement le mois suivant.
 router.post('/buy-storage', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  if (user.subscription_status !== 'active') return res.status(403).json({ error: 'Abonnement requis pour acheter du stockage.' });
+  if (user.parent_user_id) return res.status(403).json({ error: 'Réservé au compte principal.' });
+  if (user.subscription_status !== 'active') return res.status(403).json({ error: 'Abonnement requis pour ajouter du stockage.' });
   const cost = JETON_COSTS.storage_2go;
   const aff = affordJetons(user, cost);
   if (aff) return res.status(403).json(aff);
   consumeJetons(user, cost, 'storage_2go');
-  db.prepare('UPDATE users SET bonus_go = COALESCE(bonus_go,0) + 2 WHERE id = ?').run(user.id);
+  const { moisCourant } = require('../utils/recurrents');
+  db.prepare('UPDATE users SET bonus_go = COALESCE(bonus_go,0) + 2, storage_billed_month = ? WHERE id = ?').run(moisCourant(), user.id);
   const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-  res.json({ ok: true, storage: getStorage(user.id), jetons: getJetonState(fresh) });
+  res.json({ ok: true, storage: getStorage(user.id), jetons: getJetonState(fresh), bonus_go: fresh.bonus_go });
+});
+
+// Résilier une tranche de 2 Go (aucun fichier supprimé — seul le quota baisse)
+router.delete('/buy-storage', (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (user.parent_user_id) return res.status(403).json({ error: 'Réservé au compte principal.' });
+  if (!(user.bonus_go > 0)) return res.status(400).json({ error: 'Aucun stockage supplémentaire actif.' });
+  db.prepare('UPDATE users SET bonus_go = MAX(0, COALESCE(bonus_go,0) - 2) WHERE id = ?').run(user.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  res.json({ ok: true, storage: getStorage(user.id), jetons: getJetonState(fresh), bonus_go: fresh.bonus_go });
 });
 
 // Libérer de l'espace : mode = all | half_old | heaviest | hd_only
@@ -1178,7 +1192,7 @@ router.post('/analyse', async (req, res) => {
   const stockDispo = db.prepare('SELECT * FROM stock WHERE user_id = ? AND dispo = 1').all(employeScope(req).ownerId);
   if (!stockDispo.length) return res.status(400).json({ error: 'Aucun adhésif en stock disponible.' });
 
-  const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
+  const CAT_LABELS = { imprimable:'Imprimable', plastification:'Plastification', dao:'Couleur DAO', texture:'Adhésif texturé / effet', flocage:'Flocage textile', transfert:'Papier transfert', covering:'Covering voiture', vitre:'Vitre / Solaire', panneau:'Panneau' };
   const stockDesc = Object.keys(CAT_LABELS).map(cat => {
     const items = stockDispo.filter(i => i.cat === cat);
     if (!items.length) return '';
@@ -1208,6 +1222,8 @@ DÉFINITIONS IMPORTANTES — respecte-les strictement :
 - "Covering" : film covering/wrapping pour véhicules, repositionnable, haute résistance.
 - "Vitre" : adhésif vitrine transparent, givré, micro-perforé (vision-screen), film solaire ou occultant pour fenêtres.
 - "Panneau" : support rigide (dibond, alu, PVC expansé, bois) pour contrecoller ou encadrer un visuel.
+- "Adhésif texturé / effet" : vinyl avec une TEXTURE ou un effet special (sable, cuir, brosse, carbone, ardoise, bois, paillete, miroir, fluorescent, phosphorescent, antiderapant, effet depoli...). A recommander quand le client demande explicitement un rendu tactile ou un effet decoratif particulier, PAS pour une impression classique.
+- "Flocage textile" : films et supports pour le TEXTILE (flex thermocollant, flock velours, film sublimation, DTF, serigraphie textile) — s'applique a la presse a chaud sur des vetements (t-shirts, polos, sweats, casquettes, sacs). NE JAMAIS recommander de flocage textile pour un mur, une vitre, un vehicule ou un panneau : reserve aux supports en tissu.
 
 Ne confonds JAMAIS ces categories.
 

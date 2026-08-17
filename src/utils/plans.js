@@ -15,7 +15,8 @@ const JETON_COSTS = {
   upscale: 5,
   import_catalogue: 10,
   analyse_extra: 5,      // chaque analyse AU-DELÀ du quota du forfait
-  storage_2go: 20,       // +2 Go de stockage
+  storage_2go: 20,       // +2 Go de stockage — RÉCURRENT : prélevé chaque mois tant qu'il est actif
+  extra_user: 30,        // +1 compte employé au-delà du forfait — RÉCURRENT : prélevé chaque mois
   vectorisation: 2,      // vectorisation DAO (bêta) — débité au téléchargement du SVG
   chat: 1,               // question libre à l'IA sur un dossier
 };
