@@ -5808,8 +5808,35 @@ document.querySelector('.sidebar').addEventListener('click', (e) => {
 });
 
 // ===================== PWA : site installable comme une appli =====================
+// Le service worker est mis à jour à chaque déploiement : dès qu'une nouvelle version
+// est prête, on prévient l'utilisateur (sinon il resterait sur l'ancienne indéfiniment).
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        if (!sw) return;
+        sw.addEventListener('statechange', () => {
+          // Nouvelle version installée alors qu'une ancienne tourne déjà
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) afficherMajDispo();
+        });
+      });
+      // Vérifie l'existence d'une mise à jour au démarrage puis toutes les 30 min
+      reg.update().catch(() => {});
+      setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    } catch {}
+  });
+}
+function afficherMajDispo() {
+  if (document.getElementById('maj-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'maj-banner';
+  b.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9998;background:var(--surface2);border:1px solid var(--accent);border-radius:12px;padding:11px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,.5);font-size:12.5px;max-width:92vw;';
+  b.innerHTML = `<span>✨ Une nouvelle version d'AI-dhésif est disponible.</span>
+    <button onclick="location.reload()" style="background:var(--accent);color:#111;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:6px 14px;cursor:pointer;">Mettre à jour</button>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;">✕</button>`;
+  document.body.appendChild(b);
 }
 
 // ===================== AUTO-LOGIN =====================

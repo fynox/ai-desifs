@@ -74,13 +74,25 @@ app.use('/api/public', require('./src/routes/public'));
 app.use('/webhooks', require('./src/routes/webhook'));
 
 // Frontend
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
-app.get('/pricing', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pricing.html')));
-app.get('/legal', (req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
-app.get('/d/:token', (req, res) => res.sendFile(path.join(__dirname, 'public', 'devis-public.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// Les pages HTML et le service worker ne doivent JAMAIS être servis depuis un cache périmé :
+// l'app est un fichier unique redéployé souvent, un cache navigateur ferait voir une vieille version.
+const noCache = (res) => res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+const sendPage = (fichier) => (req, res) => {
+  noCache(res);
+  res.sendFile(path.join(__dirname, 'public', fichier));
+};
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  setHeaders: (res, filePath) => {
+    if (/\.(html|webmanifest)$/.test(filePath) || filePath.endsWith('sw.js')) noCache(res);
+  },
+}));
+app.get('/app', sendPage('app.html'));
+app.get('/pricing', sendPage('pricing.html'));
+app.get('/legal', sendPage('legal.html'));
+app.get('/d/:token', sendPage('devis-public.html'));
+app.get('/admin', sendPage('admin.html'));
+app.get('*', sendPage('index.html'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`AI-désifs démarré sur le port ${PORT}`));
