@@ -796,16 +796,17 @@ textarea:focus { border-color: var(--accent); }
     <div class="form-group"><label>Nom / Référence</label><input type="text" id="modal-nom" placeholder="Ex: ORAJET 3551 Blanc Mat"></div>
     <div id="plastif-hint" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent-dim);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;"></div>
     <!-- Champs adaptés à la catégorie (générés par renderCatFields) -->
+    <div class="form-group" id="fg-matiere"><label id="lab-matiere">Matière</label><select id="modal-matiere"></select></div>
     <div class="form-group" id="fg-finition"><label id="lab-finition">Finition</label><select id="modal-finition"></select></div>
     <div class="form-group" id="fg-adherence"><label id="lab-adherence">Adhérence</label><div class="checkbox-group" id="grp-adherence"></div></div>
     <div class="form-group" id="fg-env"><label id="lab-env">Environnement</label><div class="checkbox-group" id="grp-env"></div></div>
     <div class="form-group" id="fg-duree"><label id="lab-duree">Durabilité</label><div class="checkbox-group" id="grp-duree"></div></div>
     <div class="form-group" id="fg-resist"><label id="lab-resist">Résistances</label><div class="checkbox-group" id="grp-resist"></div></div>
     <div class="form-group" id="fg-appli"><label id="lab-appli">Applications typiques</label><div class="checkbox-group" id="grp-appli"></div></div>
-    <div class="form-group" id="fg-variantes"><label>Variantes (couleur + laize)</label>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Une ligne par combinaison réelle en stock. Laisse la couleur vide pour un imprimable/plastification.</div>
+    <div class="form-group" id="fg-variantes"><label>Variantes</label>
+      <div id="var-hint" style="font-size:10px;color:var(--muted);margin-bottom:6px;"></div>
       <div id="variantes-rows"></div>
-      <button type="button" onclick="addVarianteRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter une variante</button>
+      <button type="button" id="btn-add-variante" onclick="addVarianteRow()" style="margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Ajouter une variante</button>
       <datalist id="couleurs-list"><option value="Blanc"><option value="Noir"><option value="Gris"><option value="Rouge"><option value="Bleu"><option value="Vert"><option value="Jaune"><option value="Orange"><option value="Violet"><option value="Rose"><option value="Marron"><option value="Beige"><option value="Argent"><option value="Or"><option value="Transparent"></datalist>
     </div>
     <div class="form-group form-row"><div style="flex:1"><label id="label-prix">Prix au m² (€ HT)</label><input type="number" id="modal-prix" placeholder="Ex: 4.50" min="0" step="0.01" style="width:100%"></div><div style="flex:1"><label>Commentaire (optionnel)</label><textarea id="modal-note" placeholder="Infos supplémentaires..." style="height:80px"></textarea></div></div>
@@ -2654,25 +2655,55 @@ function switchTab(cat) {
 
 let editingId = null;
 // ===== Éditeur de variantes (couleur + laize) =====
-function addVarianteRow(couleur = '', largeur = '') {
+// Mode de variantes de la catégorie affichée ('laize' | 'couleur' | 'plaque')
+function _varMode() {
+  const c = CATS[document.getElementById('modal-cat').value];
+  return (c && c.varMode) || 'laize';
+}
+const _inpStyle = 'background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:\'DM Mono\',monospace;font-size:12px;padding:6px 10px;outline:none;';
+
+function addVarianteRow(couleur = '', largeur = '', hauteur = '', epaisseur = '') {
+  const mode = _varMode();
   const row = document.createElement('div');
   row.className = 'variante-row';
-  row.style.cssText = 'display:flex;gap:8px;margin-top:6px;align-items:center;';
-  row.innerHTML = `
-    <input type="text" list="couleurs-list" class="var-couleur" placeholder="Couleur (optionnel)" value="${String(couleur || '').replace(/"/g, '&quot;')}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
-    <input type="number" class="var-largeur" placeholder="Laize (mm)" value="${largeur || ''}" min="1" max="6000" style="width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:6px 10px;outline:none;">
-    <button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;width:28px;height:28px;color:var(--danger);cursor:pointer;font-size:12px;flex-shrink:0;" title="Retirer">✕</button>`;
+  row.style.cssText = 'display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap;';
+  const esc = v => String(v || '').replace(/"/g, '&quot;');
+  const supp = `<button type="button" onclick="this.parentElement.remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;width:28px;height:28px;color:var(--danger);cursor:pointer;font-size:12px;flex-shrink:0;" title="Retirer">✕</button>`;
+
+  if (mode === 'plaque') {
+    // Panneau : une plaque se définit par un FORMAT (largeur × hauteur) et une épaisseur — pas de laize
+    row.innerHTML = `
+      <input type="number" class="var-largeur" placeholder="Largeur (mm)" value="${largeur || ''}" min="1" max="10000" style="width:120px;${_inpStyle}">
+      <span style="color:var(--muted);font-size:12px;">×</span>
+      <input type="number" class="var-hauteur" placeholder="Hauteur (mm)" value="${hauteur || ''}" min="1" max="10000" style="width:120px;${_inpStyle}">
+      <input type="number" class="var-epaisseur" placeholder="Épaisseur (mm)" value="${epaisseur || ''}" min="0.1" max="100" step="0.1" style="width:130px;${_inpStyle}">
+      ${supp}`;
+  } else if (mode === 'couleur') {
+    row.innerHTML = `
+      <input type="text" list="couleurs-list" class="var-couleur" placeholder="Couleur / teinte" value="${esc(couleur)}" style="flex:1;min-width:130px;${_inpStyle}">
+      <input type="number" class="var-largeur" placeholder="Largeur rouleau (mm)" value="${largeur || ''}" min="1" max="6000" style="width:150px;${_inpStyle}">
+      ${supp}`;
+  } else {
+    row.innerHTML = `
+      <input type="number" class="var-largeur" placeholder="Laize / largeur de rouleau (mm)" value="${largeur || ''}" min="1" max="6000" style="flex:1;min-width:150px;${_inpStyle}">
+      ${supp}`;
+  }
   document.getElementById('variantes-rows').appendChild(row);
 }
 
 function getVariantes() {
+  const mode = _varMode();
   const seen = new Set();
+  const val = (r, cls) => { const el = r.querySelector(cls); return el ? el.value.trim() : ''; };
   return [...document.querySelectorAll('#variantes-rows .variante-row')].map(r => ({
-    couleur: r.querySelector('.var-couleur').value.trim() || null,
-    largeur: parseFloat(r.querySelector('.var-largeur').value) || null,
+    couleur: val(r, '.var-couleur') || null,
+    largeur: parseFloat(val(r, '.var-largeur')) || null,
+    hauteur: parseFloat(val(r, '.var-hauteur')) || null,
+    epaisseur: parseFloat(val(r, '.var-epaisseur')) || null,
   })).filter(v => {
-    if (!v.couleur && !v.largeur) return false;
-    const key = `${(v.couleur || '').toLowerCase()}|${v.largeur || ''}`;
+    // Une plaque doit avoir ses deux dimensions ; ailleurs, couleur ou largeur suffit
+    if (mode === 'plaque' ? !(v.largeur && v.hauteur) : (!v.couleur && !v.largeur)) return false;
+    const key = `${(v.couleur || '').toLowerCase()}|${v.largeur || ''}|${v.hauteur || ''}|${v.epaisseur || ''}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -2681,7 +2712,7 @@ function getVariantes() {
 
 function setVariantes(variantes) {
   document.getElementById('variantes-rows').innerHTML = '';
-  (variantes || []).forEach(v => addVarianteRow(v.couleur || '', v.largeur || ''));
+  (variantes || []).forEach(v => addVarianteRow(v.couleur || '', v.largeur || '', v.hauteur || '', v.epaisseur || ''));
   if (!(variantes || []).length) addVarianteRow();
 }
 
@@ -2695,18 +2726,21 @@ const DUREE_STD = ['Courte durée (< 1 an)', 'Moyenne durée (1-3 ans)', 'Longue
 const ADH_STD = ['Amovible', 'Standard', 'Renforcée', 'Très forte (colle béton)'];
 const RES_STD = ['UV', 'Humidité', 'Chaleur', 'Froid', 'Rayures'];
 
+// varMode : 'laize' (rouleau) · 'couleur' (couleur + laize) · 'plaque' (format L×H + épaisseur) · false (aucune)
 const CATS = {
   imprimable: {
     label: 'Imprimable', couleur: 'var(--cat-print)', nom: 'Ex: ORAJET 3551 Blanc Mat',
-    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    matieres: ['Vinyl monomère', 'Vinyl polymère', 'Vinyl coulé', 'PVC adhésif', 'Papier adhésif', 'Toile / Canvas', 'Textile polyester', 'Vinyl sol (antidérapant)', 'Film repositionnable'],
+    varMode: 'laize',
     finitions: [...FIN_STD, 'Transparent', 'Translucide (caisson lumineux)', 'Blanc bloquant'],
     adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD, resistances: RES_STD,
     applications: ['Vitrine', 'Véhicule', 'Mur / Cloison', 'Sol', 'Panneau / Signalétique', 'Événementiel temporaire'],
   },
   plastification: {
     label: 'Plastification', couleur: 'var(--cat-plastification)', nom: 'Ex: Film de lamination brillant 80µ',
-    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
-    hint: '🛡 La plastification se pose PAR-DESSUS un visuel imprimé pour le protéger. La finition change le rendu final (brillant, mat, satiné, anti-dérapant pour le sol). Renseigne durabilité et résistances : elles servent à décider quand la recommander.',
+    matieres: ['Vinyl monomère', 'Vinyl polymère', 'Vinyl coulé', 'PET', 'Polypropylène', 'Film anti-graffiti', 'Film antidérapant (sol)'],
+    varMode: 'laize',
+    hint: '🛡 La plastification se pose PAR-DESSUS un visuel imprimé pour le protéger. La finition change le rendu final (brillant, mat, satiné, antidérapant pour le sol). Renseigne durabilité et résistances : elles servent à décider quand la recommander.',
     finitions: [...FIN_STD, 'Anti-dérapante (sol)', 'Anti-graffiti', 'Texturée'],
     adherences: null, envs: ENV_STD, durees: DUREE_STD,
     resistances: [...RES_STD, 'Solvants / nettoyants', 'Anti-graffiti', 'Passage piéton'],
@@ -2714,36 +2748,41 @@ const CATS = {
   },
   dao: {
     label: 'Couleur DAO', couleur: 'var(--cat-dao)', nom: 'Ex: ORACAL 651 Rouge brillant',
-    varLabel: 'Variantes (couleur + laize, mm)',
+    matieres: ['Vinyl monomère', 'Vinyl polymère', 'Vinyl coulé', 'Vinyl réfléchissant', 'Vinyl sablé / dépoli'],
+    varMode: 'couleur',
     finitions: [...FIN_STD, 'Transparent', 'Métallisé', 'Fluorescent', 'Réfléchissant'],
     adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD, resistances: RES_STD,
     applications: ['Vitrine', 'Véhicule', 'Mur / Cloison', 'Panneau / Signalétique', 'Lettrage / Découpe'],
   },
   texture: {
-    label: 'Texturé / Effet', couleur: '#f0844a', nom: 'Ex: 3M DI-NOC effet bois / Vinyle carbone 3D',
-    varLabel: 'Variantes (texture/couleur + laize, mm)',
-    hint: '✨ Adhésif à texture ou effet décoratif spécial. Précise bien la texture dans la finition : c\'est ce que l\'IA utilisera pour le proposer quand un client demande un rendu particulier.',
+    label: 'Texturé / Effet', couleur: 'var(--cat-texture)', nom: 'Ex: 3M DI-NOC effet bois / Vinyle carbone 3D',
+    matieres: ['Vinyl coulé', 'Vinyl polymère', 'PVC texturé', 'Film architectural', 'Film sol antidérapant'],
+    varMode: 'couleur',
+    hint: '✨ Adhésif à texture ou effet décoratif. Choisis bien l\'effet dans « Texture / Effet » : c\'est ce que l\'IA utilisera pour le proposer quand un client demande un rendu particulier.',
     finitions: ['Carbone 3D/4D', 'Effet brossé / Aluminium', 'Effet bois', 'Effet cuir', 'Effet ardoise / béton', 'Sablé / Grainé', 'Pailleté / Glitter', 'Miroir', 'Holographique', 'Velours / Suédine', 'Phosphorescent', 'Fluorescent', 'Autre texture'],
     adherences: ADH_STD, envs: ENV_STD, durees: DUREE_STD,
     resistances: [...RES_STD, 'Passage piéton'],
     applications: ['Mur / Cloison', 'Mobilier / Agencement', 'Véhicule', 'Vitrine', 'Porte / Escalier', 'Décoration intérieure'],
+    labels: { finition: 'Texture / Effet', couleur: 'Couleur / Teinte' },
   },
   flocage: {
-    label: 'Flocage textile', couleur: '#f04a9e', nom: 'Ex: Flex thermocollant Noir 50 cm',
-    varLabel: 'Variantes (couleur + laize, mm)',
-    hint: '👕 Matières pour le TEXTILE, appliquées à la presse à chaud. Renseigne la température et le temps de pressage dans le commentaire : ces infos remontent dans les conseils de préparation.',
-    finitions: ['Flex lisse', 'Flock velours', 'Flex pailleté', 'Flex métallisé / Miroir', 'Flex réfléchissant', 'Flex fluo', 'Film imprimable (DTF / éco-solvant)', 'Sublimation', 'Sérigraphie'],
+    label: 'Flocage textile', couleur: 'var(--cat-flocage)', nom: 'Ex: Flex thermocollant Noir 50 cm',
+    matieres: ['Flex PU (polyuréthane)', 'Flex PVC', 'Flock (velours)', 'Film DTF', 'Papier sublimation', 'Encre sérigraphie', 'Flex spécial nylon / sport'],
+    varMode: 'couleur',
+    hint: '👕 Matières pour le TEXTILE, appliquées à la presse à chaud. Note la température et le temps de pressage dans le commentaire : ces infos remontent dans les conseils de préparation.',
+    finitions: ['Lisse / Mat', 'Brillant', 'Pailleté / Glitter', 'Métallisé / Miroir', 'Réfléchissant', 'Fluo', 'Velours', 'Imprimable (DTF / éco-solvant)'],
     adherences: null, envs: null,
     durees: ['Peu de lavages (< 20)', 'Résistant au lavage (20-50)', 'Très résistant (50 lavages+)'],
     resistances: ['Lavage 40°', 'Lavage 60°', 'Sèche-linge', 'Repassage', 'Étirement / Élasthanne'],
     applications: ['T-shirt / Polo', 'Sweat / Veste', 'Casquette', 'Sac / Tote bag', 'Vêtement de travail', 'Textile sportif'],
-    labels: { duree: 'Tenue au lavage', resist: 'Résistances textile', appli: 'Supports textiles' },
+    labels: { duree: 'Tenue au lavage', resist: 'Résistances textile', appli: 'Supports textiles', matiere: 'Type de flocage', varLabel: 'Coloris disponibles (couleur + largeur du rouleau/feuille, mm)' },
   },
   transfert: {
     label: 'Papier transfert', couleur: 'var(--cat-transfert)', nom: 'Ex: Papier transfert application 100 g',
-    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    matieres: ['Papier', 'Film polypropylène', 'Film PET'],
+    varMode: 'laize',
     hint: '📄 Support d\'aide à la pose : il transfère le lettrage découpé du liner vers la surface finale.',
-    finitions: ['Papier', 'Film transparent', 'Quadrillé (repères)'],
+    finitions: ['Opaque', 'Transparent', 'Quadrillé (repères)'],
     adherences: ['Tack faible', 'Tack moyen', 'Tack fort'],
     envs: null, durees: null, resistances: null,
     applications: ['Lettrage / Découpe', 'Grandes surfaces', 'Petits détails'],
@@ -2751,7 +2790,8 @@ const CATS = {
   },
   covering: {
     label: 'Covering véhicule', couleur: 'var(--cat-covering)', nom: 'Ex: 3M 2080 Covering brillant',
-    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    matieres: ['Vinyl coulé (premium)', 'Vinyl polymère', 'Film covering PVC'],
+    varMode: 'couleur',
     finitions: [...FIN_STD, 'Carbone', 'Métallisé', 'Chromé', 'Caméléon', 'Texturé'],
     adherences: ['Repositionnable (canaux d\'air)', 'Standard', 'Renforcée'],
     envs: ['Extérieur', 'Intérieur et extérieur'], durees: DUREE_STD,
@@ -2760,7 +2800,8 @@ const CATS = {
   },
   vitre: {
     label: 'Vitre / Solaire', couleur: 'var(--cat-vitre)', nom: 'Ex: Film dépoli / micro-perforé 50/50',
-    varLabel: 'Laizes disponibles (largeur de rouleau, mm)',
+    matieres: ['Polyester (PET)', 'Vinyl adhésif', 'Film statique (sans colle)', 'Film micro-perforé', 'Film de sécurité'],
+    varMode: 'laize',
     finitions: ['Transparent', 'Dépoli / Sablé', 'Micro-perforé (one-way)', 'Occultant', 'Miroir sans tain', 'Solaire teinté', 'Anti-UV / Anti-chaleur', 'Sécurité (anti-effraction)'],
     adherences: ['Adhésif permanent', 'Adhésif amovible', 'Statique (sans colle)'],
     envs: ['Intérieur (pose intérieure)', 'Extérieur (pose extérieure)', 'Intérieur et extérieur'],
@@ -2770,16 +2811,22 @@ const CATS = {
   },
   panneau: {
     label: 'Panneau rigide', couleur: 'var(--cat-panneau)', nom: 'Ex: Dibond 3 mm blanc',
-    varLabel: 'Formats de plaque disponibles (mm)',
-    finitions: ['Blanc brillant', 'Blanc mat', 'Brossé / Alu', 'Transparent (plexi)', 'Bois naturel', 'Coloré'],
+    matieres: ['Dibond / Alu composite', 'PVC expansé (Forex)', 'Aluminium plein', 'Plexiglas / PMMA', 'Polycarbonate', 'Akilux / Polypropylène alvéolaire', 'Bois / Contreplaqué', 'MDF', 'Carton-plume', 'Verre'],
+    varMode: 'plaque',
+    hint: '🪧 Support rigide : renseigne sa matière (elle détermine la tenue et le prix) et les formats de plaque dont tu disposes.',
+    finitions: ['Blanc brillant', 'Blanc mat', 'Brossé / Alu', 'Transparent', 'Bois naturel', 'Coloré', 'Brut'],
     adherences: null, envs: ENV_STD, durees: DUREE_STD,
     resistances: ['UV', 'Humidité', 'Chocs', 'Gel', 'Feu (classement M1)'],
     applications: ['Signalétique extérieure', 'Enseigne', 'Panneau de chantier', 'Décoration murale', 'Totem', 'Plaque professionnelle'],
-    labels: { finition: 'Aspect / Couleur du support' },
+    labels: { finition: 'Aspect / Couleur du support', matiere: 'Matière du panneau' },
   },
   encre: {
     label: 'Encre d\'impression', couleur: 'var(--cat-encre)', nom: 'Ex: Encre éco-solvant CMJN',
-    finitions: null, adherences: null, envs: null, durees: null, resistances: null, applications: null, variantes: false,
+    matieres: ['Éco-solvant', 'Solvant', 'UV', 'Latex', 'Sublimation', 'Aqueuse / Pigmentaire', 'Résine / DTF'],
+    varMode: false,
+    hint: '🖨 Le type d\'encre conditionne les supports compatibles et la tenue extérieure : renseigne-le pour que l\'IA en tienne compte.',
+    finitions: null, adherences: null, envs: null, durees: null, resistances: null, applications: null,
+    labels: { matiere: 'Type d\'encre' },
   },
 };
 const ALL_CATS = Object.keys(CATS);
@@ -2802,6 +2849,14 @@ function renderCatFields() {
   const c = CATS[cat] || CATS.imprimable;
   const lab = c.labels || {};
 
+  // Matière / composition (dibond, vinyl coulé, flex PU, type d'encre…)
+  const fgMat = document.getElementById('fg-matiere');
+  if (c.matieres && c.matieres.length) {
+    fgMat.style.display = '';
+    document.getElementById('lab-matiere').textContent = lab.matiere || 'Matière';
+    document.getElementById('modal-matiere').innerHTML = '<option value="">— non précisée —</option>' + c.matieres.map(m => `<option value="${m}">${m}</option>`).join('');
+  } else fgMat.style.display = 'none';
+
   const fgFin = document.getElementById('fg-finition');
   if (c.finitions && c.finitions.length) {
     fgFin.style.display = '';
@@ -2815,10 +2870,24 @@ function renderCatFields() {
   _renderChoix('fg-resist', 'grp-resist', 'lab-resist', c.resistances, 'checkbox', 'resist', lab.resist || 'Résistances');
   _renderChoix('fg-appli', 'grp-appli', 'lab-appli', c.applications, 'checkbox', 'appli', lab.appli || 'Applications typiques');
 
+  // Variantes : intitulé et aide adaptés au mode (rouleau / couleur / plaque)
   const fgVar = document.getElementById('fg-variantes');
-  if (fgVar) fgVar.style.display = c.variantes === false ? 'none' : '';
+  const mode = c.varMode === undefined ? 'laize' : c.varMode;
+  if (fgVar) fgVar.style.display = mode === false ? 'none' : '';
   const varLabel = document.querySelector('#fg-variantes > label');
-  if (varLabel && c.varLabel) varLabel.textContent = c.varLabel;
+  const varHint = document.getElementById('var-hint');
+  const varBtn = document.getElementById('btn-add-variante');
+  const textes = {
+    laize: ['Laizes disponibles (largeur de rouleau)', 'Une ligne par largeur de rouleau que tu as en stock. Sert au calcul du plan de lés.', '+ Ajouter une laize'],
+    couleur: ['Coloris disponibles (couleur + largeur)', 'Une ligne par combinaison réellement en stock : l\'IA ne proposera que celles-ci.', '+ Ajouter un coloris'],
+    plaque: ['Formats de plaque disponibles', 'Une ligne par format que tu as en stock (largeur × hauteur, et l\'épaisseur si tu la gères).', '+ Ajouter un format'],
+  };
+  if (mode !== false) {
+    const t = textes[mode] || textes.laize;
+    if (varLabel) varLabel.textContent = (lab.varLabel) || t[0];
+    if (varHint) varHint.textContent = t[1];
+    if (varBtn) varBtn.textContent = t[2];
+  }
 
   document.getElementById('label-prix').textContent = cat === 'encre' ? 'Coût encre au m² imprimé (€ HT)'
     : cat === 'panneau' ? 'Prix à la plaque / m² (€ HT)'
@@ -2829,7 +2898,12 @@ function renderCatFields() {
 }
 // Conservé sous son ancien nom : appelé à l'ouverture/édition de la fiche
 function toggleEncreFields() { renderCatFields(); }
-document.getElementById('modal-cat').addEventListener('change', renderCatFields);
+// Changement de catégorie : les champs ET le format des variantes changent (laize ↔ couleur ↔ plaque)
+document.getElementById('modal-cat').addEventListener('change', () => {
+  renderCatFields();
+  const gardees = getVariantes();
+  setVariantes(gardees.length ? gardees : []);
+});
 
 // Onglets, panneaux et menu de catégories construits depuis CATS
 (function buildCatUI() {
@@ -2875,6 +2949,11 @@ function openEditModal(id) {
   renderCatFields();  // d'abord les options de la catégorie, ensuite on coche les valeurs enregistrées
   document.getElementById('modal-nom').value = item.nom;
   document.getElementById('modal-note').value = item.note || '';
+  const selMat = document.getElementById('modal-matiere');
+  if (selMat && item.matiere) {
+    if (![...selMat.options].some(o => o.value === item.matiere)) selMat.insertAdjacentHTML('beforeend', `<option value="${item.matiere}">${item.matiere}</option>`);
+    selMat.value = item.matiere;
+  } else if (selMat) selMat.value = '';
   const selFin = document.getElementById('modal-finition');
   if (selFin && item.finition) {
     // Ancienne valeur absente de la liste (catégorie modifiée depuis) : on l'ajoute pour ne rien perdre
@@ -2912,11 +2991,13 @@ async function saveAdhesif() {
   const isEncre = document.getElementById('modal-cat').value === 'encre';
   const numOrNull = id => { const v = document.getElementById(id).value.trim(); const n = parseFloat(v); return v !== '' && isFinite(n) ? n : null; };
   const qte = { quantite_m2: numOrNull('modal-quantite'), seuil_alerte: numOrNull('modal-seuil'), chutes: readChutes() };
+  const matiere = document.getElementById('fg-matiere').style.display === 'none' ? '' : document.getElementById('modal-matiere').value;
   const body = isEncre ? {
     cat: 'encre',
     nom,
     finition: '—', adherence: '—', env: '—', duree: '—',
     resistances: [], applications: [], largeurs: [], couleurs: [], variantes: [],
+    matiere,
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
     ...qte,
@@ -2931,6 +3012,7 @@ async function saveAdhesif() {
     resistances: [...document.querySelectorAll('input[name="resist"]:checked')].map(i => i.value),
     applications: [...document.querySelectorAll('input[name="appli"]:checked')].map(i => i.value),
     variantes: getVariantes(),
+    matiere,
     prix_m2: parseFloat(document.getElementById('modal-prix').value) || null,
     note: document.getElementById('modal-note').value.trim(),
     ...qte,
@@ -3009,7 +3091,11 @@ function renderList(cat, items) {
     const tags = [item.adherence, item.env, item.duree, ...(item.resistances||[])].filter(clean);
     const tagsHTML = tags.slice(0,4).map(t => `<span class="spec-tag">${t}</span>`).join('');
     const vars = item.variantes || [];
-    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${vars.map(v => `${v.couleur || 'Std'}${v.largeur ? ' ' + normMm(v.largeur) + 'mm' : ''}`).join(' · ')}</span>` : '';
+    // Plaques (panneaux) : format L×H (+ épaisseur) ; rouleaux : couleur et/ou laize
+    const varsHTML = vars.length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">${vars[0].hauteur ? '📐 ' : '🎨 '}${vars.map(v => v.hauteur
+        ? `${normMm(v.largeur)}×${normMm(v.hauteur)}mm${v.epaisseur ? ' ép.' + v.epaisseur + 'mm' : ''}`
+        : `${v.couleur || 'Std'}${v.largeur ? ' ' + normMm(v.largeur) + 'mm' : ''}`).join(' · ')}</span>` : '';
+    const matHTML = item.matiere ? `<span class="spec-tag" style="color:#8ab4f8;border-color:#8ab4f855;">🧱 ${item.matiere}</span>` : '';
     const largHTML = !vars.length && (item.largeurs||[]).length ? `<span class="spec-tag largeur-tag">📏 ${item.largeurs.map(l=>normMm(l)+'mm').join(' · ')}</span>` : '';
     const coulHTML = !vars.length && (item.couleurs||[]).length ? `<span class="spec-tag" style="color:#c8a060;border-color:#c8a060">🎨 ${item.couleurs.join(' · ')}</span>` : '';
     const prixHTML = item.prix_m2 ? `<span class="spec-tag prix-tag">💶 ${parseFloat(item.prix_m2).toFixed(2)} €/m²</span>` : '';
@@ -3019,7 +3105,7 @@ function renderList(cat, items) {
     const chutesHTML = (item.chutes || []).length
       ? `<span class="spec-tag" style="color:#4af0c8;border-color:#4af0c866;" title="Proposées automatiquement par l'IA quand un visuel y tient">♻ ${item.chutes.map(c => `${c.l_cm}×${c.h_cm}`).join(' · ')} cm</span>` : '';
     return `<div class="adhesif-item" data-stock-id="${item.id}">
-      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${qteHTML}${chutesHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
+      <div class="adhesif-info"><div class="adhesif-name">${item.nom}</div><div class="adhesif-tags">${matHTML}${tagsHTML}${largHTML}${coulHTML}${varsHTML}${prixHTML}${qteHTML}${chutesHTML}${item.note?`<span class="spec-tag note-tag">📝 ${item.note}</span>`:''}</div></div>
       <div class="finition-badge" ${clean(item.finition) ? '' : 'style="display:none"'}>${item.finition}</div>
       <div class="toggle-wrap"><span class="toggle-label">${item.dispo?'Dispo':'Épuisé'}</span><label class="toggle"><input type="checkbox" ${item.dispo?'checked':''} onchange="toggleDispo(${item.id},this.checked)"><span class="slider"></span></label></div>
       <button class="btn-edit" onclick="openEditModal(${item.id})">✎</button>

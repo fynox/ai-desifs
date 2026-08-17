@@ -111,13 +111,13 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], couleurs = [], variantes = [], chutes = [], prix_m2 = null, note = '', dispo = true, quantite_m2 = null, seuil_alerte = null } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances = [], applications = [], largeurs = [], couleurs = [], variantes = [], chutes = [], matiere = '', prix_m2 = null, note = '', dispo = true, quantite_m2 = null, seuil_alerte = null } = req.body;
   if (!cat || !nom || !finition || !adherence || !env || !duree) return res.status(400).json({ error: 'Champs manquants.' });
   if (!CATS.includes(cat)) return res.status(400).json({ error: 'Catégorie inconnue.' });
   const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
   const result = db.prepare(
-    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,chutes,prix_m2,note,dispo,quantite_m2,seuil_alerte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), JSON.stringify(largeurs), JSON.stringify(couleurs), JSON.stringify(variantes), JSON.stringify(chutes), prix_m2, note, dispo ? 1 : 0, num(quantite_m2), num(seuil_alerte));
+    'INSERT INTO stock (user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,chutes,matiere,prix_m2,note,dispo,quantite_m2,seuil_alerte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(req.user.id, cat, nom, finition, adherence, env, duree, JSON.stringify(resistances), JSON.stringify(applications), JSON.stringify(largeurs), JSON.stringify(couleurs), JSON.stringify(variantes), JSON.stringify(chutes), String(matiere || '').slice(0, 80), prix_m2, note, dispo ? 1 : 0, num(quantite_m2), num(seuil_alerte));
   const row = db.prepare('SELECT * FROM stock WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(parseItem(row));
 });
@@ -125,10 +125,10 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const item = db.prepare('SELECT * FROM stock WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!item) return res.status(404).json({ error: 'Référence introuvable.' });
-  const { cat, nom, finition, adherence, env, duree, resistances, applications, largeurs, couleurs, variantes, chutes, prix_m2, note, dispo, quantite_m2, seuil_alerte } = req.body;
+  const { cat, nom, finition, adherence, env, duree, resistances, applications, largeurs, couleurs, variantes, chutes, matiere, prix_m2, note, dispo, quantite_m2, seuil_alerte } = req.body;
   const num = v => (v === null || v === '' || isNaN(Number(v))) ? null : Number(v);
   db.prepare(
-    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,largeurs=?,couleurs=?,variantes=?,chutes=?,prix_m2=?,note=?,dispo=?,quantite_m2=?,seuil_alerte=? WHERE id=?'
+    'UPDATE stock SET cat=?,nom=?,finition=?,adherence=?,env=?,duree=?,resistances=?,applications=?,largeurs=?,couleurs=?,variantes=?,chutes=?,matiere=?,prix_m2=?,note=?,dispo=?,quantite_m2=?,seuil_alerte=? WHERE id=?'
   ).run(
     cat ?? item.cat, nom ?? item.nom, finition ?? item.finition,
     adherence ?? item.adherence, env ?? item.env, duree ?? item.duree,
@@ -138,6 +138,7 @@ router.put('/:id', (req, res) => {
     JSON.stringify(couleurs ?? JSON.parse(item.couleurs || '[]')),
     JSON.stringify(variantes ?? JSON.parse(item.variantes || '[]')),
     JSON.stringify(chutes ?? JSON.parse(item.chutes || '[]')),
+    matiere !== undefined ? String(matiere || '').slice(0, 80) : (item.matiere || ''),
     prix_m2 !== undefined ? prix_m2 : item.prix_m2,
     note ?? item.note,
     dispo !== undefined ? (dispo ? 1 : 0) : item.dispo,

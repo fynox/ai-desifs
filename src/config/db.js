@@ -147,6 +147,7 @@ const migrations = [
   'ALTER TABLE analyses ADD COLUMN devis_client_commentaire TEXT',
   'ALTER TABLE analyses ADD COLUMN facture_payee_at TEXT',      // date d encaissement (suivi payee / en retard)
   'ALTER TABLE stock ADD COLUMN chutes TEXT DEFAULT \'[]\'',    // chutes réutilisables [{l_cm, h_cm, note}]
+  'ALTER TABLE stock ADD COLUMN matiere TEXT DEFAULT \'\'',     // matière/composition (dibond, vinyl coulé, flex PU, encre UV…)
   // Bon de réception signé par le client sur le téléphone du poseur (fin de pose)
   'ALTER TABLE analyses ADD COLUMN job_signature_b64 TEXT',
   'ALTER TABLE analyses ADD COLUMN job_signature_nom TEXT',
@@ -292,31 +293,15 @@ try {
   if (row && row.sql && row.sql.includes('CHECK')) {
     db.pragma('foreign_keys = OFF');
     db.exec('DROP TABLE IF EXISTS stock_new');
+    // La nouvelle table est construite à partir du schéma RÉEL de l'existante, en retirant
+    // seulement la clause CHECK : ainsi toute colonne ajoutée par une migration est conservée.
+    const sqlNew = row.sql
+      .replace(/\s*CHECK\s*\(\s*cat\s+IN\s*\([^)]*\)\s*\)/i, '')
+      .replace(/CREATE TABLE\s+["'`]?stock["'`]?/i, 'CREATE TABLE stock_new');
+    const cols = db.prepare(`PRAGMA table_info(stock)`).all().map(c => `"${c.name}"`).join(',');
     db.exec(`
-      CREATE TABLE stock_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        cat TEXT NOT NULL,
-        nom TEXT NOT NULL,
-        finition TEXT NOT NULL,
-        adherence TEXT NOT NULL,
-        env TEXT NOT NULL,
-        duree TEXT NOT NULL,
-        resistances TEXT DEFAULT '[]',
-        applications TEXT DEFAULT '[]',
-        largeurs TEXT DEFAULT '[]',
-        couleurs TEXT DEFAULT '[]',
-        variantes TEXT DEFAULT '[]',
-        prix_m2 REAL,
-        note TEXT DEFAULT '',
-        dispo INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now')),
-        quantite_m2 REAL,
-        seuil_alerte REAL,
-        chutes TEXT DEFAULT '[]'
-      );
-      INSERT INTO stock_new (id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo,created_at,quantite_m2,seuil_alerte,chutes)
-        SELECT id,user_id,cat,nom,finition,adherence,env,duree,resistances,applications,largeurs,couleurs,variantes,prix_m2,note,dispo,created_at,quantite_m2,seuil_alerte,chutes FROM stock;
+      ${sqlNew};
+      INSERT INTO stock_new (${cols}) SELECT ${cols} FROM stock;
       DROP TABLE stock;
       ALTER TABLE stock_new RENAME TO stock;
     `);

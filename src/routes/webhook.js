@@ -165,7 +165,14 @@ router.post('/sendgrid/inbound', upload.any(), async (req, res) => {
           : (lar.length ? ' | laizes: ' + lar.join(', ') + ' cm' : '');
         const chs = JSON.parse(i.chutes || '[]').filter(c => c && Number(c.l_cm) > 0 && Number(c.h_cm) > 0);
         const chTxt = chs.length ? ' | CHUTES réutilisables en stock: ' + chs.map(c => `${c.l_cm}×${c.h_cm} cm`).join(', ') : '';
-        return `• ${i.nom} | ${i.finition} | ${i.adherence} | ${i.env} | ${i.duree}${varTxt}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${chTxt}${i.note ? ' | ' + i.note : ''}`;
+        // Panneaux : formats de plaque (L×H, épaisseur) au lieu des laizes de rouleau
+        const plaques = vars.filter(v => v && v.hauteur);
+        const plaqueTxt = plaques.length ? ' | formats de plaque disponibles: ' + plaques.map(v => `${v.largeur}×${v.hauteur} mm${v.epaisseur ? ' ép. ' + v.epaisseur + ' mm' : ''}`).join(', ') : '';
+        const matTxt = i.matiere ? ` | matière: ${i.matiere}` : '';
+        // Champs non renseignés (catégories qui n'en ont pas l'usage) : exclus du prompt
+        const vide = v => !v || /^[-–—\s]*$/.test(String(v));
+        const champs = [i.finition, i.adherence, i.env, i.duree].filter(v => !vide(v)).join(' | ');
+        return `• ${i.nom}${matTxt}${champs ? ' | ' + champs : ''}${plaques.length ? plaqueTxt : varTxt}${res2.length ? ' | ' + res2.join(', ') : ''}${app.length ? ' | ' + app.join(', ') : ''}${chTxt}${i.note ? ' | ' + i.note : ''}`;
       }).join('\n');
     }).filter(Boolean).join('\n\n');
 
